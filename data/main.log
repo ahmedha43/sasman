@@ -1,0 +1,17 @@
+2026/04/25 12:19:34 [Init] Successfully loaded app groups and ip groups
+2026/04/25 12:19:34 [Config] Loaded previous session for 192.168.88.1:8728
+FreeRADIUS SQLite Engine Synchronized.
+2026/04/25 12:19:34 Starting SASMAN Unified Server on :8080...
+2026/04/25 12:19:34   Admin Panel: http://localhost:8080/admin
+2026/04/25 12:19:34   RADIUS Panel: http://localhost:8080/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 109  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 356 │ 
+ └───────────────────────────────────────────────────┘ 
+

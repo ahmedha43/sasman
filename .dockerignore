@@ -1,0 +1,10 @@
+config.json
+tools/
+LICENSE_GENERATOR.go
+.git
+.dockerignore
+Dockerfile
+**/target
+**/node_modules
+*.exe
+*.log

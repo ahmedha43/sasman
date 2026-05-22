@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SASMAN MikroTik Manager</title>
+    <link href="/admin/fonts/google-fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="/admin/css/style.css">
+</head>
+
+<body>
+    <div id="login-overlay">
+        <div class="login-card">
+            <h2 style="text-align:center; margin-bottom:30px; color:#1e293b;">تسجيل الدخول للنظام</h2>
+            <label>عنوان IP الراوتر:</label>
+            <input type="text" id="login-ip" value="192.168.88.1:8728">
+            <label>اسم المستخدم:</label>
+            <input type="text" id="login-user" value="admin">
+            <label>كلمة المرور:</label>
+            <input type="password" id="login-pass" value="">
+            <button class="btn btn-primary" style="margin-top:25px;" onclick="login()">دخول الآن</button>
+            <p id="login-error" style="color:#ef4444; text-align:center; margin-top:15px; font-size:0.9rem;"></p>
+        </div>
+    </div>
+
+    <div class="container locked" id="main-container">
+        <header>
+            <h1 style="color:#1e293b; font-size:2.5rem; margin-bottom:10px;">MikroTik Pro Manager</h1>
+            <p style="color:#64748b;">الإدارة المتقدمة للشبكات - 100% Logic Parity</p>
+
+            <!-- Cloudflare Tunnel URL Section -->
+            <div id="cloudflared-section" class="card"
+                style="margin-top:20px; background:linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border:1px solid #0ea5e9; display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px;">
+                    <div>
+                        <h3 style="margin:0; color:#0284c7; font-size:1.1rem;">🌐 روابط الوصول عن بُعد (Remote Access)
+                        </h3>
+                        <p id="cloudflared-loading"
+                            style="margin:2px 0 0 0; color:#0284c7; font-size:0.8rem; font-weight:bold; animation: pulse 2s infinite;">
+                            ⏳ جاري تحضير الاتصال الآمن... يرجى الانتظار</p>
+                        <p id="cloudflared-hint"
+                            style="margin:2px 0 0 0; color:#64748b; font-size:0.8rem; display:none;">استخدم هذه الروابط
+                            للوصول إلى النظام والراوتر من خارج الشبكة</p>
+                    </div>
+
+                    <!-- Ngrok Token Config -->
+                    <div id="ngrok-config-section"
+                        style="display:flex; align-items:center; gap:8px; background:white; padding:5px 10px; border-radius:6px; border:1px solid #bae6fd;">
+                        <input type="password" id="ngrok-token-input" placeholder="أدخل Ngrok Auth Token هنا..."
+                            style="border:none; outline:none; font-size:11px; width:180px; background:transparent;">
+                        <button class="btn btn-primary"
+                            style="padding:4px 8px; font-size:10px; width:auto; background:#0284c7;"
+                            onclick="saveNgrokToken()">حفظ وتشغيل</button>
+                        <a href="https://dashboard.ngrok.com/get-started/your-authtoken" target="_blank"
+                            style="font-size:10px; color:#0ea5e9; text-decoration:none;">احصل على الكود من هنا</a>
+                    </div>
+                    <div id="cloudflared-buttons" style="display:none; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <!-- Web Links -->
+                        <div id="web-links" style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn btn-primary"
+                                style="background:#0ea5e9; color:white; padding:8px 12px; font-size:11px; width:auto;"
+                                onclick="copyPathLink('/mikrotik')">📋 MikroTik Web</button>
+                            <button class="btn btn-success"
+                                style="background:#10b981; color:white; padding:8px 12px; font-size:11px; width:auto;"
+                                onclick="copyPathLink('/radius')">📋 SASMAN Radius</button>
+                            <button id="cloudflare-fallback-btn" class="btn"
+                                style="display:none; background:#f59e0b; color:white; padding:8px 12px; font-size:11px; width:auto;">📋
+                                Cloudflare Link</button>
+                        </div>
+                        <!-- WinBox Section (Ngrok Only) -->
+                        <div id="winbox-section"
+                            style="display:none; background:#f8fafc; border:1px dashed #cbd5e1; padding:4px 8px; border-radius:4px; align-items:center; gap:5px;">
+                            <span style="font-size:11px; color:#475569;">WinBox:</span>
+                            <code id="winbox-url" style="font-size:11px; color:#1e293b; font-weight:bold;">---</code>
+                            <button class="btn"
+                                style="background:#64748b; color:white; padding:4px 8px; font-size:10px; width:auto;"
+                                onclick="copyToClipboard(document.getElementById('winbox-url').innerText)">نسخ</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <style>
+                @keyframes pulse {
+                    0% {
+                        opacity: 0.6;
+                    }
+
+                    50% {
+                        opacity: 1;
+                    }
+
+                    100% {
+                        opacity: 0.6;
+                    }
+                }
+            </style>
+        </header>
+
+        <div class="tabs-header">
+            <button class="tab-btn active" onclick="showTab('wan')">WAN (الخارجية)</button>
+            <button class="tab-btn" onclick="showTab('lan')">LAN (المحلية)</button>
+            <button class="tab-btn" onclick="showTab('routing')">Routing (التوجيه)</button>
+            <button class="tab-btn" onclick="showTab('mikrotik')">MikroTik (WebFig)</button>
+            <button class="tab-btn" onclick="showTab('license')">تفعيل النظام 🔑</button>
+            <div style="margin-right:auto; display:flex; gap:10px;">
+                <button class="btn" style="background:#64748b; color:white; width:auto; padding:8px 15px;"
+                    onclick="logout()">تبديل الراوتر (خروج)</button>
+                <button class="btn" style="background:#ef4444; color:white; width:auto; padding:8px 15px;"
+                    onclick="purgeSystem()">تنظيف النظام</button>
+            </div>
+        </div>
+
+        <!-- TAB 1: WAN -->
+        <div id="tab-wan" class="tab-content active">
+            <div class="card" style="background:transparent; box-shadow:none; padding:0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2 style="margin:0;">إدارة خطوط الإنترنت (Multi-WAN)</h2>
+                    <div style="display:flex; gap:10px;">
+                        <select id="pcc-lan" style="width:auto; height:35px; padding:0 10px; font-size:12px; margin:0;">
+                            <option value="bridge">bridge (LAN)</option>
+                        </select>
+                        <select id="wan-classifier"
+                            style="width:auto; height:35px; padding:0 10px; font-size:12px; margin:0;">
+                            <option value="both-addresses-and-ports">Both Addresses & Ports (سرعة قصوى)</option>
+                            <option value="both-addresses">Both Addresses (موصى به)</option>
+                            <option value="src-address">Source Address</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="addWanPortCard()"
+                            style="width:auto; padding:0 15px; height:35px;">+ إضافة منفذ</button>
+                    </div>
+                </div>
+
+                <div id="wan-ports-container"></div>
+
+                <div class="card" style="margin-top:20px; background:#f8fafc; border:1px dashed #cbd5e1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <p style="margin:0; font-weight:bold; color:#475569;">إجمالي وزن الشبكة: <span
+                                    id="total-weight-display">0</span></p>
+                            <p style="margin:0; font-size:12px; color:#64748b;">سيتم توزيع الأحمال بناءً على النسب
+                                المئوية الموضحة أعلاه.</p>
+                        </div>
+                        <button class="btn btn-success" onclick="submitBatchWAN()"
+                            style="width:250px; height:50px; font-size:16px;">حفظ واختبار الدمج الشامل</button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top:30px;">
+                    <h3 style="margin-top:0;">إحصائيات الخطوط النشطة (Router Status)</h3>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%; border-collapse: collapse; margin-top:10px;">
+                            <thead>
+                                <tr style="background:#f1f5f9; border-bottom:2px solid #e2e8f0;">
+                                    <th style="padding:12px; text-align:right;">الواجهة</th>
+                                    <th style="padding:12px; text-align:right;">النوع</th>
+                                    <th style="padding:12px; text-align:right;">الحالة</th>
+                                    <th style="padding:12px; text-align:right;">الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="wan-status-tbody">
+                                <tr>
+                                    <td colspan="4" style="padding:20px; text-align:center; color:#64748b;">جارِ تحميل
+                                        الحالة...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: LAN -->
+        <div id="tab-lan" class="tab-content">
+            <div class="card">
+                <h2>إدارة الشبكة المحلية (Bridge & LAN)</h2>
+                <div class="grid">
+                    <div>
+                        <label>اسم البريج:</label>
+                        <input type="text" id="bridge-name" placeholder="bridge-local" value="bridge-local">
+                        <label>عنوان IP (Gateway):</label>
+                        <input type="text" id="bridge-ip" placeholder="192.168.10.1/24" value="192.168.10.1/24">
+                        <div
+                            style="margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                            <label style="margin-bottom: 5px;">إعداد الخدمات (اختياري):</label>
+                            <div style="display:flex; flex-direction:column; gap:10px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <label
+                                        style="display:flex; align-items:center; gap:8px; font-weight:normal; cursor:pointer; width:220px;">
+                                        <input type="checkbox" id="lan-opt-pppoe" style="width:18px; height:18px;"
+                                            onchange="document.getElementById('pppoe-ip').style.display = this.checked ? 'block' : 'none'">
+                                        <span style="color:#0ea5e9; font-weight:bold;">PPPoE Server</span>
+                                    </label>
+                                    <input type="text" id="pppoe-ip" placeholder="مثال: 10.10.10.1/24"
+                                        value="10.10.10.1/24"
+                                        style="display:none; width:100%; margin:0; padding:5px; font-size:12px;">
+                                </div>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <label
+                                        style="display:flex; align-items:center; gap:8px; font-weight:normal; cursor:pointer; width:220px;">
+                                        <input type="checkbox" id="lan-opt-hotspot" style="width:18px; height:18px;"
+                                            onchange="document.getElementById('hotspot-ip').style.display = this.checked ? 'block' : 'none'">
+                                        <span style="color:#f59e0b; font-weight:bold;">Hotspot Server</span>
+                                    </label>
+                                    <input type="text" id="hotspot-ip" placeholder="مثال: 5.5.5.1/24" value="5.5.5.1/24"
+                                        style="display:none; width:100%; margin:0; padding:5px; font-size:12px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label>المنافذ المحلية (اختر المنافذ للبريج):</label>
+                        <div id="lan-ports-selection"
+                            style="display:grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap:10px; background:#f8fafc; padding:15px; border-radius:10px; border:1px solid #e2e8f0; min-height:80px;">
+                            <p style="color:#64748b; font-size:0.8rem;">تحميل المنافذ...</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button class="btn btn-primary" onclick="setupBridge()" style="flex:1;">إنشاء وتجهيز الـ
+                        LAN</button>
+                    <button class="btn" onclick="purgeBridge()"
+                        style="background:#ef4444; color:white; width:auto; padding:10px 20px;">تصفير البريج 🗑</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Routing -->
+        <div id="tab-routing" class="tab-content">
+            <div class="grid">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                        <h2>التوجيه الذكي (PBR)</h2>
+                        <button class="btn btn-danger" onclick="purgeRouting()"
+                            style="padding: 10px 20px; width:auto;">تصفير التوجيه</button>
+                    </div>
+                    <label>التطبيق / المجموعة:</label>
+                    <select id="app-list">
+                        <option>جارِ التحميل...</option>
+                    </select>
+                    <label>الخط المفضل (Gateway):</label>
+                    <select id="gateway-list-routing">
+                        <option>جارِ التحميل...</option>
+                    </select>
+                    <div style="display:flex; gap:10px; margin-top:20px;">
+                        <button class="btn btn-success" onclick="applyRouting()">توجيه الآن</button>
+                        <button class="btn" style="background:#ef4444; color:white;" onclick="removeRouting()">حذف
+                            التوجيه</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:30px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="margin-top:0;">حالات التوجيه النشطة</h3>
+                    <button class="btn" onclick="loadRoutingStatus()"
+                        style="width:auto; padding:5px 15px; font-size:12px; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0;">تحديث
+                        ↻</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse: collapse; margin-top:10px;">
+                        <thead>
+                            <tr style="background:#f1f5f9; border-bottom:2px solid #e2e8f0;">
+                                <th style="padding:12px; text-align:right;">التطبيق</th>
+                                <th style="padding:12px; text-align:right;">البوابة (Gateway)</th>
+                                <th style="padding:12px; text-align:right;">الحالة</th>
+                                <th style="padding:12px; text-align:right;">الإجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="routing-status-tbody">
+                            <tr>
+                                <td colspan="4" style="padding:20px; text-align:center; color:#64748b;">جارِ تحميل
+                                    التوجيهات...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: License -->
+        <div id="tab-license" class="tab-content">
+            <div class="glass-card">
+                <h2>تنشيط نظام SASMAN MikroTik Manager</h2>
+                <div class="grid">
+                    <div>
+                        <p style="color:#64748b; margin-bottom:20px;">هذا النظام يتطلب ترخيصاً صالحاً للعمل. يتم ربط
+                            الترخيص بالسيريال نمبر الخاص بجهازك.</p>
+                        <div style="background:#f1f5f9; padding:15px; border-radius:10px; margin-bottom:20px;">
+                            <label>سيريال نمبر الجهاز (Router Serial):</label>
+                            <p id="license-serial"
+                                style="font-family:monospace; font-weight:bold; font-size:1.2rem; margin:5px 0;">جارِ
+                                التحميل...</p>
+                            <label>حالة الاشتراك:</label>
+                            <div style="margin-top:5px;">
+                                <span id="license-status-badge" class="license-badge license-invalid">جارِ
+                                    التحقق...</span>
+                            </div>
+                            <p id="license-expiry-text" style="font-size:13px; color:#64748b; margin-top:10px;"></p>
+                        </div>
+                    </div>
+                    <div>
+                        <label>كود التنشيط (Activation JWT):</label>
+                        <textarea id="license-key-input"
+                            style="width:100%; height:150px; font-family:monospace; font-size:12px;"
+                            placeholder="ألصق كود التنشيط هنا..."></textarea>
+                        <button class="btn btn-success" style="margin-top:15px;" onclick="activateLicense()">تنشيط
+                            الآن</button>
+                        <p id="activation-msg" style="text-align:center; margin-top:10px; font-weight:bold;"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: MikroTik -->
+        <div id="tab-mikrotik" class="tab-content">
+            <div class="card" style="height: 80vh; padding: 0; overflow: hidden; border: 2px solid #0ea5e9;">
+                <iframe id="mikrotik-iframe" src="about:blank"
+                    style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts Order: Business Logic first, UI Controller last -->
+    <script src="/admin/js/wan.js"></script>
+    <script src="/admin/js/lan.js"></script>
+    <script src="/admin/js/routing.js"></script>
+    <script src="/admin/js/core.js"></script>
+
+    <!-- Cloudflare Tunnel URL Script (Disabled - moved to core.js) -->
+    <!-- <script>
+        // Load Cloudflare Tunnel URL on page load
+        async function loadCloudflareTunnelURL() {
+            try {
+                const response = await fetch('/api/cloudflared/url');
+                const data = await response.json();
+                
+                if (data.enabled && data.url) {
+                    const section = document.getElementById('cloudflared-section');
+                    const urlElement = document.getElementById('cloudflared-url');
+                    
+                    section.style.display = 'block';
+                    urlElement.href = data.url;
+                    urlElement.textContent = data.url;
+                }
+            } catch (error) {
+                console.log('Cloudflare Tunnel not available:', error);
+            }
+        }
+        
+        // Copy Cloudflare Tunnel URL to clipboard
+        function copyCloudflaredURL() {
+            const urlElement = document.getElementById('cloudflared-url');
+            const url = urlElement.href;
+            
+            navigator.clipboard.writeText(url).then(() => {
+                alert('تم نسخ الرابط بنجاح!');
+            }).catch(err => {
+                console.error('فشل نسخ الرابط:', err);
+                alert('فشل نسخ الرابط. يرجى نسخه يدوياً.');
+            });
+        }
+        
+        // Load the tunnel URL when the page loads
+        document.addEventListener('DOMContentLoaded', loadCloudflareTunnelURL);
+        
+        // Refresh the tunnel URL every 30 seconds
+        setInterval(loadCloudflareTunnelURL, 30000);
+    </script> -->
+</body>
+
+</html>

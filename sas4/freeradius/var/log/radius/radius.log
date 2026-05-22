@@ -1,0 +1,1240 @@
+Sat Dec 22 09:27:57 2018 : Info: Debugger not attached
+Sat Dec 22 09:27:57 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 09:27:57 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 09:27:57 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 09:27:57 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 09:27:57 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 09:27:57 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 09:27:57 2018 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Sat Dec 22 09:27:57 2018 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Sat Dec 22 09:27:57 2018 : Error: rlm_sql (sql): Opening connection failed (0)
+Sat Dec 22 09:27:57 2018 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Sat Dec 22 09:28:02 2018 : Info: Debugger not attached
+Sat Dec 22 09:28:02 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 09:28:02 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 09:28:02 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 09:28:02 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 09:28:02 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 09:28:02 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 09:28:02 2018 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Sat Dec 22 09:28:02 2018 : Error: rlm_sql_mysql: MySQL error: Access denied for user 'sas'@'localhost' (using password: YES)
+Sat Dec 22 09:28:02 2018 : Error: rlm_sql (sql): Opening connection failed (0)
+Sat Dec 22 09:28:02 2018 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Sat Dec 22 09:28:28 2018 : Info: Debugger not attached
+Sat Dec 22 09:28:28 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 09:28:28 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 09:28:28 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 09:28:28 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 09:28:28 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 09:28:28 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 09:28:28 2018 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Sat Dec 22 09:28:28 2018 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Sat Dec 22 09:28:28 2018 : Error: rlm_sql (sql): Opening connection failed (0)
+Sat Dec 22 09:28:28 2018 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Sat Dec 22 09:28:33 2018 : Info: Debugger not attached
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 09:28:33 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 09:28:33 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 09:28:33 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 09:28:33 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 09:28:33 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 09:28:33 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 09:28:33 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 09:28:33 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 09:28:33 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 09:28:33 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 09:28:33 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 09:28:33 2018 : Info: Loaded virtual server default
+Sat Dec 22 09:28:33 2018 : Info: Ready to process requests
+Sat Dec 22 09:30:32 2018 : Info: Signalled to terminate
+Sat Dec 22 09:30:32 2018 : Info: Exiting normally
+Sat Dec 22 09:30:32 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 09:30:32 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 09:30:32 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 09:30:32 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 09:30:32 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 09:30:32 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:30:57 2018 : Info: Debugger not attached
+Sat Dec 22 12:30:57 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:30:57 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:30:57 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:30:57 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:30:57 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:30:57 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:30:57 2018 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Sat Dec 22 12:30:57 2018 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Sat Dec 22 12:30:57 2018 : Error: rlm_sql (sql): Opening connection failed (0)
+Sat Dec 22 12:30:57 2018 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Sat Dec 22 12:31:02 2018 : Info: Debugger not attached
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:31:02 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:31:02 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:31:02 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:31:02 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:31:02 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:31:02 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:31:02 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:31:02 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:31:02 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:31:02 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:31:02 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:31:02 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:31:02 2018 : Info: Ready to process requests
+Sat Dec 22 12:31:37 2018 : Info: Signalled to terminate
+Sat Dec 22 12:31:37 2018 : Info: Exiting normally
+Sat Dec 22 12:31:37 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 12:31:37 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 12:31:37 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 12:31:37 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 12:31:37 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 12:31:37 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:32:00 2018 : Info: Debugger not attached
+Sat Dec 22 12:32:00 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:32:00 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:32:00 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:32:00 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:32:00 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:32:00 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:32:00 2018 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Sat Dec 22 12:32:00 2018 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Sat Dec 22 12:32:00 2018 : Error: rlm_sql (sql): Opening connection failed (0)
+Sat Dec 22 12:32:00 2018 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Sat Dec 22 12:32:05 2018 : Info: Debugger not attached
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:32:05 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:32:05 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:32:05 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:32:05 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:32:05 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:32:05 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:32:05 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:32:05 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:32:05 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:32:05 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:32:05 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:32:05 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:32:05 2018 : Info: Ready to process requests
+Sat Dec 22 12:33:02 2018 : Info: Signalled to terminate
+Sat Dec 22 12:33:02 2018 : Info: Exiting normally
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:33:02 2018 : Info: Debugger not attached
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:33:02 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:33:02 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:33:02 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:33:02 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:33:02 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:33:02 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:33:02 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:33:02 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:33:02 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:33:02 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:33:02 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:33:02 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:33:02 2018 : Info: Ready to process requests
+Sat Dec 22 12:36:38 2018 : Info: Signalled to terminate
+Sat Dec 22 12:36:38 2018 : Info: Exiting normally
+Sat Dec 22 12:36:38 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 12:36:38 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 12:36:38 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 12:36:38 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 12:36:38 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 12:36:38 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:36:39 2018 : Info: Debugger not attached
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:36:39 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:36:39 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:36:39 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:36:39 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:36:39 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:36:39 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:36:39 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:36:39 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:36:39 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:36:39 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:36:39 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:36:39 2018 : Info: Ready to process requests
+Sat Dec 22 12:36:39 2018 : Info: Signalled to terminate
+Sat Dec 22 12:36:39 2018 : Info: Exiting normally
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 12:36:39 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:37:05 2018 : Info: Debugger not attached
+Sat Dec 22 12:37:05 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:37:05 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:37:05 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:37:05 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:37:05 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:37:05 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:37:05 2018 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Sat Dec 22 12:37:05 2018 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Sat Dec 22 12:37:05 2018 : Error: rlm_sql (sql): Opening connection failed (0)
+Sat Dec 22 12:37:05 2018 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Sat Dec 22 12:37:11 2018 : Info: Debugger not attached
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:37:11 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:37:11 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:37:11 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:37:11 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:37:11 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:37:11 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:37:11 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:37:11 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:37:11 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:37:11 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:37:11 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:37:11 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:37:11 2018 : Info: Ready to process requests
+Sat Dec 22 12:38:41 2018 : Info: Signalled to terminate
+Sat Dec 22 12:38:41 2018 : Info: Exiting normally
+Sat Dec 22 12:38:41 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 12:38:41 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 12:38:41 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 12:38:41 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 12:38:41 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 12:38:41 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:38:42 2018 : Info: Debugger not attached
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:38:42 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:38:42 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:38:42 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:38:42 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:38:42 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:38:42 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:38:42 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:38:42 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:38:42 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:38:42 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:38:42 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:38:42 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:38:42 2018 : Info: Ready to process requests
+Sat Dec 22 12:40:19 2018 : Info: Signalled to terminate
+Sat Dec 22 12:40:19 2018 : Info: Exiting normally
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:40:19 2018 : Info: Debugger not attached
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:40:19 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:40:19 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:40:19 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:40:19 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:40:19 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:40:19 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:40:19 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:40:19 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:40:19 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:40:19 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:40:19 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:40:19 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:40:19 2018 : Info: Ready to process requests
+Sat Dec 22 12:40:23 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 45018 proto udp
+Sat Dec 22 12:40:26 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 45018 proto udp
+Sat Dec 22 12:40:29 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 45018 proto udp
+Sat Dec 22 12:41:32 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 41086 proto udp
+Sat Dec 22 12:41:35 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 41086 proto udp
+Sat Dec 22 12:41:38 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 41086 proto udp
+Sat Dec 22 12:42:41 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 52070 proto udp
+Sat Dec 22 12:42:44 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 52070 proto udp
+Sat Dec 22 12:42:47 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 52070 proto udp
+Sat Dec 22 12:43:50 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 38779 proto udp
+Sat Dec 22 12:43:53 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 38779 proto udp
+Sat Dec 22 12:43:56 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 38779 proto udp
+Sat Dec 22 12:44:59 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 44069 proto udp
+Sat Dec 22 12:45:02 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 44069 proto udp
+Sat Dec 22 12:45:05 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 44069 proto udp
+Sat Dec 22 12:45:23 2018 : Info: Signalled to terminate
+Sat Dec 22 12:45:23 2018 : Info: Exiting normally
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:45:23 2018 : Info: Debugger not attached
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:45:23 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:45:23 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:45:23 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:45:23 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:45:23 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:45:23 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:45:23 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:45:23 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:45:23 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:45:23 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:45:23 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:45:23 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:45:23 2018 : Info: Ready to process requests
+Sat Dec 22 12:46:08 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 49360 proto udp
+Sat Dec 22 12:46:11 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 49360 proto udp
+Sat Dec 22 12:46:14 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 49360 proto udp
+Sat Dec 22 12:47:17 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 49785 proto udp
+Sat Dec 22 12:47:20 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 49785 proto udp
+Sat Dec 22 12:47:23 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 49785 proto udp
+Sat Dec 22 12:47:58 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 52845 proto udp
+Sat Dec 22 12:48:01 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 52845 proto udp
+Sat Dec 22 12:48:04 2018 : Error: Ignoring request to auth address * port 1812 bound to server default from unknown client 192.168.240.109 port 52845 proto udp
+Sat Dec 22 12:48:33 2018 : Info: Signalled to terminate
+Sat Dec 22 12:48:33 2018 : Info: Exiting normally
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Closing connection (5)
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Closing connection (4)
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Closing connection (3)
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Closing connection (2)
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Closing connection (1)
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Closing connection (0)
+Sat Dec 22 12:48:33 2018 : Info: Debugger not attached
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 12:48:33 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:48:33 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 12:48:33 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 12:48:33 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 12:48:33 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 12:48:33 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 12:48:33 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 12:48:33 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 12:48:33 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 12:48:33 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 12:48:33 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 12:48:33 2018 : Info: Loaded virtual server default
+Sat Dec 22 12:48:33 2018 : Info: Ready to process requests
+Sat Dec 22 12:48:45 2018 : Info: Need 4 more connections to reach 10 spares
+Sat Dec 22 12:48:45 2018 : Info: rlm_sql (sql): Opening additional connection (6), 1 of 26 pending slots used
+Sat Dec 22 12:48:45 2018 : ERROR: (0)       ERROR: Abnormal child exit: Operation not supported
+Sat Dec 22 12:48:51 2018 : Info: Need 3 more connections to reach 10 spares
+Sat Dec 22 12:48:51 2018 : Info: rlm_sql (sql): Opening additional connection (7), 1 of 25 pending slots used
+Sat Dec 22 12:49:22 2018 : Info: Need 2 more connections to reach 10 spares
+Sat Dec 22 12:49:22 2018 : Info: rlm_sql (sql): Opening additional connection (8), 1 of 24 pending slots used
+Sat Dec 22 12:49:45 2018 : Info: Need 1 more connections to reach 10 spares
+Sat Dec 22 12:49:45 2018 : Info: rlm_sql (sql): Opening additional connection (9), 1 of 23 pending slots used
+Sat Dec 22 12:49:45 2018 : ERROR: (3)       ERROR: Abnormal child exit: No child processes
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (4): Hit idle_timeout, was idle for 118 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (7): Hit idle_timeout, was idle for 118 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (0): Hit idle_timeout, was idle for 118 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (5): Hit idle_timeout, was idle for 87 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (8): Hit idle_timeout, was idle for 87 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (1): Hit idle_timeout, was idle for 87 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (6): Hit idle_timeout, was idle for 64 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (9): Hit idle_timeout, was idle for 64 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (2): Hit idle_timeout, was idle for 64 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Closing connection (3): Hit idle_timeout, was idle for 64 seconds
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Opening additional connection (10), 1 of 32 pending slots used
+Sat Dec 22 12:50:49 2018 : Info: Need 2 more connections to reach min connections (3)
+Sat Dec 22 12:50:49 2018 : Info: rlm_sql (sql): Opening additional connection (11), 1 of 31 pending slots used
+Sat Dec 22 12:51:55 2018 : Info: rlm_sql (sql): Closing connection (11): Hit idle_timeout, was idle for 66 seconds
+Sat Dec 22 12:51:55 2018 : Info: rlm_sql (sql): Closing connection (10): Hit idle_timeout, was idle for 66 seconds
+Sat Dec 22 12:51:55 2018 : Info: rlm_sql (sql): Opening additional connection (12), 1 of 32 pending slots used
+Sat Dec 22 12:51:55 2018 : Info: Need 2 more connections to reach min connections (3)
+Sat Dec 22 12:51:55 2018 : Info: rlm_sql (sql): Opening additional connection (13), 1 of 31 pending slots used
+Sat Dec 22 12:51:55 2018 : ERROR: (5)       ERROR: Abnormal child exit: No child processes
+Sat Dec 22 12:52:01 2018 : Info: Need 1 more connections to reach min connections (3)
+Sat Dec 22 12:52:01 2018 : Info: rlm_sql (sql): Opening additional connection (14), 1 of 30 pending slots used
+Sat Dec 22 12:52:01 2018 : ERROR: (6)       ERROR: Abnormal child exit: No child processes
+Sat Dec 22 12:53:03 2018 : Info: rlm_sql (sql): Closing connection (14): Hit idle_timeout, was idle for 62 seconds
+Sat Dec 22 12:53:03 2018 : Info: rlm_sql (sql): Closing connection (13): Hit idle_timeout, was idle for 62 seconds
+Sat Dec 22 12:53:03 2018 : Info: rlm_sql (sql): Closing connection (12): Hit idle_timeout, was idle for 62 seconds
+Sat Dec 22 12:53:03 2018 : Info: rlm_sql (sql): Opening additional connection (15), 1 of 32 pending slots used
+Sat Dec 22 12:53:03 2018 : Info: Need 2 more connections to reach min connections (3)
+Sat Dec 22 12:53:03 2018 : Info: rlm_sql (sql): Opening additional connection (16), 1 of 31 pending slots used
+Sat Dec 22 12:53:03 2018 : ERROR: (7)       ERROR: Abnormal child exit: No child processes
+Sat Dec 22 12:53:38 2018 : Info: Signalled to terminate
+Sat Dec 22 12:53:38 2018 : Info: Exiting normally
+Sat Dec 22 12:53:38 2018 : Info: rlm_sql (sql): Closing connection (16)
+Sat Dec 22 12:53:38 2018 : Info: rlm_sql (sql): Closing connection (15)
+Sat Dec 22 14:30:41 2018 : Info: Debugger not attached
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Dec 22 14:30:41 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 14:30:41 2018 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Dec 22 14:30:41 2018 : Info: Need 5 more connections to reach 10 spares
+Sat Dec 22 14:30:41 2018 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Dec 22 14:30:41 2018 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Dec 22 14:30:41 2018 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Dec 22 14:30:41 2018 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Dec 22 14:30:41 2018 : Info: Loaded virtual server <default>
+Sat Dec 22 14:30:41 2018 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Dec 22 14:30:41 2018 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Dec 22 14:30:41 2018 : Info: Loaded virtual server inner-tunnel
+Sat Dec 22 14:30:41 2018 : Info: Loaded virtual server default
+Sat Dec 22 14:30:41 2018 : Info: Ready to process requests
+Sat Dec 22 14:31:01 2018 : Info: Need 4 more connections to reach 10 spares
+Sat Dec 22 14:31:01 2018 : Info: rlm_sql (sql): Opening additional connection (6), 1 of 26 pending slots used
+Sat Dec 22 14:31:31 2018 : Info: Need 3 more connections to reach 10 spares
+Sat Dec 22 14:31:31 2018 : Info: rlm_sql (sql): Opening additional connection (7), 1 of 25 pending slots used
+Sat Dec 22 14:32:00 2018 : Info: rlm_sql (sql): Closing connection (3): Hit idle_timeout, was idle for 79 seconds
+Sat Dec 22 14:32:00 2018 : Info: rlm_sql (sql): Closing connection (4): Hit idle_timeout, was idle for 79 seconds
+Sat Dec 22 14:32:00 2018 : Info: rlm_sql (sql): Closing connection (0): Hit idle_timeout, was idle for 79 seconds
+Sat Dec 22 14:32:00 2018 : Info: rlm_sql (sql): Closing connection (5): Hit idle_timeout, was idle for 79 seconds
+Sat Dec 22 14:32:00 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:32:00 2018 : Info: rlm_sql (sql): Opening additional connection (8), 1 of 28 pending slots used
+Sat Dec 22 14:32:30 2018 : Info: rlm_sql (sql): Closing connection (6): Hit idle_timeout, was idle for 89 seconds
+Sat Dec 22 14:32:30 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:32:30 2018 : Info: rlm_sql (sql): Opening additional connection (9), 1 of 28 pending slots used
+Sat Dec 22 14:33:00 2018 : Info: rlm_sql (sql): Closing connection (7): Hit idle_timeout, was idle for 89 seconds
+Sat Dec 22 14:33:00 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:33:00 2018 : Info: rlm_sql (sql): Opening additional connection (10), 1 of 28 pending slots used
+Sat Dec 22 14:33:30 2018 : Info: rlm_sql (sql): Closing connection (8): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:33:30 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:33:30 2018 : Info: rlm_sql (sql): Opening additional connection (11), 1 of 28 pending slots used
+Sat Dec 22 14:34:00 2018 : Info: rlm_sql (sql): Closing connection (9): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:34:00 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:34:00 2018 : Info: rlm_sql (sql): Opening additional connection (12), 1 of 28 pending slots used
+Sat Dec 22 14:34:30 2018 : Info: rlm_sql (sql): Closing connection (10): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:34:30 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:34:30 2018 : Info: rlm_sql (sql): Opening additional connection (13), 1 of 28 pending slots used
+Sat Dec 22 14:35:00 2018 : Info: rlm_sql (sql): Closing connection (11): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:35:00 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:35:00 2018 : Info: rlm_sql (sql): Opening additional connection (14), 1 of 28 pending slots used
+Sat Dec 22 14:35:31 2018 : Info: rlm_sql (sql): Closing connection (12): Hit idle_timeout, was idle for 91 seconds
+Sat Dec 22 14:35:31 2018 : Info: rlm_sql (sql): Closing connection (2): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:35:31 2018 : Info: rlm_sql (sql): Closing connection (13): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:35:31 2018 : Info: Need 1 more connections to reach min connections (3)
+Sat Dec 22 14:35:31 2018 : Info: rlm_sql (sql): Opening additional connection (15), 1 of 30 pending slots used
+Sat Dec 22 14:36:00 2018 : Info: Need 7 more connections to reach 10 spares
+Sat Dec 22 14:36:00 2018 : Info: rlm_sql (sql): Opening additional connection (16), 1 of 29 pending slots used
+Sat Dec 22 14:36:30 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:36:30 2018 : Info: rlm_sql (sql): Opening additional connection (17), 1 of 28 pending slots used
+Sat Dec 22 14:37:00 2018 : Info: rlm_sql (sql): Closing connection (15): Hit idle_timeout, was idle for 89 seconds
+Sat Dec 22 14:37:00 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:37:00 2018 : Info: rlm_sql (sql): Opening additional connection (18), 1 of 28 pending slots used
+Sat Dec 22 14:37:30 2018 : Info: rlm_sql (sql): Closing connection (16): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:37:30 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:37:30 2018 : Info: rlm_sql (sql): Opening additional connection (19), 1 of 28 pending slots used
+Sat Dec 22 14:38:00 2018 : Info: rlm_sql (sql): Closing connection (17): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:38:00 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:38:00 2018 : Info: rlm_sql (sql): Opening additional connection (20), 1 of 28 pending slots used
+Sat Dec 22 14:38:29 2018 : Info: rlm_sql (sql): Closing connection (18): Hit idle_timeout, was idle for 89 seconds
+Sat Dec 22 14:38:29 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:38:29 2018 : Info: rlm_sql (sql): Opening additional connection (21), 1 of 28 pending slots used
+Sat Dec 22 14:38:59 2018 : Info: rlm_sql (sql): Closing connection (19): Hit idle_timeout, was idle for 89 seconds
+Sat Dec 22 14:38:59 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:38:59 2018 : Info: rlm_sql (sql): Opening additional connection (22), 1 of 28 pending slots used
+Sat Dec 22 14:39:29 2018 : Info: rlm_sql (sql): Closing connection (20): Hit idle_timeout, was idle for 89 seconds
+Sat Dec 22 14:39:29 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:39:29 2018 : Info: rlm_sql (sql): Opening additional connection (23), 1 of 28 pending slots used
+Sat Dec 22 14:39:58 2018 : Info: rlm_sql (sql): Closing connection (21): Hit idle_timeout, was idle for 89 seconds
+Sat Dec 22 14:39:58 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:39:58 2018 : Info: rlm_sql (sql): Opening additional connection (24), 1 of 28 pending slots used
+Sat Dec 22 14:40:29 2018 : Info: rlm_sql (sql): Closing connection (22): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:40:29 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:40:29 2018 : Info: rlm_sql (sql): Opening additional connection (25), 1 of 28 pending slots used
+Sat Dec 22 14:40:59 2018 : Info: rlm_sql (sql): Closing connection (23): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:40:59 2018 : Info: rlm_sql (sql): Closing connection (14): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:40:59 2018 : Info: rlm_sql (sql): Closing connection (24): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:40:59 2018 : Info: Need 1 more connections to reach min connections (3)
+Sat Dec 22 14:40:59 2018 : Info: rlm_sql (sql): Opening additional connection (26), 1 of 30 pending slots used
+Sat Dec 22 14:41:29 2018 : Info: Need 7 more connections to reach 10 spares
+Sat Dec 22 14:41:29 2018 : Info: rlm_sql (sql): Opening additional connection (27), 1 of 29 pending slots used
+Sat Dec 22 14:42:00 2018 : Info: rlm_sql (sql): Closing connection (1): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:42:00 2018 : Info: rlm_sql (sql): Closing connection (26): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:42:00 2018 : Info: Need 1 more connections to reach min connections (3)
+Sat Dec 22 14:42:00 2018 : Info: rlm_sql (sql): Opening additional connection (28), 1 of 30 pending slots used
+Sat Dec 22 14:42:30 2018 : Info: rlm_sql (sql): Closing connection (27): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:42:30 2018 : Info: Need 1 more connections to reach min connections (3)
+Sat Dec 22 14:42:30 2018 : Info: rlm_sql (sql): Opening additional connection (29), 1 of 30 pending slots used
+Sat Dec 22 14:43:00 2018 : Info: Need 7 more connections to reach 10 spares
+Sat Dec 22 14:43:00 2018 : Info: rlm_sql (sql): Opening additional connection (30), 1 of 29 pending slots used
+Sat Dec 22 14:43:29 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:43:29 2018 : Info: rlm_sql (sql): Opening additional connection (31), 1 of 28 pending slots used
+Sat Dec 22 14:43:59 2018 : Info: rlm_sql (sql): Closing connection (29): Hit idle_timeout, was idle for 89 seconds
+Sat Dec 22 14:43:59 2018 : Info: Need 6 more connections to reach 10 spares
+Sat Dec 22 14:43:59 2018 : Info: rlm_sql (sql): Opening additional connection (32), 1 of 28 pending slots used
+Sat Dec 22 14:44:30 2018 : Info: rlm_sql (sql): Closing connection (30): Hit idle_timeout, was idle for 90 seconds
+Sat Dec 22 14:44:30 2018 : Info: rlm_sql (sql): Closing connection (25): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:44:30 2018 : Info: rlm_sql (sql): Closing connection (31): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:44:30 2018 : Info: Need 1 more connections to reach min connections (3)
+Sat Dec 22 14:44:30 2018 : Info: rlm_sql (sql): Opening additional connection (33), 1 of 30 pending slots used
+Sat Dec 22 14:45:00 2018 : Info: rlm_sql (sql): Closing connection (32): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:45:00 2018 : Info: Need 1 more connections to reach min connections (3)
+Sat Dec 22 14:45:00 2018 : Info: rlm_sql (sql): Opening additional connection (34), 1 of 30 pending slots used
+Sat Dec 22 14:45:30 2018 : Info: Need 7 more connections to reach 10 spares
+Sat Dec 22 14:45:30 2018 : Info: rlm_sql (sql): Opening additional connection (35), 1 of 29 pending slots used
+Sat Dec 22 14:46:01 2018 : Info: rlm_sql (sql): Closing connection (28): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:46:01 2018 : Info: rlm_sql (sql): Closing connection (34): Hit idle_timeout, was idle for 61 seconds
+Sat Dec 22 14:46:01 2018 : Info: Need 1 more connections to reach min connections (3)
+Sat Dec 22 14:46:01 2018 : Info: rlm_sql (sql): Opening additional connection (36), 1 of 30 pending slots used
+Mon Jul 29 15:03:06 2019 : Info: Debugger not attached
+Mon Jul 29 15:03:06 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:03:06 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:03:06 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:03:06 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:03:06 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:03:06 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:03:06 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:03:06 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:03:06 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:03:06 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Mon Jul 29 15:03:06 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Mon Jul 29 15:03:06 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Mon Jul 29 15:03:06 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Mon Jul 29 15:03:11 2019 : Info: Debugger not attached
+Mon Jul 29 15:03:11 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:03:11 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:03:11 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:03:11 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:03:11 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:03:11 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:03:11 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:03:11 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:03:11 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:03:11 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Mon Jul 29 15:03:11 2019 : Error: rlm_sql_mysql: MySQL error: Access denied for user 'sas'@'localhost' (using password: YES)
+Mon Jul 29 15:03:11 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Mon Jul 29 15:03:11 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Mon Jul 29 15:03:37 2019 : Info: Debugger not attached
+Mon Jul 29 15:03:37 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:03:37 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:03:37 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:03:37 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:03:37 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:03:37 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:03:37 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:03:37 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:03:37 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:03:37 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Mon Jul 29 15:03:37 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Mon Jul 29 15:03:37 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Mon Jul 29 15:03:37 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Mon Jul 29 15:03:42 2019 : Info: Debugger not attached
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:03:42 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:03:42 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:03:42 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:03:42 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:03:42 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Mon Jul 29 15:03:42 2019 : Info: Need 5 more connections to reach 10 spares
+Mon Jul 29 15:03:42 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Mon Jul 29 15:03:42 2019 : Info: Loaded virtual server <default>
+Mon Jul 29 15:03:42 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Mon Jul 29 15:03:42 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Mon Jul 29 15:03:42 2019 : Info: Loaded virtual server inner-tunnel
+Mon Jul 29 15:03:42 2019 : Info: Loaded virtual server default
+Mon Jul 29 15:03:42 2019 : Info: Ready to process requests
+Mon Jul 29 15:09:27 2019 : Info: Signalled to terminate
+Mon Jul 29 15:09:27 2019 : Info: Exiting normally
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Closing connection (5)
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Closing connection (4)
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Closing connection (3)
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Closing connection (2)
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Closing connection (1)
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Closing connection (0)
+Mon Jul 29 15:09:27 2019 : Info: Debugger not attached
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:09:27 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:09:27 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:09:27 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:09:27 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:09:27 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Mon Jul 29 15:09:27 2019 : Info: Need 5 more connections to reach 10 spares
+Mon Jul 29 15:09:27 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Mon Jul 29 15:09:27 2019 : Info: Loaded virtual server <default>
+Mon Jul 29 15:09:27 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Mon Jul 29 15:09:27 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Mon Jul 29 15:09:27 2019 : Info: Loaded virtual server inner-tunnel
+Mon Jul 29 15:09:27 2019 : Info: Loaded virtual server default
+Mon Jul 29 15:09:27 2019 : Info: Ready to process requests
+Mon Jul 29 15:22:11 2019 : Info: Signalled to terminate
+Mon Jul 29 15:22:11 2019 : Info: Exiting normally
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Closing connection (5)
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Closing connection (4)
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Closing connection (3)
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Closing connection (2)
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Closing connection (1)
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Closing connection (0)
+Mon Jul 29 15:22:11 2019 : Info: Debugger not attached
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:22:11 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:22:11 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:22:11 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:22:11 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:22:11 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Mon Jul 29 15:22:11 2019 : Info: Need 5 more connections to reach 10 spares
+Mon Jul 29 15:22:11 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Mon Jul 29 15:22:11 2019 : Info: Loaded virtual server <default>
+Mon Jul 29 15:22:11 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Mon Jul 29 15:22:11 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Mon Jul 29 15:22:11 2019 : Info: Loaded virtual server inner-tunnel
+Mon Jul 29 15:22:11 2019 : Info: Loaded virtual server default
+Mon Jul 29 15:22:11 2019 : Info: Ready to process requests
+Mon Jul 29 15:25:32 2019 : Info: Signalled to terminate
+Mon Jul 29 15:25:32 2019 : Info: Exiting normally
+Mon Jul 29 15:25:32 2019 : Info: rlm_sql (sql): Closing connection (5)
+Mon Jul 29 15:25:32 2019 : Info: rlm_sql (sql): Closing connection (4)
+Mon Jul 29 15:25:32 2019 : Info: rlm_sql (sql): Closing connection (3)
+Mon Jul 29 15:25:32 2019 : Info: rlm_sql (sql): Closing connection (2)
+Mon Jul 29 15:25:32 2019 : Info: rlm_sql (sql): Closing connection (1)
+Mon Jul 29 15:25:32 2019 : Info: rlm_sql (sql): Closing connection (0)
+Mon Jul 29 15:25:55 2019 : Info: Debugger not attached
+Mon Jul 29 15:25:55 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:25:55 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:25:55 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:25:55 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:25:55 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:25:55 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:25:55 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:25:55 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:25:55 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:25:55 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Mon Jul 29 15:25:55 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Mon Jul 29 15:25:55 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Mon Jul 29 15:25:55 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Mon Jul 29 15:26:00 2019 : Info: Debugger not attached
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:26:00 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:26:00 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:26:00 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:26:00 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:26:00 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Mon Jul 29 15:26:00 2019 : Info: Need 5 more connections to reach 10 spares
+Mon Jul 29 15:26:00 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Mon Jul 29 15:26:00 2019 : Info: Loaded virtual server <default>
+Mon Jul 29 15:26:00 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Mon Jul 29 15:26:00 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Mon Jul 29 15:26:00 2019 : Info: Loaded virtual server inner-tunnel
+Mon Jul 29 15:26:00 2019 : Info: Loaded virtual server default
+Mon Jul 29 15:26:00 2019 : Info: Ready to process requests
+Mon Jul 29 15:26:49 2019 : Info: Signalled to terminate
+Mon Jul 29 15:26:49 2019 : Info: Exiting normally
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Closing connection (5)
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Closing connection (4)
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Closing connection (3)
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Closing connection (2)
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Closing connection (1)
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Closing connection (0)
+Mon Jul 29 15:26:49 2019 : Info: Debugger not attached
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:26:49 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:26:49 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:26:49 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:26:49 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:26:49 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Mon Jul 29 15:26:49 2019 : Info: Need 5 more connections to reach 10 spares
+Mon Jul 29 15:26:49 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Mon Jul 29 15:26:49 2019 : Info: Loaded virtual server <default>
+Mon Jul 29 15:26:49 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Mon Jul 29 15:26:49 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Mon Jul 29 15:26:49 2019 : Info: Loaded virtual server inner-tunnel
+Mon Jul 29 15:26:49 2019 : Info: Loaded virtual server default
+Mon Jul 29 15:26:49 2019 : Info: Ready to process requests
+Mon Jul 29 15:27:28 2019 : Info: Signalled to terminate
+Mon Jul 29 15:27:28 2019 : Info: Exiting normally
+Mon Jul 29 15:27:28 2019 : Info: rlm_sql (sql): Closing connection (5)
+Mon Jul 29 15:27:28 2019 : Info: rlm_sql (sql): Closing connection (4)
+Mon Jul 29 15:27:28 2019 : Info: rlm_sql (sql): Closing connection (3)
+Mon Jul 29 15:27:28 2019 : Info: rlm_sql (sql): Closing connection (2)
+Mon Jul 29 15:27:28 2019 : Info: rlm_sql (sql): Closing connection (1)
+Mon Jul 29 15:27:28 2019 : Info: rlm_sql (sql): Closing connection (0)
+Mon Jul 29 15:27:29 2019 : Info: Debugger not attached
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:27:29 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:27:29 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:27:29 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:27:29 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:27:29 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Mon Jul 29 15:27:29 2019 : Info: Need 5 more connections to reach 10 spares
+Mon Jul 29 15:27:29 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Mon Jul 29 15:27:29 2019 : Info: Loaded virtual server <default>
+Mon Jul 29 15:27:29 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Mon Jul 29 15:27:29 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Mon Jul 29 15:27:29 2019 : Info: Loaded virtual server inner-tunnel
+Mon Jul 29 15:27:29 2019 : Info: Loaded virtual server default
+Mon Jul 29 15:27:29 2019 : Info: Ready to process requests
+Mon Jul 29 15:32:40 2019 : Info: Signalled to terminate
+Mon Jul 29 15:32:40 2019 : Info: Exiting normally
+Mon Jul 29 15:32:40 2019 : Info: rlm_sql (sql): Closing connection (5)
+Mon Jul 29 15:32:40 2019 : Info: rlm_sql (sql): Closing connection (4)
+Mon Jul 29 15:32:40 2019 : Info: rlm_sql (sql): Closing connection (3)
+Mon Jul 29 15:32:40 2019 : Info: rlm_sql (sql): Closing connection (2)
+Mon Jul 29 15:32:40 2019 : Info: rlm_sql (sql): Closing connection (1)
+Mon Jul 29 15:32:40 2019 : Info: rlm_sql (sql): Closing connection (0)
+Mon Jul 29 15:32:41 2019 : Info: Debugger not attached
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Mon Jul 29 15:32:41 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:32:41 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Mon Jul 29 15:32:41 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Mon Jul 29 15:32:41 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Mon Jul 29 15:32:41 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Mon Jul 29 15:32:41 2019 : Info: Need 5 more connections to reach 10 spares
+Mon Jul 29 15:32:41 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Mon Jul 29 15:32:41 2019 : Info: Loaded virtual server <default>
+Mon Jul 29 15:32:41 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Mon Jul 29 15:32:41 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Mon Jul 29 15:32:41 2019 : Info: Loaded virtual server inner-tunnel
+Mon Jul 29 15:32:41 2019 : Info: Loaded virtual server default
+Mon Jul 29 15:32:41 2019 : Info: Ready to process requests
+Mon Jul 29 15:33:23 2019 : Info: Signalled to terminate
+Mon Jul 29 15:33:23 2019 : Info: Exiting normally
+Mon Jul 29 15:33:23 2019 : Info: rlm_sql (sql): Closing connection (5)
+Mon Jul 29 15:33:23 2019 : Info: rlm_sql (sql): Closing connection (4)
+Mon Jul 29 15:33:23 2019 : Info: rlm_sql (sql): Closing connection (3)
+Mon Jul 29 15:33:23 2019 : Info: rlm_sql (sql): Closing connection (2)
+Mon Jul 29 15:33:23 2019 : Info: rlm_sql (sql): Closing connection (1)
+Mon Jul 29 15:33:23 2019 : Info: rlm_sql (sql): Closing connection (0)
+Tue Jul 30 10:51:28 2019 : Info: Debugger not attached
+Tue Jul 30 10:51:28 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Jul 30 10:51:28 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Tue Jul 30 10:51:28 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Tue Jul 30 10:51:28 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Tue Jul 30 10:51:28 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Tue Jul 30 10:51:28 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Tue Jul 30 10:51:28 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Jul 30 10:51:28 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Jul 30 10:51:28 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Jul 30 10:51:28 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Tue Jul 30 10:51:28 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Tue Jul 30 10:51:28 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Tue Jul 30 10:51:28 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Tue Jul 30 10:51:34 2019 : Info: Debugger not attached
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Jul 30 10:51:34 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Tue Jul 30 10:51:34 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Tue Jul 30 10:51:34 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Tue Jul 30 10:51:34 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Tue Jul 30 10:51:34 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Tue Jul 30 10:51:34 2019 : Info: Need 5 more connections to reach 10 spares
+Tue Jul 30 10:51:34 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Tue Jul 30 10:51:34 2019 : Info: Loaded virtual server <default>
+Tue Jul 30 10:51:34 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Tue Jul 30 10:51:34 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Tue Jul 30 10:51:34 2019 : Info: Loaded virtual server inner-tunnel
+Tue Jul 30 10:51:34 2019 : Info: Loaded virtual server default
+Tue Jul 30 10:51:34 2019 : Info: Ready to process requests
+Tue Jul 30 10:52:36 2019 : Info: Signalled to terminate
+Tue Jul 30 10:52:36 2019 : Info: Exiting normally
+Tue Jul 30 10:52:36 2019 : Info: rlm_sql (sql): Closing connection (5)
+Tue Jul 30 10:52:36 2019 : Info: rlm_sql (sql): Closing connection (4)
+Tue Jul 30 10:52:36 2019 : Info: rlm_sql (sql): Closing connection (3)
+Tue Jul 30 10:52:36 2019 : Info: rlm_sql (sql): Closing connection (2)
+Tue Jul 30 10:52:36 2019 : Info: rlm_sql (sql): Closing connection (1)
+Tue Jul 30 10:52:36 2019 : Info: rlm_sql (sql): Closing connection (0)
+Wed Jul 31 08:41:02 2019 : Info: Debugger not attached
+Wed Jul 31 08:41:02 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Wed Jul 31 08:41:02 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Wed Jul 31 08:41:02 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Wed Jul 31 08:41:02 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Wed Jul 31 08:41:02 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Wed Jul 31 08:41:02 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Wed Jul 31 08:41:02 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Wed Jul 31 08:41:02 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Wed Jul 31 08:41:02 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Wed Jul 31 08:41:02 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Wed Jul 31 08:41:02 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Wed Jul 31 08:41:02 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Wed Jul 31 08:41:02 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Wed Jul 31 08:41:08 2019 : Info: Debugger not attached
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Wed Jul 31 08:41:08 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Wed Jul 31 08:41:08 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Wed Jul 31 08:41:08 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Wed Jul 31 08:41:08 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Wed Jul 31 08:41:08 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Wed Jul 31 08:41:08 2019 : Info: Need 5 more connections to reach 10 spares
+Wed Jul 31 08:41:08 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Wed Jul 31 08:41:08 2019 : Info: Loaded virtual server <default>
+Wed Jul 31 08:41:08 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Wed Jul 31 08:41:08 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Wed Jul 31 08:41:08 2019 : Info: Loaded virtual server inner-tunnel
+Wed Jul 31 08:41:08 2019 : Info: Loaded virtual server default
+Wed Jul 31 08:41:08 2019 : Info: Ready to process requests
+Tue Oct  1 07:43:31 2019 : Info: Debugger not attached
+Tue Oct  1 07:43:31 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Oct  1 07:43:31 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Oct  1 07:43:31 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Oct  1 07:43:31 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Oct  1 07:43:31 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Tue Oct  1 07:43:31 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Tue Oct  1 07:43:31 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Tue Oct  1 07:43:31 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Tue Oct  1 07:43:36 2019 : Info: Debugger not attached
+Tue Oct  1 07:43:36 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Oct  1 07:43:36 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Oct  1 07:43:36 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Oct  1 07:43:36 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Oct  1 07:43:36 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Tue Oct  1 07:43:36 2019 : Error: rlm_sql_mysql: MySQL error: Access denied for user 'sas'@'localhost' (using password: YES)
+Tue Oct  1 07:43:36 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Tue Oct  1 07:43:36 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Tue Oct  1 07:44:00 2019 : Info: Debugger not attached
+Tue Oct  1 07:44:00 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Oct  1 07:44:00 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Oct  1 07:44:00 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Oct  1 07:44:00 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Oct  1 07:44:00 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Tue Oct  1 07:44:00 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Tue Oct  1 07:44:00 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Tue Oct  1 07:44:00 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Tue Oct  1 07:44:05 2019 : Info: Debugger not attached
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Tue Oct  1 07:44:05 2019 : Info: Need 5 more connections to reach 10 spares
+Tue Oct  1 07:44:05 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Tue Oct  1 07:44:05 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Tue Oct  1 07:44:05 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Tue Oct  1 07:44:05 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Tue Oct  1 07:44:05 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Tue Oct  1 07:44:05 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Tue Oct  1 07:44:05 2019 : Info: Loaded virtual server <default>
+Tue Oct  1 07:44:05 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Tue Oct  1 07:44:05 2019 : Info: Loaded virtual server default
+Tue Oct  1 07:44:05 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Tue Oct  1 07:44:05 2019 : Info: Loaded virtual server inner-tunnel
+Tue Oct  1 07:44:05 2019 : Info: Ready to process requests
+Tue Oct  1 07:49:37 2019 : Info: Signalled to terminate
+Tue Oct  1 07:49:37 2019 : Info: Exiting normally
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Closing connection (5)
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Closing connection (4)
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Closing connection (3)
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Closing connection (2)
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Closing connection (1)
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Closing connection (0)
+Tue Oct  1 07:49:37 2019 : Info: Debugger not attached
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Tue Oct  1 07:49:37 2019 : Info: Need 5 more connections to reach 10 spares
+Tue Oct  1 07:49:37 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Tue Oct  1 07:49:37 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Tue Oct  1 07:49:37 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Tue Oct  1 07:49:37 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Tue Oct  1 07:49:37 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Tue Oct  1 07:49:37 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Tue Oct  1 07:49:37 2019 : Info: Loaded virtual server <default>
+Tue Oct  1 07:49:37 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Tue Oct  1 07:49:37 2019 : Info: Loaded virtual server default
+Tue Oct  1 07:49:37 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Tue Oct  1 07:49:37 2019 : Info: Loaded virtual server inner-tunnel
+Tue Oct  1 07:49:37 2019 : Info: Ready to process requests
+Tue Oct  1 11:54:09 2019 : Info: Signalled to terminate
+Tue Oct  1 11:54:09 2019 : Info: Exiting normally
+Tue Oct  1 11:54:09 2019 : Info: rlm_sql (sql): Closing connection (5)
+Tue Oct  1 11:54:09 2019 : Info: rlm_sql (sql): Closing connection (4)
+Tue Oct  1 11:54:09 2019 : Info: rlm_sql (sql): Closing connection (3)
+Tue Oct  1 11:54:09 2019 : Info: rlm_sql (sql): Closing connection (2)
+Tue Oct  1 11:54:09 2019 : Info: rlm_sql (sql): Closing connection (1)
+Tue Oct  1 11:54:09 2019 : Info: rlm_sql (sql): Closing connection (0)
+Tue Oct  1 11:54:32 2019 : Info: Debugger not attached
+Tue Oct  1 11:54:32 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Oct  1 11:54:32 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Oct  1 11:54:32 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Oct  1 11:54:32 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Oct  1 11:54:32 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Tue Oct  1 11:54:32 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Tue Oct  1 11:54:32 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Tue Oct  1 11:54:32 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Tue Oct  1 11:54:38 2019 : Info: Debugger not attached
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Tue Oct  1 11:54:38 2019 : Info: Need 5 more connections to reach 10 spares
+Tue Oct  1 11:54:38 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Tue Oct  1 11:54:38 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Tue Oct  1 11:54:38 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Tue Oct  1 11:54:38 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Tue Oct  1 11:54:38 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Tue Oct  1 11:54:38 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Tue Oct  1 11:54:38 2019 : Info: Loaded virtual server <default>
+Tue Oct  1 11:54:38 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Tue Oct  1 11:54:38 2019 : Info: Loaded virtual server default
+Tue Oct  1 11:54:38 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Tue Oct  1 11:54:38 2019 : Info: Loaded virtual server inner-tunnel
+Tue Oct  1 11:54:38 2019 : Info: Ready to process requests
+Tue Oct  1 16:20:28 2019 : Info: Signalled to terminate
+Tue Oct  1 16:20:28 2019 : Info: Exiting normally
+Tue Oct  1 16:20:28 2019 : Info: rlm_sql (sql): Closing connection (5)
+Tue Oct  1 16:20:28 2019 : Info: rlm_sql (sql): Closing connection (4)
+Tue Oct  1 16:20:28 2019 : Info: rlm_sql (sql): Closing connection (3)
+Tue Oct  1 16:20:28 2019 : Info: rlm_sql (sql): Closing connection (2)
+Tue Oct  1 16:20:28 2019 : Info: rlm_sql (sql): Closing connection (1)
+Tue Oct  1 16:20:28 2019 : Info: rlm_sql (sql): Closing connection (0)
+Thu Oct  3 08:47:03 2019 : Info: Debugger not attached
+Thu Oct  3 08:47:03 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Thu Oct  3 08:47:03 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Thu Oct  3 08:47:03 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Thu Oct  3 08:47:03 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Thu Oct  3 08:47:03 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Thu Oct  3 08:47:03 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Thu Oct  3 08:47:03 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Thu Oct  3 08:47:03 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Thu Oct  3 08:47:08 2019 : Info: Debugger not attached
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Thu Oct  3 08:47:08 2019 : Info: Need 5 more connections to reach 10 spares
+Thu Oct  3 08:47:08 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Thu Oct  3 08:47:08 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Thu Oct  3 08:47:08 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Thu Oct  3 08:47:08 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Thu Oct  3 08:47:08 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Thu Oct  3 08:47:08 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Thu Oct  3 08:47:08 2019 : Info: Loaded virtual server <default>
+Thu Oct  3 08:47:08 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Thu Oct  3 08:47:08 2019 : Info: Loaded virtual server default
+Thu Oct  3 08:47:08 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Thu Oct  3 08:47:08 2019 : Info: Loaded virtual server inner-tunnel
+Thu Oct  3 08:47:08 2019 : Info: Ready to process requests
+Thu Oct  3 08:51:40 2019 : Info: Signalled to terminate
+Thu Oct  3 08:51:40 2019 : Info: Exiting normally
+Thu Oct  3 08:51:40 2019 : Info: rlm_sql (sql): Closing connection (5)
+Thu Oct  3 08:51:40 2019 : Info: rlm_sql (sql): Closing connection (4)
+Thu Oct  3 08:51:40 2019 : Info: rlm_sql (sql): Closing connection (3)
+Thu Oct  3 08:51:40 2019 : Info: rlm_sql (sql): Closing connection (2)
+Thu Oct  3 08:51:40 2019 : Info: rlm_sql (sql): Closing connection (1)
+Thu Oct  3 08:51:40 2019 : Info: rlm_sql (sql): Closing connection (0)
+Thu Oct  3 10:33:02 2019 : Info: Debugger not attached
+Thu Oct  3 10:33:02 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Thu Oct  3 10:33:02 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Thu Oct  3 10:33:02 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Thu Oct  3 10:33:02 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Thu Oct  3 10:33:02 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Thu Oct  3 10:33:02 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Thu Oct  3 10:33:02 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Thu Oct  3 10:33:02 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Thu Oct  3 10:33:07 2019 : Info: Debugger not attached
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Thu Oct  3 10:33:07 2019 : Info: Need 5 more connections to reach 10 spares
+Thu Oct  3 10:33:07 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Thu Oct  3 10:33:07 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Thu Oct  3 10:33:07 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Thu Oct  3 10:33:07 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Thu Oct  3 10:33:07 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Thu Oct  3 10:33:07 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Thu Oct  3 10:33:07 2019 : Info: Loaded virtual server <default>
+Thu Oct  3 10:33:07 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Thu Oct  3 10:33:07 2019 : Info: Loaded virtual server default
+Thu Oct  3 10:33:07 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Thu Oct  3 10:33:07 2019 : Info: Loaded virtual server inner-tunnel
+Thu Oct  3 10:33:07 2019 : Info: Ready to process requests
+Thu Oct  3 11:06:44 2019 : Info: Signalled to terminate
+Thu Oct  3 11:06:44 2019 : Info: Exiting normally
+Thu Oct  3 11:06:44 2019 : Info: rlm_sql (sql): Closing connection (5)
+Thu Oct  3 11:06:44 2019 : Info: rlm_sql (sql): Closing connection (4)
+Thu Oct  3 11:06:44 2019 : Info: rlm_sql (sql): Closing connection (3)
+Thu Oct  3 11:06:44 2019 : Info: rlm_sql (sql): Closing connection (2)
+Thu Oct  3 11:06:44 2019 : Info: rlm_sql (sql): Closing connection (1)
+Thu Oct  3 11:06:44 2019 : Info: rlm_sql (sql): Closing connection (0)
+Sat Oct  5 10:39:47 2019 : Info: Debugger not attached
+Sat Oct  5 10:39:47 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Oct  5 10:39:47 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Oct  5 10:39:47 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Oct  5 10:39:47 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Oct  5 10:39:47 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Sat Oct  5 10:39:47 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Sat Oct  5 10:39:47 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Sat Oct  5 10:39:47 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Sat Oct  5 10:39:52 2019 : Info: Debugger not attached
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Oct  5 10:39:52 2019 : Info: Need 5 more connections to reach 10 spares
+Sat Oct  5 10:39:52 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Oct  5 10:39:52 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Oct  5 10:39:52 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Oct  5 10:39:52 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Oct  5 10:39:52 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Oct  5 10:39:52 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Oct  5 10:39:52 2019 : Info: Loaded virtual server <default>
+Sat Oct  5 10:39:52 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Oct  5 10:39:52 2019 : Info: Loaded virtual server default
+Sat Oct  5 10:39:52 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Oct  5 10:39:52 2019 : Info: Loaded virtual server inner-tunnel
+Sat Oct  5 10:39:52 2019 : Info: Ready to process requests
+Sat Oct  5 10:43:07 2019 : Info: Signalled to terminate
+Sat Oct  5 10:43:07 2019 : Info: Exiting normally
+Sat Oct  5 10:43:07 2019 : Info: rlm_sql (sql): Closing connection (5)
+Sat Oct  5 10:43:07 2019 : Info: rlm_sql (sql): Closing connection (4)
+Sat Oct  5 10:43:07 2019 : Info: rlm_sql (sql): Closing connection (3)
+Sat Oct  5 10:43:07 2019 : Info: rlm_sql (sql): Closing connection (2)
+Sat Oct  5 10:43:07 2019 : Info: rlm_sql (sql): Closing connection (1)
+Sat Oct  5 10:43:07 2019 : Info: rlm_sql (sql): Closing connection (0)
+Sat Oct  5 12:53:21 2019 : Info: Debugger not attached
+Sat Oct  5 12:53:21 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Oct  5 12:53:21 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Oct  5 12:53:21 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Oct  5 12:53:21 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Oct  5 12:53:21 2019 : Error: rlm_sql_mysql: Couldn't connect to MySQL server sas@localhost:sas4
+Sat Oct  5 12:53:21 2019 : Error: rlm_sql_mysql: MySQL error: Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+Sat Oct  5 12:53:21 2019 : Error: rlm_sql (sql): Opening connection failed (0)
+Sat Oct  5 12:53:21 2019 : Error: /opt/sas4/freeradius/etc/raddb/mods-enabled/sql[20]: Instantiation failed for module "sql"
+Sat Oct  5 12:53:26 2019 : Info: Debugger not attached
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql (sql): Driver rlm_sql_mysql (module rlm_sql_mysql) loaded and linked
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql_mysql: libmysql version: 5.7.22
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql (sql): Attempting to connect to database "sas4"
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql (sql): Opening additional connection (0), 1 of 32 pending slots used
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql (sql): Opening additional connection (1), 1 of 31 pending slots used
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql (sql): Opening additional connection (2), 1 of 30 pending slots used
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql (sql): Opening additional connection (3), 1 of 29 pending slots used
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql (sql): Opening additional connection (4), 1 of 28 pending slots used
+Sat Oct  5 12:53:26 2019 : Info: Need 5 more connections to reach 10 spares
+Sat Oct  5 12:53:26 2019 : Info: rlm_sql (sql): Opening additional connection (5), 1 of 27 pending slots used
+Sat Oct  5 12:53:26 2019 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Oct  5 12:53:26 2019 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Oct  5 12:53:26 2019 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Oct  5 12:53:26 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Oct  5 12:53:26 2019 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Oct  5 12:53:26 2019 : Info: Loaded virtual server <default>
+Sat Oct  5 12:53:26 2019 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Oct  5 12:53:26 2019 : Info: Loaded virtual server default
+Sat Oct  5 12:53:26 2019 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Oct  5 12:53:26 2019 : Info: Loaded virtual server inner-tunnel
+Sat Oct  5 12:53:26 2019 : Info: Ready to process requests
+Sat Oct  5 12:56:39 2019 : Info: Signalled to terminate
+Sat Oct  5 12:56:39 2019 : Info: Exiting normally
+Sat Oct  5 12:56:39 2019 : Info: rlm_sql (sql): Closing connection (5)
+Sat Oct  5 12:56:39 2019 : Info: rlm_sql (sql): Closing connection (4)
+Sat Oct  5 12:56:39 2019 : Info: rlm_sql (sql): Closing connection (3)
+Sat Oct  5 12:56:39 2019 : Info: rlm_sql (sql): Closing connection (2)
+Sat Oct  5 12:56:39 2019 : Info: rlm_sql (sql): Closing connection (1)
+Sat Oct  5 12:56:39 2019 : Info: rlm_sql (sql): Closing connection (0)
+Sat Apr  4 08:31:45 2026 : Info: Debugger not attached
+Sat Apr  4 08:31:45 2026 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Apr  4 08:31:45 2026 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Apr  4 08:31:45 2026 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Apr  4 08:31:45 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Apr  4 08:31:45 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Apr  4 08:31:45 2026 : Info: Loaded virtual server <default>
+Sat Apr  4 08:31:45 2026 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Apr  4 08:31:45 2026 : Info: Loaded virtual server default
+Sat Apr  4 08:31:45 2026 : Warning: Ignoring "sql" (see raddb/mods-available/README.rst)
+Sat Apr  4 08:31:45 2026 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Apr  4 08:31:45 2026 : Info: Loaded virtual server inner-tunnel
+Sat Apr  4 08:31:45 2026 : Info: Ready to process requests
+Sat Apr  4 08:31:50 2026 : Info: Signalled to terminate
+Sat Apr  4 08:31:50 2026 : Info: Exiting normally
+Sat Apr  4 08:32:12 2026 : Info: Debugger not attached
+Sat Apr  4 08:32:13 2026 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Apr  4 08:32:13 2026 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Apr  4 08:32:13 2026 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Apr  4 08:32:13 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Apr  4 08:32:13 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Apr  4 08:32:13 2026 : Info: Loaded virtual server <default>
+Sat Apr  4 08:32:13 2026 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Apr  4 08:32:13 2026 : Info: Loaded virtual server default
+Sat Apr  4 08:32:13 2026 : Warning: Ignoring "sql" (see raddb/mods-available/README.rst)
+Sat Apr  4 08:32:13 2026 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Apr  4 08:32:13 2026 : Info: Loaded virtual server inner-tunnel
+Sat Apr  4 08:32:13 2026 : Info: Ready to process requests
+Sat Apr  4 08:37:10 2026 : Info: Signalled to terminate
+Sat Apr  4 08:37:10 2026 : Info: Exiting normally
+Sat Apr  4 08:37:32 2026 : Info: Debugger not attached
+Sat Apr  4 08:37:32 2026 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Apr  4 08:37:32 2026 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Apr  4 08:37:32 2026 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Apr  4 08:37:32 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Apr  4 08:37:32 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Apr  4 08:37:32 2026 : Info: Loaded virtual server <default>
+Sat Apr  4 08:37:32 2026 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Apr  4 08:37:32 2026 : Info: Loaded virtual server default
+Sat Apr  4 08:37:32 2026 : Warning: Ignoring "sql" (see raddb/mods-available/README.rst)
+Sat Apr  4 08:37:32 2026 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Apr  4 08:37:32 2026 : Info: Loaded virtual server inner-tunnel
+Sat Apr  4 08:37:32 2026 : Info: Ready to process requests
+Sat Apr  4 08:51:32 2026 : Info: Debugger not attached
+Sat Apr  4 08:51:33 2026 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Apr  4 08:51:33 2026 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Apr  4 08:51:33 2026 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Apr  4 08:51:33 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Apr  4 08:51:33 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Apr  4 08:51:33 2026 : Info: Loaded virtual server <default>
+Sat Apr  4 08:51:33 2026 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Apr  4 08:51:33 2026 : Info: Loaded virtual server default
+Sat Apr  4 08:51:33 2026 : Warning: Ignoring "sql" (see raddb/mods-available/README.rst)
+Sat Apr  4 08:51:33 2026 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Apr  4 08:51:33 2026 : Info: Loaded virtual server inner-tunnel
+Sat Apr  4 08:51:33 2026 : Info: Ready to process requests
+Sat Apr 25 21:09:57 2026 : Info: Debugger not attached
+Sat Apr 25 21:09:57 2026 : Warning: rlm_eap (EAP): Ignoring EAP method tls because we don't have OpenSSL support
+Sat Apr 25 21:09:57 2026 : Warning: rlm_eap (EAP): Ignoring EAP method ttls because we don't have OpenSSL support
+Sat Apr 25 21:09:57 2026 : Warning: rlm_eap (EAP): Ignoring EAP method peap because we don't have OpenSSL support
+Sat Apr 25 21:09:57 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay" 	found in filter list for realm "DEFAULT". 
+Sat Apr 25 21:09:57 2026 : Warning: [/opt/sas4/freeradius/etc/raddb/mods-config/attr_filter/access_reject]:11 Check item "FreeRADIUS-Response-Delay-USec" 	found in filter list for realm "DEFAULT". 
+Sat Apr 25 21:09:57 2026 : Info: Loaded virtual server <default>
+Sat Apr 25 21:09:57 2026 : Warning: Ignoring "ldap" (see raddb/mods-available/README.rst)
+Sat Apr 25 21:09:57 2026 : Info: Loaded virtual server default
+Sat Apr 25 21:09:57 2026 : Warning: Ignoring "sql" (see raddb/mods-available/README.rst)
+Sat Apr 25 21:09:57 2026 : Info:  # Skipping contents of 'if' as it is always 'false' -- /opt/sas4/freeradius/etc/raddb/sites-enabled/inner-tunnel:331
+Sat Apr 25 21:09:57 2026 : Info: Loaded virtual server inner-tunnel
+Sat Apr 25 21:09:57 2026 : Info: Ready to process requests

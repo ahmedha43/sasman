@@ -1,0 +1,26 @@
+# lal server configuration for SASMAN
+# Lightweight RTMP/HLS streaming server
+
+# HTTP API for control
+api:
+  enable: true
+  addr: "127.0.0.1:8080"
+
+# RTMP server
+rtmp:
+  enable: true
+  addr: ":1935"
+
+# HLS for viewing streams
+hls:
+  enable: true
+  addr: ":8888"
+
+# HTTP server for static files
+http_server:
+  enable: false
+
+# Log configuration
+log:
+  level: info
+  path: /app/data/lal.log

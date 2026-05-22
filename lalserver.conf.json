@@ -1,0 +1,29 @@
+{
+  "conf_version": "v0.4.1",
+  "rtmp": {
+    "enable": true,
+    "addr": ":1935"
+  },
+  "default_http": {
+    "http_listen_addr": ":8888"
+  },
+  "httpflv": {
+    "enable": true
+  },
+  "hls": {
+    "enable": true,
+    "url_pattern": "/hls/",
+    "use_memory_as_disk_flag": true
+  },
+  "httpts": {
+    "enable": true
+  },
+  "http_api": {
+    "enable": true,
+    "addr": "127.0.0.1:8083"
+  },
+  "log": {
+    "level": 1,
+    "is_to_stdout": true
+  }
+}

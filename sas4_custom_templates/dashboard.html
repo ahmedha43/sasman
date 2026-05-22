@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <title>SAS RADIUS - لوحة الإدارة الرئيسية</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="../site/admin/frontend/favicon.ico">
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Design System Theme - CoreUI & SAS4 Blue */
+        :root {
+            --primary: #20a8d8;
+            --primary-hover: #1b8eb7;
+            --primary-light: rgba(32, 168, 216, 0.1);
+            --success: #4dbd74;
+            --success-light: rgba(77, 189, 116, 0.1);
+            --info: #63c2de;
+            --warning: #ffc107;
+            --warning-light: rgba(255, 193, 7, 0.1);
+            --danger: #f86c6b;
+            --danger-light: rgba(248, 108, 107, 0.1);
+            
+            /* Grays & Neutrals */
+            --white: #ffffff;
+            --bg-body: #eff3f8;
+            --bg-sidebar: #3e515b; /* SAS4 Dark Slate Sidebar */
+            --bg-sidebar-hover: #32414a;
+            --bg-sidebar-active: #2c3a42;
+            --text-dark: #2f3542;
+            --text-muted: #869fac;
+            --border-color: #e3e8ec;
+            
+            /* Sizing & Transitions */
+            --sidebar-width: 260px;
+            --sidebar-collapsed-width: 70px;
+            --header-height: 60px;
+            --shadow-premium: 0 4px 20px rgba(0, 0, 0, 0.03), 0 1px 4px rgba(0, 0, 0, 0.02);
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Cairo', 'Open Sans', -apple-system, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        /* ------------------ SIDEBAR STYLES ------------------ */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--bg-sidebar);
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 100;
+            color: var(--white);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
+            transition: var(--transition-smooth);
+        }
+
+        /* Sidebar Brand */
+        .sidebar-brand {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            background-color: var(--bg-sidebar-hover);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--white);
+            text-decoration: none;
+        }
+
+        .brand-logo img {
+            height: 30px;
+            width: auto;
+        }
+
+        .sidebar-toggler {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: var(--transition-smooth);
+        }
+
+        .sidebar-toggler:hover {
+            color: var(--white);
+        }
+
+        /* Sidebar Menu List */
+        .sidebar-menu {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px 0;
+            list-style: none;
+        }
+
+        .sidebar-menu::-webkit-scrollbar {
+            width: 4px;
+        }
+        .sidebar-menu::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .menu-title {
+            padding: 10px 20px 5px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .menu-item {
+            position: relative;
+            margin-bottom: 2px;
+        }
+
+        .menu-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: var(--transition-smooth);
+            border-right: 4px solid transparent;
+        }
+
+        .menu-link i {
+            margin-left: 12px;
+            width: 20px;
+            text-align: center;
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.5);
+            transition: var(--transition-smooth);
+        }
+
+        .menu-link:hover {
+            background-color: var(--bg-sidebar-hover);
+            color: var(--white);
+            border-right-color: var(--primary);
+        }
+
+        .menu-link:hover i {
+            color: var(--primary);
+        }
+
+        .menu-item.active .menu-link {
+            background-color: var(--bg-sidebar-active);
+            color: var(--white);
+            border-right-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .menu-item.active .menu-link i {
+            color: var(--primary);
+        }
+
+        /* Collapsible Submenus */
+        .submenu {
+            list-style: none;
+            background-color: rgba(0, 0, 0, 0.15);
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .submenu.open {
+            max-height: 300px;
+        }
+
+        .submenu-link {
+            display: flex;
+            align-items: center;
+            padding: 10px 35px 10px 20px;
+            color: rgba(255, 255, 255, 0.65);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: var(--transition-smooth);
+        }
+
+        .submenu-link:hover {
+            color: var(--white);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .arrow-icon {
+            margin-right: auto;
+            font-size: 0.8rem !important;
+            transition: transform 0.3s;
+        }
+
+        .menu-item.open .arrow-icon {
+            transform: rotate(-90deg);
+        }
+
+        /* ------------------ MAIN WORKSPACE ------------------ */
+        .main-content {
+            margin-right: var(--sidebar-width);
+            flex: 1;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition-smooth);
+        }
+
+        /* ------------------ HEADER ------------------ */
+        .header {
+            height: var(--header-height);
+            background-color: var(--white);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            position: sticky;
+            top: 0;
+            z-index: 90;
+            box-shadow: var(--shadow-premium);
+        }
+
+        .header-search {
+            display: flex;
+            align-items: center;
+            background-color: #fafbfc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 6px 12px;
+            width: 280px;
+            transition: var(--transition-smooth);
+        }
+
+        .header-search:focus-within {
+            border-color: var(--primary);
+            background-color: var(--white);
+            box-shadow: 0 0 0 3px rgba(32, 168, 216, 0.1);
+        }
+
+        .header-search input {
+            border: none;
+            background: none;
+            outline: none;
+            width: 100%;
+            font-family: inherit;
+            font-size: 0.85rem;
+            margin-right: 8px;
+            color: var(--text-dark);
+        }
+
+        .header-search i {
+            color: var(--text-muted);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Notification bell dropdown link */
+        .header-btn {
+            background: none;
+            border: none;
+            color: var(--text-dark);
+            font-size: 1.1rem;
+            cursor: pointer;
+            position: relative;
+            transition: var(--transition-smooth);
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header-btn:hover {
+            background-color: #f1f3f8;
+            color: var(--primary);
+        }
+
+        .badge-dot {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            background-color: var(--danger);
+            border-radius: 50%;
+            border: 2px solid var(--white);
+        }
+
+        /* User Menu Profile */
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 8px;
+            transition: var(--transition-smooth);
+        }
+
+        .user-profile:hover {
+            background-color: #f1f3f8;
+        }
+
+        .avatar-img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--border-color);
+        }
+
+        .user-info {
+            font-size: 0.8rem;
+            text-align: right;
+        }
+
+        .user-name {
+            font-weight: 700;
+            color: var(--text-dark);
+            display: block;
+        }
+
+        .user-role {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* ------------------ DASHBOARD CONTAINER ------------------ */
+        .content-body {
+            padding: 30px;
+            flex: 1;
+        }
+
+        /* Page Title */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .page-title h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .page-title p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 3px;
+        }
+
+        /* Dynamic buttons */
+        .btn {
+            padding: 10px 16px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: var(--white);
+            box-shadow: 0 4px 10px rgba(32, 168, 216, 0.2);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        /* ------------------ WIDGETS ------------------ */
+        .widgets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .widget-card {
+            background-color: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow-premium);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition-smooth);
+        }
+
+        .widget-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05);
+        }
+
+        .widget-details h3 {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .widget-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            line-height: 1;
+        }
+
+        .widget-trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-top: 8px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .trend-up {
+            background-color: var(--success-light);
+            color: var(--success);
+        }
+
+        .trend-down {
+            background-color: var(--danger-light);
+            color: var(--danger);
+        }
+
+        .widget-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .widget-primary {
+            background-color: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .widget-success {
+            background-color: var(--success-light);
+            color: var(--success);
+        }
+
+        .widget-warning {
+            background-color: var(--warning-light);
+            color: var(--warning);
+        }
+
+        .widget-danger {
+            background-color: var(--danger-light);
+            color: var(--danger);
+        }
+
+        /* ------------------ DOUBLE COLUMN SECTION ------------------ */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 992px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-card {
+            background-color: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow-premium);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-title i {
+            color: var(--primary);
+        }
+
+        /* Interactive Tables */
+        .table-responsive {
+            overflow-x: auto;
+            width: 100%;
+        }
+
+        .premium-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+            font-size: 0.85rem;
+        }
+
+        .premium-table th {
+            padding: 14px 16px;
+            font-weight: 700;
+            color: var(--text-muted);
+            background-color: #fafbfc;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .premium-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-dark);
+            vertical-align: middle;
+        }
+
+        .premium-table tbody tr {
+            transition: var(--transition-smooth);
+        }
+
+        .premium-table tbody tr:hover {
+            background-color: #f8fafc;
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .badge-success {
+            background-color: var(--success-light);
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background-color: var(--warning-light);
+            color: var(--warning);
+        }
+
+        .badge-danger {
+            background-color: var(--danger-light);
+            color: var(--danger);
+        }
+
+        /* ------------------ NETWORK SPEED CHART (SVG) ------------------ */
+        .chart-container {
+            width: 100%;
+            height: 180px;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .chart-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ------------------ RIGHT PANEL PROGRESSES ------------------ */
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .status-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-name {
+            color: var(--text-dark);
+        }
+
+        .status-percent {
+            color: var(--primary);
+        }
+
+        .progress-bar-bg {
+            height: 8px;
+            background-color: #f1f3f8;
+            border-radius: 4px;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            background-color: var(--primary);
+            transition: width 1s ease-in-out;
+        }
+
+        /* System Info footer */
+        .footer {
+            height: 50px;
+            background-color: var(--white);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* COLLAPSED SIDEBAR OVERRIDES */
+        body.sidebar-collapsed {
+            --sidebar-width: var(--sidebar-collapsed-width);
+        }
+
+        body.sidebar-collapsed .brand-logo span,
+        body.sidebar-collapsed .menu-link span,
+        body.sidebar-collapsed .menu-title,
+        body.sidebar-collapsed .arrow-icon,
+        body.sidebar-collapsed .submenu {
+            display: none !important;
+        }
+
+        body.sidebar-collapsed .menu-link {
+            justify-content: center;
+            padding: 15px 0;
+            border-right: none;
+            border-left: 4px solid transparent;
+        }
+
+        body.sidebar-collapsed .menu-link i {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        body.sidebar-collapsed .menu-link:hover {
+            border-left-color: var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ------------------ SIDEBAR ------------------ -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <a href="#" class="brand-logo">
+                <img src="../site/admin/frontend/logo-symbol.ea1384df5ddc3533fed8.png" onerror="this.src='https://i.imgur.com/uR2i1p5.png'" alt="SAS4 Symbol">
+                <span>SAS RADIUS v4</span>
+            </a>
+            <button class="sidebar-toggler" onclick="toggleSidebar()">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+
+        <ul class="sidebar-menu">
+            <li class="menu-title">الرئيسية</li>
+            
+            <li class="menu-item active">
+                <a href="#" class="menu-link">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>لوحة التحكم</span>
+                </a>
+            </li>
+
+            <li class="menu-title">إدارة المشتركين</li>
+            
+            <li class="menu-item" id="subscribersMenu">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'subscribersMenu')">
+                    <i class="fa-solid fa-users"></i>
+                    <span>المشتركين</span>
+                    <i class="fa-solid fa-chevron-left arrow-icon"></i>
+                </a>
+                <ul class="submenu">
+                    <li><a href="#" class="submenu-link">إضافة مشترك جديد</a></li>
+                    <li><a href="#" class="submenu-link">المشتركين النشطين</a></li>
+                    <li><a href="#" class="submenu-link">المشتركين المنتهيين</a></li>
+                    <li><a href="#" class="submenu-link">سجل الجلسات (Radacct)</a></li>
+                </ul>
+            </li>
+
+            <li class="menu-item" id="managersMenu">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'managersMenu')">
+                    <i class="fa-solid fa-user-tie"></i>
+                    <span>الوكلاء والموزعين</span>
+                    <i class="fa-solid fa-chevron-left arrow-icon"></i>
+                </a>
+                <ul class="submenu">
+                    <li><a href="#" class="submenu-link">قائمة الوكلاء</a></li>
+                    <li><a href="#" class="submenu-link">شحن رصيد وكيل</a></li>
+                    <li><a href="#" class="submenu-link">سجل حركة الرصيد</a></li>
+                </ul>
+            </li>
+
+            <li class="menu-title">التحكم في الشبكة</li>
+
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="fa-solid fa-box-archive"></i>
+                    <span>باقات الاشتراكات (Profiles)</span>
+                </a>
+            </li>
+
+            <li class="menu-item" id="billingMenu">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'billingMenu')">
+                    <i class="fa-solid fa-credit-card"></i>
+                    <span>كروت الشحن والمالية</span>
+                    <i class="fa-solid fa-chevron-left arrow-icon"></i>
+                </a>
+                <ul class="submenu">
+                    <li><a href="#" class="submenu-link">توليد كروت شحن</a></li>
+                    <li><a href="#" class="submenu-link">إدارة التصاميم</a></li>
+                    <li><a href="#" class="submenu-link">الفواتير والإيصالات</a></li>
+                </ul>
+            </li>
+
+            <li class="menu-item" id="serversMenu">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'serversMenu')">
+                    <i class="fa-solid fa-server"></i>
+                    <span>السيرفرات والشبكة (NAS)</span>
+                    <i class="fa-solid fa-chevron-left arrow-icon"></i>
+                </a>
+                <ul class="submenu">
+                    <li><a href="#" class="submenu-link">إدارة راوترات MikroTik</a></li>
+                    <li><a href="#" class="submenu-link">قوائم عناوين IP (Pools)</a></li>
+                    <li><a href="#" class="submenu-link">RADIUS Attributes</a></li>
+                </ul>
+            </li>
+
+            <li class="menu-title">إعدادات النظام</li>
+            
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="fa-solid fa-bell"></i>
+                    <span>إشعارات بوت Telegram & SMS</span>
+                </a>
+            </li>
+
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="fa-solid fa-database"></i>
+                    <span>النسخ الاحتياطي (Backups)</span>
+                </a>
+            </li>
+
+            <li class="menu-item">
+                <a href="#" class="menu-link">
+                    <i class="fa-solid fa-gear"></i>
+                    <span>إعدادات عامة</span>
+                </a>
+            </li>
+        </ul>
+    </aside>
+
+    <!-- ------------------ MAIN WRAPPER ------------------ -->
+    <div class="main-content">
+        
+        <!-- ------------------ HEADER ------------------ -->
+        <header class="header">
+            <div class="header-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" placeholder="بحث سريع عن مشترك، بطاقة أو فاتورة...">
+            </div>
+
+            <div class="header-actions">
+                <!-- Notifications -->
+                <button class="header-btn">
+                    <i class="fa-regular fa-bell"></i>
+                    <span class="badge-dot"></span>
+                </button>
+
+                <!-- Server Online Pulse -->
+                <button class="header-btn" style="color: var(--success)">
+                    <i class="fa-solid fa-circle-nodes"></i>
+                </button>
+
+                <!-- Profile Dropdown -->
+                <div class="user-profile">
+                    <img class="avatar-img" src="https://i.pravatar.cc/150?img=68" alt="Manager Avatar">
+                    <div class="user-info">
+                        <span class="user-name">المدير العام</span>
+                        <span class="user-role">Super Admin</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- ------------------ CONTENT BODY ------------------ -->
+        <div class="content-body">
+            
+            <!-- Page Header -->
+            <div class="page-header">
+                <div class="page-title">
+                    <h1>لوحة المراقبة الرئيسية</h1>
+                    <p>مرحباً بك مجدداً، إليك نظرة عامة على حالة سيرفر RADIUS وشبكتك اليوم.</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="alert('توليد كروت شحن سريع!')">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>توليد كروت سريع</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grid of 4 Widget cards -->
+            <div class="widgets-grid">
+                
+                <!-- Card 1: Active Users -->
+                <div class="widget-card">
+                    <div class="widget-details">
+                        <h3>المستخدمين المتصلين حالياً</h3>
+                        <div class="widget-value">1,432</div>
+                        <div class="widget-trend trend-up">
+                            <i class="fa-solid fa-caret-up"></i>
+                            <span>12% عن الساعات الماضية</span>
+                        </div>
+                    </div>
+                    <div class="widget-icon widget-primary">
+                        <i class="fa-solid fa-wifi"></i>
+                    </div>
+                </div>
+
+                <!-- Card 2: Revenue -->
+                <div class="widget-card">
+                    <div class="widget-details">
+                        <h3>مبيعات الوكلاء (هذا الشهر)</h3>
+                        <div class="widget-value">4,890,000 د.ع</div>
+                        <div class="widget-trend trend-up">
+                            <i class="fa-solid fa-caret-up"></i>
+                            <span>8.5% مبيعات</span>
+                        </div>
+                    </div>
+                    <div class="widget-icon widget-success">
+                        <i class="fa-solid fa-money-bill-wave"></i>
+                    </div>
+                </div>
+
+                <!-- Card 3: Expiring Users -->
+                <div class="widget-card">
+                    <div class="widget-details">
+                        <h3>وكلاء وموزعين مفعلين</h3>
+                        <div class="widget-value">148 وكيل</div>
+                        <div class="widget-trend trend-down">
+                            <i class="fa-solid fa-caret-down"></i>
+                            <span>2 وكلاء غير مفعلين</span>
+                        </div>
+                    </div>
+                    <div class="widget-icon widget-warning">
+                        <i class="fa-solid fa-user-group"></i>
+                    </div>
+                </div>
+
+                <!-- Card 4: System Health -->
+                <div class="widget-card">
+                    <div class="widget-details">
+                        <h3>حالة النظام وسيرفر MikroTik</h3>
+                        <div class="widget-value">ممتاز (99.8%)</div>
+                        <div class="widget-trend trend-up">
+                            <i class="fa-solid fa-check"></i>
+                            <span>جميع الخدمات تعمل</span>
+                        </div>
+                    </div>
+                    <div class="widget-icon widget-danger">
+                        <i class="fa-solid fa-gauge-high"></i>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Double Columns Section -->
+            <div class="dashboard-grid">
+                
+                <!-- Right Side: Subscribers Table & Network Chart -->
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa-solid fa-users"></i>
+                            <span>أحدث المشتركين المسجلين والعمليات المالية</span>
+                        </h2>
+                        <span style="font-size: 0.8rem; color: var(--text-muted)">آخر تحديث: منذ دقيقتين</span>
+                    </div>
+
+                    <!-- Chart Visual Mockup -->
+                    <div class="chart-container">
+                        <svg class="chart-svg" viewBox="0 0 500 120" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.4"/>
+                                    <stop offset="100%" stop-color="var(--primary)" stop-opacity="0"/>
+                                </linearGradient>
+                            </defs>
+                            <!-- Grid Lines -->
+                            <line x1="0" y1="30" x2="500" y2="30" stroke="#f1f3f8" stroke-width="1"/>
+                            <line x1="0" y1="60" x2="500" y2="60" stroke="#f1f3f8" stroke-width="1"/>
+                            <line x1="0" y1="90" x2="500" y2="90" stroke="#f1f3f8" stroke-width="1"/>
+                            
+                            <!-- Area under line -->
+                            <path d="M 0 120 Q 50 40 100 80 T 200 30 T 300 90 T 400 40 T 500 20 L 500 120 Z" fill="url(#chartGrad)"/>
+                            
+                            <!-- Curve Line -->
+                            <path d="M 0 120 Q 50 40 100 80 T 200 30 T 300 90 T 400 40 T 500 20" fill="none" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/>
+                            
+                            <!-- Pulse Dots -->
+                            <circle cx="200" cy="30" r="5" fill="var(--primary)"/>
+                            <circle cx="500" cy="20" r="5" fill="var(--primary)"/>
+                        </svg>
+                        <p style="text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 5px;">
+                            <i class="fa-solid fa-wave-square" style="color: var(--primary)"></i> 
+                            معدل نقل بيانات المتصلين بالشبكة (Real-time Bandwidth Usage)
+                        </p>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="table-responsive" style="margin-top: 20px;">
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>اسم المشترك</th>
+                                    <th>الباقة / السرعة</th>
+                                    <th>الوكيل المسؤول</th>
+                                    <th>القيمة المالية</th>
+                                    <th>حالة الدفع</th>
+                                    <th>تاريخ التفعيل</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="font-weight: 700;">أحمد علي محمد</td>
+                                    <td>باقة بلا حدود 10 Mbps</td>
+                                    <td>مركز البصرة الرقمي</td>
+                                    <td>15,000 د.ع</td>
+                                    <td><span class="badge badge-success">تم الدفع</span></td>
+                                    <td>منذ 5 دقائق</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">ياسر عبد الحسين</td>
+                                    <td>باقة العاب فائقة السرعة</td>
+                                    <td>وكالة المدى للاتصالات</td>
+                                    <td>25,000 د.ع</td>
+                                    <td><span class="badge badge-success">تم الدفع</span></td>
+                                    <td>منذ 22 دقيقة</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">مصطفى كامل</td>
+                                    <td>باقة اقتصادية 4 Mbps</td>
+                                    <td>شحن مباشر (كارت شحن)</td>
+                                    <td>10,000 د.ع</td>
+                                    <td><span class="badge badge-success">تم الدفع</span></td>
+                                    <td>منذ ساعة</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">علي رضا الكرعاوي</td>
+                                    <td>باقة ذهبية 15 Mbps</td>
+                                    <td>وكالة بغداد الشرقية</td>
+                                    <td>30,000 د.ع</td>
+                                    <td><span class="badge badge-warning">معلق للمراجعة</span></td>
+                                    <td>منذ ساعتين</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">عمر فاروق حسن</td>
+                                    <td>باقة بلا حدود 10 Mbps</td>
+                                    <td>موزع الفلوجة الرقمي</td>
+                                    <td>15,000 د.ع</td>
+                                    <td><span class="badge badge-danger">مرفوض/ملغي</span></td>
+                                    <td>منذ 4 ساعات</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Left Side: System Metrics & Health (NAS Router status) -->
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h2 class="panel-title">
+                            <i class="fa-solid fa-microchip"></i>
+                            <span>مراقبة السيرفر والراوتر (NAS)</span>
+                        </h2>
+                    </div>
+
+                    <div class="status-list">
+                        
+                        <!-- Metric 1: MikroTik CPU -->
+                        <div class="status-item">
+                            <div class="status-meta">
+                                <span class="status-name">معدل استهلاك معالج السيرفر (CPU Load)</span>
+                                <span class="status-percent" id="cpuVal">34%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" id="cpuBar" style="width: 34%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Metric 2: Memory RAM -->
+                        <div class="status-item">
+                            <div class="status-meta">
+                                <span class="status-name">الذاكرة العشوائية المستهلكة (RAM)</span>
+                                <span class="status-percent">48%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width: 48%; background-color: var(--success);"></div>
+                            </div>
+                        </div>
+
+                        <!-- Metric 3: SQLite DB Space -->
+                        <div class="status-item">
+                            <div class="status-meta">
+                                <span class="status-name">مساحة قاعدة البيانات (SQLite DB)</span>
+                                <span class="status-percent">2.27 MB / 50 MB</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width: 15%; background-color: var(--info);"></div>
+                            </div>
+                        </div>
+
+                        <!-- Metric 4: Telegram Notification Queue -->
+                        <div class="status-item">
+                            <div class="status-meta">
+                                <span class="status-name">طابور إرسال إشعارات التلجرام والـ SMS</span>
+                                <span class="status-percent">0 رسائل معلقة</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width: 100%; background-color: var(--success);"></div>
+                            </div>
+                        </div>
+
+                        <!-- Mini Cards inside panel -->
+                        <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-top: 10px; background-color: #fafbfc;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 8px;">
+                                <span style="font-weight: 700; color: var(--text-dark)">تراخيص وكلاء الموزعين</span>
+                                <span style="color: var(--success); font-weight: 700;">مفعلة بالكامل</span>
+                            </div>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+                                نظام التحقق من التراخيص وHWID يعمل بشكل آمن. قاعدة البياناتSQLite مدمجة ومحصنة بالكامل.
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- ------------------ FOOTER ------------------ -->
+        <footer class="footer">
+            <p>جميع الحقوق محفوظة &copy; لوحة إدارة SAS RADIUS v4.2.1 - 2026</p>
+        </footer>
+
+    </div>
+
+    <!-- ------------------ SCRIPTS ------------------ -->
+    <script>
+        // Collapsible Sidebar Menu Toggle
+        function toggleSidebar() {
+            document.body.classList.toggle('sidebar-collapsed');
+        }
+
+        // Toggle Submenu Dropdown List
+        function toggleSubmenu(event, itemId) {
+            event.preventDefault();
+            const menuItem = document.getElementById(itemId);
+            const submenu = menuItem.querySelector('.submenu');
+            
+            // Toggle open states
+            menuItem.classList.toggle('open');
+            submenu.classList.toggle('open');
+            
+            // Close other menus if open (optional)
+            const allMenuItems = document.querySelectorAll('.menu-item');
+            allMenuItems.forEach(item => {
+                if(item.id !== itemId && item.id) {
+                    item.classList.remove('open');
+                    const otherSub = item.querySelector('.submenu');
+                    if(otherSub) otherSub.classList.remove('open');
+                }
+            });
+        }
+
+        // Real-time metric simulation for presentation
+        setInterval(() => {
+            const cpuValText = document.getElementById('cpuVal');
+            const cpuBar = document.getElementById('cpuBar');
+            
+            // Randomly oscillate CPU Load between 25% and 55%
+            const newCpu = Math.floor(Math.random() * (55 - 25 + 1)) + 25;
+            cpuValText.innerText = newCpu + '%';
+            cpuBar.style.width = newCpu + '%';
+            
+            // Alter bar color dynamically based on threshold
+            if (newCpu > 50) {
+                cpuBar.style.backgroundColor = 'var(--warning)';
+            } else {
+                cpuBar.style.backgroundColor = 'var(--primary)';
+            }
+        }, 3000);
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,1821 @@
+2026/04/26 19:45:16 [Init] Successfully loaded app groups and ip groups
+2026/04/26 19:45:16 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 19:45:16 Connecting to MySQL... dial tcp 127.0.0.1:3306: connect: connection refused
+2026/04/26 19:45:16 FreeRADIUS MySQL Engine Synchronized.
+Starting SASMAN Unified Server on :8080...
+  Admin Panel: http://localhost:8080/admin
+  RADIUS Panel: http://localhost:8080/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 19:46:16 [prune] Running daily database pruning...
+2026/04/26 19:46:16 [prune] Failed to prune radacct: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '('now', '-30 days')' at line 1
+2026/04/26 19:46:16 [prune] Failed to prune radpostauth: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '('now', '-7 days')' at line 1
+2026/04/26 19:46:16 [prune] WAL checkpoint failed: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PRAGMA wal_checkpoint(PASSIVE)' at line 1
+2026/04/26 19:46:16 [prune] Database pruning completed
+2026/04/26 19:46:44 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:46:44 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:46:44 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:46:44 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:46:49 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:46:49 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:46:54 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:46:54 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:46:56 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:46:56 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:46:56 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:46:56 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:01 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:01 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:05 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 19:47:06 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:06 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:09 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:09 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:11 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:11 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:17 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:17 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:18 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 19:47:22 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:22 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:25 [radius-api] GET /radius/api/auth/me
+2026/04/26 19:47:25 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:25 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:25 [radius-api] GET /radius/api/license/status
+2026/04/26 19:47:25 [radius-api] GET /radius/api/auth/admins
+2026/04/26 19:47:25 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:25 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:25 [radius-api] GET /radius/api/profiles
+2026/04/26 19:47:25 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:25 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:25 [radius-api] GET /radius/api/internal-pools
+2026/04/26 19:47:25 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:25 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:25 [radius-api] GET /radius/api/users
+2026/04/26 19:47:25 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:25 [radius-api] GET /radius/api/nas
+2026/04/26 19:47:25 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:25 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:25 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:27 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:32 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:32 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:34 [radius-api] POST /radius/api/auth/login
+2026/04/26 19:47:37 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:37 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:42 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:42 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:46 [radius-api] POST /radius/api/auth/login
+2026/04/26 19:47:46 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 19:47:47 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:47 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:52 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:52 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:47:57 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:47:57 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:48:02 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:48:02 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:48:07 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:48:07 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:48:08 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 19:48:12 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:48:12 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:48:17 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:48:17 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:49:11 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:49:11 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:50:12 [Init] Successfully loaded app groups and ip groups
+2026/04/26 19:50:12 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 19:50:12 Connecting to MySQL... dial tcp 127.0.0.1:3306: connect: connection refused
+2026/04/26 19:50:12 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 19:50:12 [admins] count error: dial tcp 127.0.0.1:3306: connect: connection refused
+Starting SASMAN Unified Server on :8080...
+  Admin Panel: http://localhost:8080/admin
+  RADIUS Panel: http://localhost:8080/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 19:51:11 [auth] Looking up token: [2e74fdb6a34fb5afa3ba272e0f0393e6442e363dabe8255b0b6de1dbcb8ea747]
+2026/04/26 19:51:11 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:51:12 [prune] Running daily database pruning...
+2026/04/26 19:51:12 [prune] Failed to prune radacct: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '('now', '-30 days')' at line 1
+2026/04/26 19:51:12 [prune] Failed to prune radpostauth: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '('now', '-7 days')' at line 1
+2026/04/26 19:51:12 [prune] WAL checkpoint failed: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PRAGMA wal_checkpoint(PASSIVE)' at line 1
+2026/04/26 19:51:12 [prune] Database pruning completed
+2026/04/26 19:52:45 [Init] Successfully loaded app groups and ip groups
+2026/04/26 19:52:45 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 19:52:45 Waiting for MariaDB to start... (1/30)
+2026/04/26 19:52:46 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 19:52:46 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :8080...
+  Admin Panel: http://localhost:8080/admin
+  RADIUS Panel: http://localhost:8080/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 351 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 19:53:46 [prune] Running daily database pruning...
+2026/04/26 19:53:46 [prune] Failed to prune radacct: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '('now', '-30 days')' at line 1
+2026/04/26 19:53:46 [prune] Failed to prune radpostauth: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '('now', '-7 days')' at line 1
+2026/04/26 19:53:46 [prune] WAL checkpoint failed: Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PRAGMA wal_checkpoint(PASSIVE)' at line 1
+2026/04/26 19:53:46 [prune] Database pruning completed
+2026/04/26 19:54:31 [radius-api] POST /radius/api/auth/login
+2026/04/26 19:54:31 [radius-api] GET /radius/api/auth/me
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/license/status
+2026/04/26 19:54:31 [radius-api] GET /radius/api/auth/admins
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/internal-pools
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/profiles
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/nas
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/users
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/users
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/users
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/profiles
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:31 [radius-api] GET /radius/api/profiles
+2026/04/26 19:54:31 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:54:40 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 19:55:28 [Init] Successfully loaded app groups and ip groups
+2026/04/26 19:55:28 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 19:55:28 Waiting for MariaDB to start... (1/30)
+2026/04/26 19:55:29 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 19:55:29 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :8080...
+  Admin Panel: http://localhost:8080/admin
+  RADIUS Panel: http://localhost:8080/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 359 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 19:55:50 [radius-api] GET /radius/api/auth/me
+2026/04/26 19:55:50 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:55:50 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:55:50 [radius-api] GET /radius/api/license/status
+2026/04/26 19:55:50 [radius-api] GET /radius/api/auth/admins
+2026/04/26 19:55:50 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:55:50 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:55:50 [radius-api] GET /radius/api/profiles
+2026/04/26 19:55:50 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:55:50 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:55:50 [radius-api] GET /radius/api/internal-pools
+2026/04/26 19:55:50 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:55:50 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:55:50 [radius-api] GET /radius/api/users
+2026/04/26 19:55:50 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:55:50 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:55:50 [radius-api] GET /radius/api/nas
+2026/04/26 19:55:50 [auth] Looking up token: [d0b872c071a10d22811fb470def279baeb0d5c216a09aa462a4c8fa6cb2cac71]
+2026/04/26 19:55:50 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 19:56:04 [radius-api] POST /radius/api/auth/login
+2026/04/26 19:56:04 [radius-api] GET /radius/api/auth/me
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/license/status
+2026/04/26 19:56:04 [radius-api] GET /radius/api/auth/admins
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/profiles
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/internal-pools
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/users
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/users
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/nas
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/users
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/profiles
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:04 [radius-api] GET /radius/api/profiles
+2026/04/26 19:56:04 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:11 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 19:56:14 [radius-api] POST /radius/api/nas
+2026/04/26 19:56:14 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 19:56:29 [prune] Running daily database pruning...
+2026/04/26 19:56:29 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 19:56:29 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 19:56:29 [prune] Database pruning completed
+2026/04/26 19:56:31 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 19:56:32 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:00:29 [ippool] reclaim query error: Error 1273 (HY000): Unknown collation: 'NOCASE'
+2026/04/26 20:08:33 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:08:33 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:08:33 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:08:34 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 20:08:35 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :8080...
+  Admin Panel: http://localhost:8080/admin
+  RADIUS Panel: http://localhost:8080/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 20:09:35 [prune] Running daily database pruning...
+2026/04/26 20:09:35 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 20:09:35 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 20:09:35 [prune] Database pruning completed
+2026/04/26 20:10:18 [radius-api] GET /radius/api/nas
+2026/04/26 20:10:18 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 20:10:18 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 20:10:19 [radius-api] GET /radius/api/auth/me
+2026/04/26 20:10:19 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 20:10:19 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 20:10:19 [radius-api] GET /radius/api/license/status
+2026/04/26 20:10:19 [radius-api] GET /radius/api/auth/admins
+2026/04/26 20:10:19 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 20:10:19 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 20:10:19 [radius-api] GET /radius/api/nas
+2026/04/26 20:10:19 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 20:10:19 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 20:10:19 [radius-api] GET /radius/api/profiles
+2026/04/26 20:10:19 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 20:10:19 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 20:10:19 [radius-api] GET /radius/api/internal-pools
+2026/04/26 20:10:19 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 20:10:19 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 20:10:19 [radius-api] GET /radius/api/users
+2026/04/26 20:10:19 [auth] Looking up token: [1bd388247a66949ff995171d0e06a88a9db742311b1a5b7a23e91321a3d84fa5]
+2026/04/26 20:10:19 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 20:10:31 [radius-api] POST /radius/api/auth/login
+2026/04/26 20:10:31 [radius-api] GET /radius/api/auth/me
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/license/status
+2026/04/26 20:10:31 [radius-api] GET /radius/api/auth/admins
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/profiles
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/internal-pools
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/users
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/nas
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/users
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/users
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/profiles
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:31 [radius-api] GET /radius/api/profiles
+2026/04/26 20:10:31 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:39 [radius-api] POST /radius/api/nas
+2026/04/26 20:10:39 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:10:40 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:10:44 [radius-api] GET /radius/api/nas
+2026/04/26 20:10:44 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:00 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:11:01 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:11:02 [radius-api] GET /radius/api/internal-pools
+2026/04/26 20:11:02 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:27 [radius-api] POST /radius/api/profiles
+2026/04/26 20:11:27 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:29 [radius-api] GET /radius/api/profiles
+2026/04/26 20:11:29 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:29 [radius-api] GET /radius/api/users
+2026/04/26 20:11:29 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:29 [radius-api] GET /radius/api/profiles
+2026/04/26 20:11:29 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:40 [radius-api] GET /radius/api/users
+2026/04/26 20:11:40 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:40 [radius-api] GET /radius/api/users
+2026/04/26 20:11:40 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:40 [radius-api] GET /radius/api/profiles
+2026/04/26 20:11:40 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:41 [radius-api] GET /radius/api/users
+2026/04/26 20:11:41 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:41 [radius-api] GET /radius/api/users
+2026/04/26 20:11:41 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:41 [radius-api] GET /radius/api/profiles
+2026/04/26 20:11:41 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:48 [radius-api] POST /radius/api/users
+2026/04/26 20:11:48 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:50 [radius-api] GET /radius/api/users
+2026/04/26 20:11:50 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:50 [radius-api] GET /radius/api/users
+2026/04/26 20:11:50 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:50 [radius-api] GET /radius/api/profiles
+2026/04/26 20:11:50 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:51 [radius-api] GET /radius/api/users
+2026/04/26 20:11:51 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:51 [radius-api] GET /radius/api/users
+2026/04/26 20:11:51 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:11:51 [radius-api] GET /radius/api/profiles
+2026/04/26 20:11:51 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:13:35 [ippool] reclaim query error: Error 1146 (42S02): Table 'pnbrad.radius_ip_assignments' doesn't exist
+2026/04/26 20:14:23 [radius-api] GET /radius/api/users
+2026/04/26 20:14:23 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:14:23 [radius-api] GET /radius/api/users
+2026/04/26 20:14:23 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:14:23 [radius-api] GET /radius/api/profiles
+2026/04/26 20:14:23 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:17:24 [radius-api] GET /radius/api/users
+2026/04/26 20:17:24 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:17:24 [radius-api] GET /radius/api/users
+2026/04/26 20:17:24 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:17:24 [radius-api] GET /radius/api/profiles
+2026/04/26 20:17:24 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:18:02 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:18:02 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:18:02 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:18:03 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 20:18:03 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :8080...
+  Admin Panel: http://localhost:8080/admin
+  RADIUS Panel: http://localhost:8080/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 355 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 20:19:03 [prune] Running daily database pruning...
+2026/04/26 20:19:03 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 20:19:03 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 20:19:03 [prune] Database pruning completed
+2026/04/26 20:20:32 [radius-api] GET /radius/api/users
+2026/04/26 20:20:32 [auth] Looking up token: [ee53a2004f73ed5d6ac45aff34564e09489b3afcd14535113b5be6ebc73d718b]
+2026/04/26 20:20:32 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 20:20:54 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:21:21 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:21:21 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:21:21 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:21:22 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 20:21:22 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :8080...
+  Admin Panel: http://localhost:8080/admin
+  RADIUS Panel: http://localhost:8080/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 20:22:22 [prune] Running daily database pruning...
+2026/04/26 20:22:22 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 20:22:22 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 20:22:22 [prune] Database pruning completed
+2026/04/26 20:26:22 [ippool] reclaim query error: Error 1146 (42S02): Table 'pnbrad.radius_ip_assignments' doesn't exist
+2026/04/26 20:31:21 [ippool] reclaim query error: Error 1146 (42S02): Table 'pnbrad.radius_ip_assignments' doesn't exist
+2026/04/26 20:33:32 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:33:32 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:33:32 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:33:33 Waiting for MariaDB to start... (2/30)
+2026/04/26 20:33:34 Waiting for MariaDB to start... (3/30)
+2026/04/26 20:33:35 Waiting for MariaDB to start... (4/30)
+2026/04/26 20:33:36 Waiting for MariaDB to start... (5/30)
+2026/04/26 20:33:37 Waiting for MariaDB to start... (6/30)
+2026/04/26 20:33:38 Waiting for MariaDB to start... (7/30)
+2026/04/26 20:33:39 Waiting for MariaDB to start... (8/30)
+2026/04/26 20:33:40 Waiting for MariaDB to start... (9/30)
+2026/04/26 20:33:41 Waiting for MariaDB to start... (10/30)
+2026/04/26 20:33:42 Waiting for MariaDB to start... (11/30)
+2026/04/26 20:33:43 Waiting for MariaDB to start... (12/30)
+2026/04/26 20:33:44 Waiting for MariaDB to start... (13/30)
+2026/04/26 20:33:45 Waiting for MariaDB to start... (14/30)
+2026/04/26 20:33:46 Waiting for MariaDB to start... (15/30)
+2026/04/26 20:33:47 Waiting for MariaDB to start... (16/30)
+2026/04/26 20:33:48 Waiting for MariaDB to start... (17/30)
+2026/04/26 20:33:49 Waiting for MariaDB to start... (18/30)
+2026/04/26 20:33:50 Waiting for MariaDB to start... (19/30)
+2026/04/26 20:33:51 Waiting for MariaDB to start... (20/30)
+2026/04/26 20:33:52 Waiting for MariaDB to start... (21/30)
+2026/04/26 20:33:53 Waiting for MariaDB to start... (22/30)
+2026/04/26 20:33:54 Waiting for MariaDB to start... (23/30)
+2026/04/26 20:33:55 Waiting for MariaDB to start... (24/30)
+2026/04/26 20:33:56 Waiting for MariaDB to start... (25/30)
+2026/04/26 20:33:57 Waiting for MariaDB to start... (26/30)
+2026/04/26 20:33:58 Waiting for MariaDB to start... (27/30)
+2026/04/26 20:33:59 Waiting for MariaDB to start... (28/30)
+2026/04/26 20:34:00 Waiting for MariaDB to start... (29/30)
+2026/04/26 20:34:01 Waiting for MariaDB to start... (30/30)
+2026/04/26 20:34:02 Core radius failure: Failed to connect to MySQL database after 30 attempts: Error 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+2026/04/26 20:34:03 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:34:03 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:34:03 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:34:04 Waiting for MariaDB to start... (2/30)
+2026/04/26 20:34:05 Waiting for MariaDB to start... (3/30)
+2026/04/26 20:34:06 Waiting for MariaDB to start... (4/30)
+2026/04/26 20:34:07 Waiting for MariaDB to start... (5/30)
+2026/04/26 20:34:08 Waiting for MariaDB to start... (6/30)
+2026/04/26 20:34:09 Waiting for MariaDB to start... (7/30)
+2026/04/26 20:34:10 Waiting for MariaDB to start... (8/30)
+2026/04/26 20:34:11 Waiting for MariaDB to start... (9/30)
+2026/04/26 20:34:12 Waiting for MariaDB to start... (10/30)
+2026/04/26 20:34:13 Waiting for MariaDB to start... (11/30)
+2026/04/26 20:34:14 Waiting for MariaDB to start... (12/30)
+2026/04/26 20:34:15 Waiting for MariaDB to start... (13/30)
+2026/04/26 20:34:16 Waiting for MariaDB to start... (14/30)
+2026/04/26 20:34:17 Waiting for MariaDB to start... (15/30)
+2026/04/26 20:34:18 Waiting for MariaDB to start... (16/30)
+2026/04/26 20:34:19 Waiting for MariaDB to start... (17/30)
+2026/04/26 20:34:20 Waiting for MariaDB to start... (18/30)
+2026/04/26 20:34:21 Waiting for MariaDB to start... (19/30)
+2026/04/26 20:34:22 Waiting for MariaDB to start... (20/30)
+2026/04/26 20:34:23 Waiting for MariaDB to start... (21/30)
+2026/04/26 20:34:24 Waiting for MariaDB to start... (22/30)
+2026/04/26 20:34:25 Waiting for MariaDB to start... (23/30)
+2026/04/26 20:34:26 Waiting for MariaDB to start... (24/30)
+2026/04/26 20:34:27 Waiting for MariaDB to start... (25/30)
+2026/04/26 20:34:28 Waiting for MariaDB to start... (26/30)
+2026/04/26 20:34:29 Waiting for MariaDB to start... (27/30)
+2026/04/26 20:34:30 Waiting for MariaDB to start... (28/30)
+2026/04/26 20:34:31 Waiting for MariaDB to start... (29/30)
+2026/04/26 20:34:32 Waiting for MariaDB to start... (30/30)
+2026/04/26 20:34:33 Core radius failure: Failed to connect to MySQL database after 30 attempts: Error 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+2026/04/26 20:34:34 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:34:34 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:34:34 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:34:35 Waiting for MariaDB to start... (2/30)
+2026/04/26 20:34:36 Waiting for MariaDB to start... (3/30)
+2026/04/26 20:34:37 Waiting for MariaDB to start... (4/30)
+2026/04/26 20:34:38 Waiting for MariaDB to start... (5/30)
+2026/04/26 20:34:39 Waiting for MariaDB to start... (6/30)
+2026/04/26 20:34:40 Waiting for MariaDB to start... (7/30)
+2026/04/26 20:34:41 Waiting for MariaDB to start... (8/30)
+2026/04/26 20:34:42 Waiting for MariaDB to start... (9/30)
+2026/04/26 20:34:43 Waiting for MariaDB to start... (10/30)
+2026/04/26 20:34:44 Waiting for MariaDB to start... (11/30)
+2026/04/26 20:34:45 Waiting for MariaDB to start... (12/30)
+2026/04/26 20:34:46 Waiting for MariaDB to start... (13/30)
+2026/04/26 20:34:47 Waiting for MariaDB to start... (14/30)
+2026/04/26 20:34:48 Waiting for MariaDB to start... (15/30)
+2026/04/26 20:34:49 Waiting for MariaDB to start... (16/30)
+2026/04/26 20:34:50 Waiting for MariaDB to start... (17/30)
+2026/04/26 20:34:51 Waiting for MariaDB to start... (18/30)
+2026/04/26 20:34:52 Waiting for MariaDB to start... (19/30)
+2026/04/26 20:34:53 Waiting for MariaDB to start... (20/30)
+2026/04/26 20:34:54 Waiting for MariaDB to start... (21/30)
+2026/04/26 20:34:55 Waiting for MariaDB to start... (22/30)
+2026/04/26 20:34:56 Waiting for MariaDB to start... (23/30)
+2026/04/26 20:34:57 Waiting for MariaDB to start... (24/30)
+2026/04/26 20:34:58 Waiting for MariaDB to start... (25/30)
+2026/04/26 20:34:59 Waiting for MariaDB to start... (26/30)
+2026/04/26 20:35:00 Waiting for MariaDB to start... (27/30)
+2026/04/26 20:35:01 Waiting for MariaDB to start... (28/30)
+2026/04/26 20:35:02 Waiting for MariaDB to start... (29/30)
+2026/04/26 20:35:03 Waiting for MariaDB to start... (30/30)
+2026/04/26 20:35:04 Core radius failure: Failed to connect to MySQL database after 30 attempts: Error 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+2026/04/26 20:35:05 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:35:05 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:35:05 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:35:06 Waiting for MariaDB to start... (2/30)
+2026/04/26 20:35:07 Waiting for MariaDB to start... (3/30)
+2026/04/26 20:35:08 Waiting for MariaDB to start... (4/30)
+2026/04/26 20:35:09 Waiting for MariaDB to start... (5/30)
+2026/04/26 20:35:10 Waiting for MariaDB to start... (6/30)
+2026/04/26 20:35:11 Waiting for MariaDB to start... (7/30)
+2026/04/26 20:35:12 Waiting for MariaDB to start... (8/30)
+2026/04/26 20:35:13 Waiting for MariaDB to start... (9/30)
+2026/04/26 20:35:14 Waiting for MariaDB to start... (10/30)
+2026/04/26 20:35:15 Waiting for MariaDB to start... (11/30)
+2026/04/26 20:35:16 Waiting for MariaDB to start... (12/30)
+2026/04/26 20:35:17 Waiting for MariaDB to start... (13/30)
+2026/04/26 20:35:18 Waiting for MariaDB to start... (14/30)
+2026/04/26 20:35:19 Waiting for MariaDB to start... (15/30)
+2026/04/26 20:35:20 Waiting for MariaDB to start... (16/30)
+2026/04/26 20:35:22 Waiting for MariaDB to start... (17/30)
+2026/04/26 20:35:23 Waiting for MariaDB to start... (18/30)
+2026/04/26 20:35:24 Waiting for MariaDB to start... (19/30)
+2026/04/26 20:35:25 Waiting for MariaDB to start... (20/30)
+2026/04/26 20:35:26 Waiting for MariaDB to start... (21/30)
+2026/04/26 20:35:27 Waiting for MariaDB to start... (22/30)
+2026/04/26 20:35:27 Waiting for MariaDB to start... (23/30)
+2026/04/26 20:35:29 Waiting for MariaDB to start... (24/30)
+2026/04/26 20:35:30 Waiting for MariaDB to start... (25/30)
+2026/04/26 20:35:31 Waiting for MariaDB to start... (26/30)
+2026/04/26 20:35:32 Waiting for MariaDB to start... (27/30)
+2026/04/26 20:35:33 Waiting for MariaDB to start... (28/30)
+2026/04/26 20:35:34 Waiting for MariaDB to start... (29/30)
+2026/04/26 20:35:35 Waiting for MariaDB to start... (30/30)
+2026/04/26 20:35:36 Core radius failure: Failed to connect to MySQL database after 30 attempts: Error 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+2026/04/26 20:35:36 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:35:36 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:35:36 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:35:37 Waiting for MariaDB to start... (2/30)
+2026/04/26 20:35:38 Waiting for MariaDB to start... (3/30)
+2026/04/26 20:35:39 Waiting for MariaDB to start... (4/30)
+2026/04/26 20:35:40 Waiting for MariaDB to start... (5/30)
+2026/04/26 20:35:41 Waiting for MariaDB to start... (6/30)
+2026/04/26 20:35:42 Waiting for MariaDB to start... (7/30)
+2026/04/26 20:35:43 Waiting for MariaDB to start... (8/30)
+2026/04/26 20:35:44 Waiting for MariaDB to start... (9/30)
+2026/04/26 20:35:45 Waiting for MariaDB to start... (10/30)
+2026/04/26 20:35:46 Waiting for MariaDB to start... (11/30)
+2026/04/26 20:35:47 Waiting for MariaDB to start... (12/30)
+2026/04/26 20:35:48 Waiting for MariaDB to start... (13/30)
+2026/04/26 20:35:49 Waiting for MariaDB to start... (14/30)
+2026/04/26 20:35:50 Waiting for MariaDB to start... (15/30)
+2026/04/26 20:35:51 Waiting for MariaDB to start... (16/30)
+2026/04/26 20:35:52 Waiting for MariaDB to start... (17/30)
+2026/04/26 20:35:53 Waiting for MariaDB to start... (18/30)
+2026/04/26 20:35:54 Waiting for MariaDB to start... (19/30)
+2026/04/26 20:35:55 Waiting for MariaDB to start... (20/30)
+2026/04/26 20:35:56 Waiting for MariaDB to start... (21/30)
+2026/04/26 20:35:57 Waiting for MariaDB to start... (22/30)
+2026/04/26 20:35:58 Waiting for MariaDB to start... (23/30)
+2026/04/26 20:35:59 Waiting for MariaDB to start... (24/30)
+2026/04/26 20:36:00 Waiting for MariaDB to start... (25/30)
+2026/04/26 20:36:01 Waiting for MariaDB to start... (26/30)
+2026/04/26 20:36:02 Waiting for MariaDB to start... (27/30)
+2026/04/26 20:36:03 Waiting for MariaDB to start... (28/30)
+2026/04/26 20:36:04 Waiting for MariaDB to start... (29/30)
+2026/04/26 20:36:05 Waiting for MariaDB to start... (30/30)
+2026/04/26 20:36:06 Core radius failure: Failed to connect to MySQL database after 30 attempts: Error 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+2026/04/26 20:36:07 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:36:07 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:36:07 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:36:08 Waiting for MariaDB to start... (2/30)
+2026/04/26 20:36:09 Waiting for MariaDB to start... (3/30)
+2026/04/26 20:36:10 Waiting for MariaDB to start... (4/30)
+2026/04/26 20:36:11 Waiting for MariaDB to start... (5/30)
+2026/04/26 20:36:12 Waiting for MariaDB to start... (6/30)
+2026/04/26 20:36:13 Waiting for MariaDB to start... (7/30)
+2026/04/26 20:36:14 Waiting for MariaDB to start... (8/30)
+2026/04/26 20:36:15 Waiting for MariaDB to start... (9/30)
+2026/04/26 20:36:16 Waiting for MariaDB to start... (10/30)
+2026/04/26 20:36:17 Waiting for MariaDB to start... (11/30)
+2026/04/26 20:36:18 Waiting for MariaDB to start... (12/30)
+2026/04/26 20:36:19 Waiting for MariaDB to start... (13/30)
+2026/04/26 20:36:20 Waiting for MariaDB to start... (14/30)
+2026/04/26 20:36:21 Waiting for MariaDB to start... (15/30)
+2026/04/26 20:36:22 Waiting for MariaDB to start... (16/30)
+2026/04/26 20:36:23 Waiting for MariaDB to start... (17/30)
+2026/04/26 20:36:24 Waiting for MariaDB to start... (18/30)
+2026/04/26 20:36:25 Waiting for MariaDB to start... (19/30)
+2026/04/26 20:36:26 Waiting for MariaDB to start... (20/30)
+2026/04/26 20:36:27 Waiting for MariaDB to start... (21/30)
+2026/04/26 20:36:28 Waiting for MariaDB to start... (22/30)
+2026/04/26 20:36:29 Waiting for MariaDB to start... (23/30)
+2026/04/26 20:36:30 Waiting for MariaDB to start... (24/30)
+2026/04/26 20:36:31 Waiting for MariaDB to start... (25/30)
+2026/04/26 20:36:32 Waiting for MariaDB to start... (26/30)
+2026/04/26 20:36:33 Waiting for MariaDB to start... (27/30)
+2026/04/26 20:36:34 Waiting for MariaDB to start... (28/30)
+2026/04/26 20:36:35 Waiting for MariaDB to start... (29/30)
+2026/04/26 20:36:36 Waiting for MariaDB to start... (30/30)
+2026/04/26 20:36:37 Core radius failure: Failed to connect to MySQL database after 30 attempts: Error 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+2026/04/26 20:36:37 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:36:37 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:36:37 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:36:38 Waiting for MariaDB to start... (2/30)
+2026/04/26 20:36:39 Waiting for MariaDB to start... (3/30)
+2026/04/26 20:40:10 [Init] Successfully loaded app groups and ip groups
+2026/04/26 20:40:10 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/26 20:40:10 Waiting for MariaDB to start... (1/30)
+2026/04/26 20:40:11 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 20:40:12 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 20:41:12 [prune] Running daily database pruning...
+2026/04/26 20:41:12 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 20:41:12 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 20:41:12 [prune] Database pruning completed
+2026/04/26 20:52:39 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:52:45 [radius-api] POST /radius/api/auth/login
+2026/04/26 20:52:45 [radius-api] GET /radius/api/auth/me
+2026/04/26 20:52:45 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/license/status
+2026/04/26 20:52:46 [radius-api] GET /radius/api/auth/admins
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/users
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/internal-pools
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/profiles
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/nas
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/users
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/users
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/profiles
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:46 [radius-api] GET /radius/api/profiles
+2026/04/26 20:52:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:48 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:52:52 [radius-api] GET /radius/api/internal-pools
+2026/04/26 20:52:52 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:55 [radius-api] GET /radius/api/internal-pools
+2026/04/26 20:52:55 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:52:56 [radius-api] GET /radius/api/internal-pools
+2026/04/26 20:52:56 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:53:09 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:54:28 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:28 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:28 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:31 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:32 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:37 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:42 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:47 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:49 http: proxy error: dial tcp 192.168.88.1:80: connect: connection refused
+2026/04/26 20:54:53 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:54:58 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:00 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:00 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:00 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:05 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:10 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:13 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:15 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:20 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:21 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+[core] Persistent connection reset requested.
+2026/04/26 20:55:21 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+[core] Established new persistent connection to MikroTik.
+2026/04/26 20:55:25 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:26 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:26 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:26 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:31 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:31 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:36 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:41 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:46 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:51 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:55:57 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:02 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:07 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:11 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:16 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:22 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:27 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:32 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:37 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:42 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:47 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:52 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:56:57 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 20:57:02 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+[core] Persistent connection lost. Reconnecting...
+[core] Established new persistent connection to MikroTik.
+2026/04/26 22:16:26 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 22:16:38 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 22:16:44 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 22:16:53 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 22:16:53 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 22:16:54 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 22:16:54 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 22:22:17 [radius-api] GET /radius/api/license/status
+2026/04/26 22:22:17 [radius-api] GET /radius/api/auth/admins
+2026/04/26 22:22:17 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 22:58:54 [Init] Successfully loaded app groups and ip groups
+2026/04/26 22:58:54 [Config] Loaded previous session for 192.168.10.1:8728
+2026/04/26 22:58:54 Waiting for MariaDB to start... (1/30)
+2026/04/26 22:58:55 Waiting for MariaDB to start... (2/30)
+2026/04/26 22:58:56 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 22:58:57 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 22:59:59 [prune] Running daily database pruning...
+2026/04/26 22:59:59 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 22:59:59 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 22:59:59 [prune] Database pruning completed
+[core] Established new persistent connection to MikroTik.
+2026/04/26 23:03:20 [Init] Successfully loaded app groups and ip groups
+2026/04/26 23:03:20 [Config] Loaded previous session for 192.168.10.1:8728
+2026/04/26 23:03:20 Waiting for MariaDB to start... (1/30)
+2026/04/26 23:03:21 FreeRADIUS MySQL Engine Synchronized.
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 257 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 23:04:23 [prune] Running daily database pruning...
+2026/04/26 23:04:23 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 23:04:23 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 23:04:23 [prune] Database pruning completed
+[core] Established new persistent connection to MikroTik.
+2026/04/26 23:05:49 [Init] Successfully loaded app groups and ip groups
+2026/04/26 23:05:49 [Config] Loaded previous session for 192.168.10.1:8728
+2026/04/26 23:05:49 Waiting for MariaDB to start... (1/30)
+2026/04/26 23:05:50 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 23:05:50 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 155  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 23:06:27 [radius-api] GET /radius/api/auth/me
+2026/04/26 23:06:27 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 23:06:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:06:27 [radius-api] GET /radius/api/license/status
+2026/04/26 23:06:27 [radius-api] GET /radius/api/auth/admins
+2026/04/26 23:06:27 [auth] Looking up token: [824e3b81c638bc2c92222da417b486f48087b390c5bb8a2acbb2f2781a6d1e3c]
+2026/04/26 23:06:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:06:38 [radius-api] POST /radius/api/auth/login
+2026/04/26 23:06:39 [radius-api] GET /radius/api/auth/me
+2026/04/26 23:06:39 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:06:39 [radius-api] GET /radius/api/license/status
+2026/04/26 23:06:39 [radius-api] GET /radius/api/auth/admins
+2026/04/26 23:06:39 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:06:52 [prune] Running daily database pruning...
+2026/04/26 23:06:52 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 23:06:52 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 23:06:52 [prune] Database pruning completed
+[core] Established new persistent connection to MikroTik.
+2026/04/26 23:07:23 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:23 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:23 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:28 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:29 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:29 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:29 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:34 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:40 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:45 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:50 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:55 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:07:59 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+[core] Persistent connection reset requested.
+2026/04/26 23:07:59 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+[core] Established new persistent connection to MikroTik.
+2026/04/26 23:07:59 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:04 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:11 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:15 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:20 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:25 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:30 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:35 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:39 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:45 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:50 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:08:55 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:09:00 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:09:05 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:09:09 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:09:15 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:09:20 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:09:25 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:09:30 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:09:35 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:10:10 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:11:11 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:32:28 [Init] Successfully loaded app groups and ip groups
+2026/04/26 23:32:28 [Config] Loaded previous session for 192.168.10.1:8728
+2026/04/26 23:32:28 Waiting for MariaDB to start... (1/30)
+2026/04/26 23:32:29 Waiting for MariaDB to start... (2/30)
+2026/04/26 23:32:30 FreeRADIUS MySQL Engine Synchronized.
+2026/04/26 23:32:30 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 173  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 355 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/26 23:33:10 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:33:10 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:33:33 [prune] Running daily database pruning...
+2026/04/26 23:33:33 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/26 23:33:33 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/26 23:33:33 [prune] Database pruning completed
+[core] Established new persistent connection to MikroTik.
+2026/04/26 23:34:08 [radius-api] GET /radius/api/auth/me
+2026/04/26 23:34:08 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:08 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:09 [radius-api] GET /radius/api/license/status
+2026/04/26 23:34:09 [radius-api] GET /radius/api/auth/admins
+2026/04/26 23:34:09 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:09 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:10 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:10 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:12 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:12 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:12 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:12 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:19 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:19 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:23 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:23 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:28 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:28 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:33 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:33 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:38 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:38 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:42 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:42 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:48 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:48 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:53 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:53 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:34:58 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:34:58 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:35:03 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:35:03 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:35:08 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:35:08 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:35:12 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:35:12 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:36:11 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:36:11 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:37:11 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:37:11 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:38:11 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:38:11 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:39:11 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:39:11 [auth] Session not found in DB: sql: no rows in result set
+2026/04/26 23:40:11 [auth] Looking up token: [1aa3218e31d80166d2143795dba895755f4937ce6758bc763683bac2731cd2a6]
+2026/04/26 23:40:11 [auth] Session not found in DB: sql: no rows in result set
+[core] Persistent connection lost. Reconnecting...
+[core] Established new persistent connection to MikroTik.
+[core] Persistent connection lost. Reconnecting...
+2026/04/27 08:24:03 [radius-api] POST /radius/api/auth/login
+2026/04/27 08:24:04 [radius-api] GET /radius/api/auth/me
+2026/04/27 08:24:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:24:04 [radius-api] GET /radius/api/license/status
+2026/04/27 08:24:04 [radius-api] GET /radius/api/auth/admins
+2026/04/27 08:24:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:24:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:24:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:24:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:24:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:24:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:09 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:14 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:15 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Persistent connection reset requested.
+2026/04/27 08:25:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Established new persistent connection to MikroTik.
+2026/04/27 08:25:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:19 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:19 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:19 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:26 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:44 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:46 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:49 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:54 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:25:59 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:26:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:26:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:26:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Persistent connection lost. Reconnecting...
+[core] Established new persistent connection to MikroTik.
+2026/04/27 08:26:21 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:26:25 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:26:56 [Init] Successfully loaded app groups and ip groups
+2026/04/27 08:26:56 Waiting for MariaDB to start... (1/30)
+2026/04/27 08:26:57 Waiting for MariaDB to start... (2/30)
+2026/04/27 08:26:58 Waiting for MariaDB to start... (3/30)
+2026/04/27 08:26:59 FreeRADIUS MySQL Engine Synchronized.
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 173  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 258 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/27 08:27:13 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:13 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:18 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:28 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:31 [radius-api] GET /radius/api/auth/me
+2026/04/27 08:27:31 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:32 [radius-api] GET /radius/api/license/status
+2026/04/27 08:27:32 [radius-api] GET /radius/api/auth/admins
+2026/04/27 08:27:32 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:33 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:37 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:38 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:44 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:49 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:54 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:54 [radius-api] GET /radius/api/auth/me
+2026/04/27 08:27:54 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:54 [radius-api] GET /radius/api/license/status
+2026/04/27 08:27:59 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:27:59 [prune] Running daily database pruning...
+2026/04/27 08:27:59 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/27 08:27:59 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/27 08:27:59 [prune] Database pruning completed
+2026/04/27 08:28:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:09 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:14 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:15 [radius-api] GET /radius/api/auth/admins
+2026/04/27 08:28:15 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:19 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:29 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:44 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:49 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:54 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:28:59 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:09 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:14 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:19 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:29 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:44 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:49 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:54 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:29:59 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:09 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:14 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:19 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:29 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:44 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:49 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:54 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:30:59 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:09 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:14 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:19 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:29 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:44 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:49 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:54 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:31:59 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:32:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:32:09 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:32:14 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:32:19 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:32:24 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:32:29 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:32:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:32:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:33:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:34:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:35:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:36:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:37:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:38:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:39:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:40:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:41:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:42:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:43:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:44:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:45:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:46:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:47:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:48:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:49:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:50:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:51:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:52:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:53:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:54:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:55:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:56:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:57:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:58:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 08:59:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:00:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:01:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:02:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:03:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:04:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:05:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:05:52 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:05:52 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:05:52 [radius-api] GET /radius/api/license/status
+2026/04/27 09:05:52 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:05:52 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:05:54 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:05:55 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:05:55 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:05:55 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:00 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:00 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:00 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:01 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Persistent connection reset requested.
+2026/04/27 09:06:02 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Established new persistent connection to MikroTik.
+2026/04/27 09:06:04 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:09 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:15 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:20 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:25 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:30 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:39 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:44 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:50 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:06:55 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:00 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:05 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:09 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:14 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:20 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:25 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:25 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:30 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:32 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:32 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:32 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:33 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:07:33 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:33 [radius-api] GET /radius/api/license/status
+2026/04/27 09:07:33 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:07:33 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:33 [radius-api] GET /radius/api/users
+2026/04/27 09:07:33 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:33 [radius-api] GET /radius/api/nas
+2026/04/27 09:07:33 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:33 [radius-api] GET /radius/api/users
+2026/04/27 09:07:33 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:33 [radius-api] GET /radius/api/profiles
+2026/04/27 09:07:33 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:34 [radius-api] GET /radius/api/internal-pools
+2026/04/27 09:07:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:34 [radius-api] GET /radius/api/users
+2026/04/27 09:07:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:34 [radius-api] GET /radius/api/users
+2026/04/27 09:07:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:34 [radius-api] GET /radius/api/profiles
+2026/04/27 09:07:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:34 [radius-api] GET /radius/api/users
+2026/04/27 09:07:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:34 [radius-api] GET /radius/api/profiles
+2026/04/27 09:07:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:34 [radius-api] GET /radius/api/profiles
+2026/04/27 09:07:34 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:37 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:37 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:41 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:43 [radius-api] GET /radius/api/users
+2026/04/27 09:07:43 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:43 [radius-api] GET /radius/api/users
+2026/04/27 09:07:43 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:43 [radius-api] GET /radius/api/profiles
+2026/04/27 09:07:43 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:46 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:53 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:58 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:07:58 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:02 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:02 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:02 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:02 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:02 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:07 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:12 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:23 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:23 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:23 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:23 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:23 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:28 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Persistent connection lost. Reconnecting...
+[core] Established new persistent connection to MikroTik.
+2026/04/27 09:08:31 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:32 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:32 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:37 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:37 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:42 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Persistent connection lost. Reconnecting...
+2026/04/27 09:08:42 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:42 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:42 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Established new persistent connection to MikroTik.
+2026/04/27 09:08:42 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:08:42 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:09:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:09:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:09:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+[core] Persistent connection lost. Reconnecting...
+[core] Established new persistent connection to MikroTik.
+2026/04/27 09:10:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:10:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:10:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:05 [radius-api] GET /radius/api/users
+2026/04/27 09:11:05 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:05 [radius-api] GET /radius/api/users
+2026/04/27 09:11:05 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:05 [radius-api] GET /radius/api/profiles
+2026/04/27 09:11:05 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:08 [radius-api] GET /radius/api/bypass
+2026/04/27 09:11:08 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:08 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:11:08 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/license/status
+2026/04/27 09:11:16 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/internal-pools
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/bypass
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/profiles
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/users
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/nas
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/users
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/users
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/profiles
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:16 [radius-api] GET /radius/api/profiles
+2026/04/27 09:11:16 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:32 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:32 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:45 [radius-api] POST /radius/api/nas
+2026/04/27 09:11:45 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:48 [radius-api] GET /radius/api/nas
+2026/04/27 09:11:48 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:50 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:11:50 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:50 [radius-api] GET /radius/api/bypass
+2026/04/27 09:11:50 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/license/status
+2026/04/27 09:11:56 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/bypass
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/profiles
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/internal-pools
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/users
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/nas
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/users
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/users
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/profiles
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:11:56 [radius-api] GET /radius/api/profiles
+2026/04/27 09:11:56 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:12:06 [radius-api] GET /radius/api/internal-pools
+2026/04/27 09:12:06 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:12:11 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:12:27 [radius-api] POST /radius/api/profiles
+2026/04/27 09:12:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:12:28 [radius-api] GET /radius/api/profiles
+2026/04/27 09:12:28 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:12:28 [radius-api] GET /radius/api/users
+2026/04/27 09:12:28 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:12:28 [radius-api] GET /radius/api/profiles
+2026/04/27 09:12:28 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:12:30 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:12:30 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:31:16 [Init] Successfully loaded app groups and ip groups
+2026/04/27 09:31:16 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/27 09:31:16 Waiting for MariaDB to start... (1/30)
+2026/04/27 09:31:17 FreeRADIUS MySQL Engine Synchronized.
+2026/04/27 09:31:17 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 165  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 351 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/27 09:31:27 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:31:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:31:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:31:27 [radius-api] GET /radius/api/license/status
+2026/04/27 09:31:27 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:31:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:31:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:31:27 [radius-api] GET /radius/api/bypass
+2026/04/27 09:31:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:31:27 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:31:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:31:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:31:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:31:27 [radius-api] GET /radius/api/profiles
+2026/04/27 09:31:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:31:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:31:27 [radius-api] GET /radius/api/nas
+2026/04/27 09:31:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:31:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:31:27 [radius-api] GET /radius/api/users
+2026/04/27 09:31:27 [auth] Looking up token: [b1d29121d58e2a05bc1819e5257b274ec22db0310af42469d28bde57cea7728a]
+2026/04/27 09:31:27 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:31:40 [radius-api] POST /radius/api/auth/login
+2026/04/27 09:31:40 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/license/status
+2026/04/27 09:31:40 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/bypass
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/profiles
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/nas
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/users
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/users
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/users
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/profiles
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:31:40 [radius-api] GET /radius/api/profiles
+2026/04/27 09:31:40 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:32:06 [radius-api] GET /radius/api/auth/backup
+2026/04/27 09:32:06 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:32:21 [prune] Running daily database pruning...
+2026/04/27 09:32:21 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/27 09:32:21 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/27 09:32:21 [prune] Database pruning completed
+[core] Established new persistent connection to MikroTik.
+2026/04/27 09:32:38 [radius-api] GET /radius/api/users
+2026/04/27 09:32:38 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:32:39 [radius-api] GET /radius/api/users
+2026/04/27 09:32:39 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:32:39 [radius-api] GET /radius/api/profiles
+2026/04/27 09:32:39 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:32:42 [radius-api] GET /radius/api/logs
+2026/04/27 09:32:42 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:32:44 [radius-api] GET /radius/api/logs
+2026/04/27 09:32:44 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:33:02 [radius-api] POST /radius/api/nas
+2026/04/27 09:33:02 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:33:04 [radius-api] GET /radius/api/nas
+2026/04/27 09:33:04 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:39:48 [Init] Successfully loaded app groups and ip groups
+2026/04/27 09:39:48 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/27 09:39:48 Waiting for MariaDB to start... (1/30)
+2026/04/27 09:39:49 Waiting for MariaDB to start... (2/30)
+2026/04/27 09:39:50 FreeRADIUS MySQL Engine Synchronized.
+2026/04/27 09:39:50 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 165  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/27 09:40:07 [radius-api] POST /radius/api/auth/login
+2026/04/27 09:40:09 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:09 [radius-api] GET /radius/api/license/status
+2026/04/27 09:40:09 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:09 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:09 [radius-api] GET /radius/api/nas
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:09 [radius-api] GET /radius/api/users
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:09 [radius-api] GET /radius/api/users
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:09 [radius-api] GET /radius/api/users
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:09 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:09 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:09 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/license/status
+2026/04/27 09:40:12 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/users
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/nas
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/users
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/users
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:12 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/license/status
+2026/04/27 09:40:18 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/users
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/nas
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/users
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/users
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:18 [radius-api] GET /radius/api/profiles
+2026/04/27 09:40:18 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:36 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:38 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:38 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+[core] Established new persistent connection to MikroTik.
+2026/04/27 09:40:38 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:38 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:38 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:38 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:38 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:38 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:41 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:41 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:41 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:42 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:46 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:46 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:51 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:51 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:51 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:56 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:40:56 [prune] Running daily database pruning...
+2026/04/27 09:40:56 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/27 09:40:56 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/27 09:40:56 [prune] Database pruning completed
+2026/04/27 09:41:00 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:07 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:11 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:11 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+[core] Persistent connection lost. Reconnecting...
+2026/04/27 09:41:11 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+[core] Established new persistent connection to MikroTik.
+2026/04/27 09:41:12 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:16 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:21 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:21 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:21 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:21 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:21 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:21 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:26 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:26 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:26 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:28 [radius-api] POST /radius/api/nas
+2026/04/27 09:41:28 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:30 [radius-api] GET /radius/api/nas
+2026/04/27 09:41:30 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:30 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:30 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:30 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:37 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:37 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:37 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:42 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:46 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:41:51 [auth] Looking up token: [05df72f86fd1a8b4fa77ccab237a92f2a188217d4c575df7fb94f83d405afedc]
+2026/04/27 09:42:46 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:42:46 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:42:46 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:42:46 [radius-api] GET /radius/api/license/status
+2026/04/27 09:42:46 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:42:46 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:42:46 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:42:46 [radius-api] GET /radius/api/profiles
+2026/04/27 09:42:46 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:42:46 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:42:46 [radius-api] GET /radius/api/users
+2026/04/27 09:42:46 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:42:46 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:42:46 [radius-api] GET /radius/api/nas
+2026/04/27 09:42:46 [auth] Looking up token: [7d1fc0608866c9dda94ebf5bc55ce255fe5944af17f9c5e0f16bc73d7dd38c69]
+2026/04/27 09:42:46 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:42:54 [radius-api] POST /radius/api/auth/login
+2026/04/27 09:42:54 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:42:54 [radius-api] GET /radius/api/license/status
+2026/04/27 09:42:54 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:42:54 [radius-api] GET /radius/api/profiles
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:42:54 [radius-api] GET /radius/api/users
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:42:54 [radius-api] GET /radius/api/nas
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:42:54 [radius-api] GET /radius/api/users
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:42:54 [radius-api] GET /radius/api/users
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:42:54 [radius-api] GET /radius/api/profiles
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:42:54 [radius-api] GET /radius/api/profiles
+2026/04/27 09:42:54 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:49:13 [Init] Successfully loaded app groups and ip groups
+2026/04/27 09:49:13 [Config] Loaded previous session for 192.168.88.1:8728
+2026/04/27 09:49:13 Waiting for MariaDB to start... (1/30)
+2026/04/27 09:49:14 FreeRADIUS MySQL Engine Synchronized.
+2026/04/27 09:49:14 [admins] default admin created: admin/admin (please change password)
+Starting SASMAN Unified Server on :80...
+  Admin Panel: http://localhost:80/admin
+  RADIUS Panel: http://localhost:80/radius
+
+ ┌───────────────────────────────────────────────────┐ 
+ │      SASMAN MikroTik Manager v2.0 [UNIFIED]       │ 
+ │                  Fiber v2.52.12                   │ 
+ │                http://127.0.0.1:80                │ 
+ │        (bound on host 0.0.0.0 and port 80)        │ 
+ │                                                   │ 
+ │ Handlers ........... 165  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............... 354 │ 
+ └───────────────────────────────────────────────────┘ 
+
+2026/04/27 09:49:16 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:49:16 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:49:16 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:49:16 [radius-api] GET /radius/api/license/status
+2026/04/27 09:49:16 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:49:16 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:49:16 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:49:16 [radius-api] GET /radius/api/profiles
+2026/04/27 09:49:16 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:49:16 [radius-api] GET /radius/api/users
+2026/04/27 09:49:16 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:49:16 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:49:16 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:49:16 [radius-api] GET /radius/api/nas
+2026/04/27 09:49:16 [auth] Looking up token: [dc1550f2a81dbe1b81c3d0a7ea4bb954c97c58ac5829fa082898b85de75122c9]
+2026/04/27 09:49:16 [auth] Session not found in DB: sql: no rows in result set
+2026/04/27 09:49:39 [radius-api] POST /radius/api/auth/login
+2026/04/27 09:49:40 [radius-api] GET /radius/api/auth/me
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:49:40 [radius-api] GET /radius/api/license/status
+2026/04/27 09:49:40 [radius-api] GET /radius/api/auth/admins
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:49:40 [radius-api] GET /radius/api/profiles
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:49:40 [radius-api] GET /radius/api/users
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:49:40 [radius-api] GET /radius/api/nas
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:49:40 [radius-api] GET /radius/api/users
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:49:40 [radius-api] GET /radius/api/users
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:49:40 [radius-api] GET /radius/api/profiles
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:49:40 [radius-api] GET /radius/api/profiles
+2026/04/27 09:49:40 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:03 [radius-api] POST /radius/api/nas
+2026/04/27 09:50:03 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:07 [radius-api] GET /radius/api/nas
+2026/04/27 09:50:07 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:18 [prune] Running daily database pruning...
+2026/04/27 09:50:18 [prune] Deleted 0 old radacct records (>30 days)
+2026/04/27 09:50:18 [prune] Deleted 0 old radpostauth records (>7 days)
+2026/04/27 09:50:18 [prune] Database pruning completed
+[core] Established new persistent connection to MikroTik.
+2026/04/27 09:50:34 [radius-api] POST /radius/api/profiles
+2026/04/27 09:50:34 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:38 [radius-api] GET /radius/api/profiles
+2026/04/27 09:50:38 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:38 [radius-api] GET /radius/api/users
+2026/04/27 09:50:38 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:38 [radius-api] GET /radius/api/profiles
+2026/04/27 09:50:38 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:42 [radius-api] GET /radius/api/users
+2026/04/27 09:50:42 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:42 [radius-api] GET /radius/api/users
+2026/04/27 09:50:42 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:42 [radius-api] GET /radius/api/profiles
+2026/04/27 09:50:42 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:50 [radius-api] GET /radius/api/users
+2026/04/27 09:50:50 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:50 [radius-api] GET /radius/api/users
+2026/04/27 09:50:50 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:50 [radius-api] GET /radius/api/profiles
+2026/04/27 09:50:50 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:59 [radius-api] GET /radius/api/users
+2026/04/27 09:50:59 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:59 [radius-api] GET /radius/api/users
+2026/04/27 09:50:59 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:50:59 [radius-api] GET /radius/api/profiles
+2026/04/27 09:50:59 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:10 [radius-api] GET /radius/api/users
+2026/04/27 09:51:10 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:10 [radius-api] GET /radius/api/users
+2026/04/27 09:51:10 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:10 [radius-api] GET /radius/api/profiles
+2026/04/27 09:51:10 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:18 [radius-api] POST /radius/api/users
+2026/04/27 09:51:18 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:19 [radius-api] GET /radius/api/users
+2026/04/27 09:51:19 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:19 [radius-api] GET /radius/api/users
+2026/04/27 09:51:19 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:19 [radius-api] GET /radius/api/profiles
+2026/04/27 09:51:19 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:20 [radius-api] GET /radius/api/users
+2026/04/27 09:51:20 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:20 [radius-api] GET /radius/api/users
+2026/04/27 09:51:20 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:51:20 [radius-api] GET /radius/api/profiles
+2026/04/27 09:51:20 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:26 [radius-api] GET /radius/api/users
+2026/04/27 09:53:26 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:26 [radius-api] GET /radius/api/users
+2026/04/27 09:53:26 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:26 [radius-api] GET /radius/api/profiles
+2026/04/27 09:53:26 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:29 [radius-api] GET /radius/api/users
+2026/04/27 09:53:29 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:30 [radius-api] GET /radius/api/users
+2026/04/27 09:53:30 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:30 [radius-api] GET /radius/api/profiles
+2026/04/27 09:53:30 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:38 [radius-api] GET /radius/api/users/test/details
+2026/04/27 09:53:38 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:39 [radius-api] GET /radius/api/users
+2026/04/27 09:53:39 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:39 [radius-api] GET /radius/api/users
+2026/04/27 09:53:39 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:39 [radius-api] GET /radius/api/profiles
+2026/04/27 09:53:39 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:50 [radius-api] GET /radius/api/users
+2026/04/27 09:53:50 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:50 [radius-api] GET /radius/api/users
+2026/04/27 09:53:50 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:53:50 [radius-api] GET /radius/api/profiles
+2026/04/27 09:53:50 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:00 [radius-api] GET /radius/api/users
+2026/04/27 09:54:00 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:00 [radius-api] GET /radius/api/users
+2026/04/27 09:54:00 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:00 [radius-api] GET /radius/api/profiles
+2026/04/27 09:54:00 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:02 [radius-api] POST /radius/api/users/test/toggle-status
+2026/04/27 09:54:02 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+[radius] User test status toggled to: 0
+2026/04/27 09:54:02 [radius-api] GET /radius/api/users
+2026/04/27 09:54:02 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:02 [radius-api] GET /radius/api/users
+2026/04/27 09:54:02 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:02 [radius-api] GET /radius/api/profiles
+2026/04/27 09:54:02 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+[radius] Disconnect SUCCESS for test (*C)
+2026/04/27 09:54:09 [radius-api] GET /radius/api/users
+2026/04/27 09:54:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:09 [radius-api] GET /radius/api/users
+2026/04/27 09:54:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:09 [radius-api] GET /radius/api/profiles
+2026/04/27 09:54:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:11 [radius-api] POST /radius/api/users/test/toggle-status
+2026/04/27 09:54:11 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+[radius] User test status toggled to: 1
+2026/04/27 09:54:11 [radius-api] GET /radius/api/users
+2026/04/27 09:54:11 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:11 [radius-api] GET /radius/api/users
+2026/04/27 09:54:11 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:11 [radius-api] GET /radius/api/profiles
+2026/04/27 09:54:11 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:20 [radius-api] GET /radius/api/users
+2026/04/27 09:54:20 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:20 [radius-api] GET /radius/api/users
+2026/04/27 09:54:20 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:20 [radius-api] GET /radius/api/profiles
+2026/04/27 09:54:20 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:25 [radius-api] POST /radius/api/users/test/disconnect
+2026/04/27 09:54:25 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+[radius] Disconnect SUCCESS for test (*D)
+2026/04/27 09:54:28 [radius-api] GET /radius/api/users
+2026/04/27 09:54:28 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:28 [radius-api] GET /radius/api/users
+2026/04/27 09:54:28 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:28 [radius-api] GET /radius/api/profiles
+2026/04/27 09:54:28 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:30 [radius-api] GET /radius/api/users
+2026/04/27 09:54:30 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:30 [radius-api] GET /radius/api/users
+2026/04/27 09:54:30 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:54:30 [radius-api] GET /radius/api/profiles
+2026/04/27 09:54:30 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:55:37 [reconciler] Detected stale session for user [test] (ID: 8400000c). Closing it.
+2026/04/27 09:55:51 [radius-api] GET /radius/api/users
+2026/04/27 09:55:51 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:55:51 [radius-api] GET /radius/api/users
+2026/04/27 09:55:51 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:55:51 [radius-api] GET /radius/api/profiles
+2026/04/27 09:55:51 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:00 [radius-api] GET /radius/api/users
+2026/04/27 09:56:00 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:00 [radius-api] GET /radius/api/users
+2026/04/27 09:56:00 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:00 [radius-api] GET /radius/api/profiles
+2026/04/27 09:56:00 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:02 [radius-api] GET /radius/api/users/test/details
+2026/04/27 09:56:02 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:09 [radius-api] GET /radius/api/users
+2026/04/27 09:56:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:09 [radius-api] GET /radius/api/users
+2026/04/27 09:56:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:09 [radius-api] GET /radius/api/profiles
+2026/04/27 09:56:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:19 [radius-api] GET /radius/api/users
+2026/04/27 09:56:19 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:19 [radius-api] GET /radius/api/users
+2026/04/27 09:56:19 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:19 [radius-api] GET /radius/api/profiles
+2026/04/27 09:56:19 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:30 [radius-api] GET /radius/api/users
+2026/04/27 09:56:30 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:30 [radius-api] GET /radius/api/users
+2026/04/27 09:56:30 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:30 [radius-api] GET /radius/api/profiles
+2026/04/27 09:56:30 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 09:56:40 [reconciler] Detected stale session for user [test] (ID: 8400000d). Closing it.
+2026/04/27 09:56:40 [reconciler] Detected stale session for user [test] (ID: 8400000e). Closing it.
+2026/04/27 10:03:06 [radius-api] GET /radius/api/users
+2026/04/27 10:03:06 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 10:03:06 [radius-api] GET /radius/api/users
+2026/04/27 10:03:06 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 10:03:06 [radius-api] GET /radius/api/profiles
+2026/04/27 10:03:06 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 10:03:09 [radius-api] GET /radius/api/users
+2026/04/27 10:03:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 10:03:09 [radius-api] GET /radius/api/users
+2026/04/27 10:03:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 10:03:09 [radius-api] GET /radius/api/profiles
+2026/04/27 10:03:09 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 10:06:02 [radius-api] GET /radius/api/users
+2026/04/27 10:06:02 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 10:06:02 [radius-api] GET /radius/api/users
+2026/04/27 10:06:02 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]
+2026/04/27 10:06:02 [radius-api] GET /radius/api/profiles
+2026/04/27 10:06:02 [auth] Looking up token: [5b4ba6d8e10eeb73673eb31c9838e38bc1e5be14cb239dcd31edcad93178bc5f]

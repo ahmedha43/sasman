@@ -1,0 +1,15 @@
+﻿@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/admin/fonts/tajawal-1.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/admin/fonts/tajawal-2.ttf) format('truetype');
+}
+

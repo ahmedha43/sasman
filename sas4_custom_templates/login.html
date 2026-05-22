@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <title>SAS RADIUS - تسجيل الدخول لوحة الإدارة</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="../site/admin/frontend/favicon.ico">
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Design System Variables - Matches SAS4 CSS Variables */
+        :root {
+            --primary: #20a8d8;
+            --primary-hover: #1b8eb7;
+            --primary-light: rgba(32, 168, 216, 0.1);
+            --dark-gray: #3e515b;
+            --light-gray: #eff3f8;
+            --white: #ffffff;
+            --text-color: #444d58;
+            --text-secondary: #869fac;
+            --danger: #f86c6b;
+            --success: #4dbd74;
+            --border-color: #e3e8ec;
+            --shadow-premium: 0 10px 30px rgba(0, 0, 0, 0.05), 0 1px 8px rgba(0, 0, 0, 0.02);
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Cairo', 'Open Sans', -apple-system, sans-serif;
+            background-color: var(--light-gray);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Ambient Background Decorative Gradients */
+        body::before {
+            content: '';
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--primary-light) 0%, rgba(255,255,255,0) 70%);
+            top: -100px;
+            right: -100px;
+            z-index: 0;
+        }
+
+        body::after {
+            content: '';
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(77, 189, 116, 0.05) 0%, rgba(255,255,255,0) 70%);
+            bottom: -150px;
+            left: -150px;
+            z-index: 0;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 450px;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        /* Glassmorphism & Premium Card */
+        .login-card {
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: var(--shadow-premium);
+            padding: 40px 35px;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition-smooth);
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(to left, var(--primary), #63c2de);
+        }
+
+        /* Logo Area */
+        .logo-section {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .logo-img {
+            max-width: 180px;
+            height: auto;
+            margin-bottom: 12px;
+            transition: var(--transition-smooth);
+        }
+
+        .logo-section h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--dark-gray);
+            margin-bottom: 5px;
+        }
+
+        .logo-section p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 400;
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 22px;
+            position: relative;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+
+        .input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            right: 15px;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            transition: var(--transition-smooth);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 13px 45px 13px 15px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-color);
+            background-color: #fafbfc;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            background-color: var(--white);
+            box-shadow: 0 0 0 4px rgba(32, 168, 216, 0.15);
+        }
+
+        .form-input:focus + .input-icon {
+            color: var(--primary);
+        }
+
+        /* Password Show/Hide Toggle */
+        .password-toggle {
+            position: absolute;
+            left: 15px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            transition: var(--transition-smooth);
+        }
+
+        .password-toggle:hover {
+            color: var(--primary);
+        }
+
+        /* Additional Row */
+        .additional-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            font-size: 0.85rem;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .checkbox-container input {
+            display: none;
+        }
+
+        .custom-checkbox {
+            height: 18px;
+            width: 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-left: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fafbfc;
+            transition: var(--transition-smooth);
+        }
+
+        .checkbox-container input:checked + .custom-checkbox {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .checkbox-container input:checked + .custom-checkbox::after {
+            content: '\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: var(--white);
+            font-size: 0.7rem;
+        }
+
+        .checkbox-label {
+            color: var(--text-color);
+            font-weight: 400;
+        }
+
+        .forgot-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition-smooth);
+        }
+
+        .forgot-link:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        /* Buttons */
+        .btn-submit {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--primary) 0%, #30c9dc 100%);
+            border: none;
+            border-radius: 8px;
+            color: var(--white);
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(32, 168, 216, 0.25);
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(32, 168, 216, 0.35);
+            background: linear-gradient(135deg, var(--primary-hover) 0%, #20b0c2 100%);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+
+        /* Error/Alert Message Mockup */
+        .alert-error {
+            background-color: rgba(248, 108, 107, 0.1);
+            border: 1px solid rgba(248, 108, 107, 0.2);
+            color: var(--danger);
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            display: none; /* Can be toggled with JS */
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* System Info Footer */
+        .system-footer {
+            text-align: center;
+            margin-top: 25px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .system-footer a {
+            color: var(--dark-gray);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-card {
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-container">
+        <div class="login-card">
+            
+            <!-- Logo Section -->
+            <div class="logo-section">
+                <!-- If logo.png exists in local assets, it loads, otherwise falls back gracefully -->
+                <img class="logo-img" src="../site/admin/frontend/logo.547ad45bb8f77ffb.png" onerror="this.src='https://i.imgur.com/uR2i1p5.png'; this.style.maxWidth='120px';" alt="SAS4 Logo">
+                <h2>نظام الإدارة SAS RADIUS</h2>
+                <p>سجل الدخول لإدارة لوحة التحكم الخاصة بك</p>
+            </div>
+
+            <!-- Error Alert Box -->
+            <div class="alert-error" id="errorAlert">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                <span id="errorMessage">اسم المستخدم أو كلمة المرور غير صحيحة!</span>
+            </div>
+
+            <!-- Form -->
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                
+                <!-- Username Input -->
+                <div class="form-group">
+                    <label class="form-label" for="username">اسم المستخدم</label>
+                    <div class="input-group">
+                        <input class="form-input" type="text" id="username" placeholder="أدخل اسم المستخدم" required autocomplete="username">
+                        <i class="fa-solid fa-user input-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Password Input -->
+                <div class="form-group">
+                    <label class="form-label" for="password">كلمة المرور</label>
+                    <div class="input-group">
+                        <input class="form-input" type="password" id="password" placeholder="أدخل كلمة المرور" required autocomplete="current-password">
+                        <i class="fa-solid fa-lock input-icon"></i>
+                        <i class="fa-solid fa-eye password-toggle" id="passwordToggle" onclick="togglePasswordVisibility()"></i>
+                    </div>
+                </div>
+
+                <!-- Actions Row -->
+                <div class="additional-actions">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="rememberMe">
+                        <span class="custom-checkbox"></span>
+                        <span class="checkbox-label">تذكر بياناتي</span>
+                    </label>
+                    <a href="#" class="forgot-link">نسيت كلمة المرور؟</a>
+                </div>
+
+                <!-- Submit Button -->
+                <button class="btn-submit" type="submit">
+                    <span>تسجيل الدخول</span>
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+
+            </form>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="system-footer">
+            <p>جميع الحقوق محفوظة &copy; <a href="#">SAS RADIUS v4</a></p>
+            <p style="margin-top: 5px; font-size: 0.75rem;">مدعوم بواسطة Laravel & SQLite</p>
+        </div>
+    </div>
+
+    <!-- Script Section -->
+    <script>
+        // Password Visibility Toggle
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggle');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        // Handle Login Submission Demo
+        function handleLogin(event) {
+            event.preventDefault();
+            
+            const usernameInput = document.getElementById('username').value.trim();
+            const passwordInput = document.getElementById('password').value.trim();
+            const errorAlert = document.getElementById('errorAlert');
+            const btnSubmit = document.querySelector('.btn-submit');
+            
+            // Simple mockup validation
+            if (usernameInput === "admin" && passwordInput === "admin") {
+                // Success! Simulating redirection with loading animation
+                btnSubmit.innerHTML = '<span>جاري الدخول...</span><i class="fa-solid fa-spinner fa-spin"></i>';
+                btnSubmit.style.opacity = '0.8';
+                btnSubmit.disabled = true;
+                
+                setTimeout(() => {
+                    window.location.href = 'dashboard.html';
+                }, 1000);
+            } else {
+                // Show Error Mockup
+                errorAlert.style.display = 'flex';
+                // Shake animation on card
+                const card = document.querySelector('.login-card');
+                card.style.animation = 'none';
+                card.offsetHeight; // Trigger reflow
+                
+                // Add horizontal shake styling
+                card.style.animation = 'shake 0.4s ease-in-out';
+                
+                // Dynamically injecting shake keyframes if not defined
+                if (!document.getElementById('shakeKeyframes')) {
+                    const style = document.createElement('style');
+                    style.id = 'shakeKeyframes';
+                    style.innerHTML = `
+                        @keyframes shake {
+                            0%, 100% { transform: translateX(0); }
+                            20%, 60% { transform: translateX(-6px); }
+                            40%, 80% { transform: translateX(6px); }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+            }
+        }
+    </script>
+
+</body>
+</html>
