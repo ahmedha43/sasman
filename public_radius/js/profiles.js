@@ -121,6 +121,7 @@ async function createProfile() {
     };
 
     const payload = {
+        original_name: getVal('prof-original-name').trim(),
         name: getVal('prof-name').trim(),
         download: getVal('prof-dl').trim(),
         upload: getVal('prof-ul').trim(),
@@ -163,6 +164,7 @@ function editProfile(name) {
     const p = radiusProfilesCache.find(x => x.name === name);
     if (!p) return;
 
+    document.getElementById('prof-original-name').value = name;
     document.getElementById('prof-name').value = p.name;
     // Speed parsing from "1M/10M"
     if (p.limit && p.limit.includes('/')) {
@@ -212,6 +214,7 @@ function editProfile(name) {
 }
 
 function resetProfileForm() {
+    document.getElementById('prof-original-name').value = "";
     document.getElementById('prof-name').value = "";
     document.getElementById('prof-dl').value = "";
     document.getElementById('prof-ul').value = "";

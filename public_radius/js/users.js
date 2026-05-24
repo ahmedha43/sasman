@@ -135,7 +135,7 @@ function openRenewModal(encodedUser) {
 
 function closeRenewModal() {
     renewTargetUser = '';
-    document.getElementById('renew-paid').checked = false;
+    document.getElementById('renew-paid').checked = true;
     document.getElementById('renew-modal').classList.remove('active');
 }
 

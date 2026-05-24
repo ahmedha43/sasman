@@ -168,7 +168,8 @@ function renderTemplates(templates) {
         'renew_debt': '🔄 تجديد — ديون',
         'add_debt':   '➕ إضافة ديون',
         'payment':    '➖ تسديد ديون',
-        'expiry_reminder': '⚠️ تنبيه انتهاء الاشتراك'
+        'expiry_reminder': '⚠️ تنبيه انتهاء الاشتراك',
+        'debt_reminder':   '📋 تذكير بالديون المستحقة'
     };
 
     if (!templates || templates.length === 0) {
@@ -232,7 +233,130 @@ window.addEventListener('tabChanged', (e) => {
     if (e.detail.tab === 'whatsapp') {
         loadWhatsappConfig();
         loadMessageTemplates();
+        initBroadcastCharCounter();
     } else {
         if (waPollInterval) clearInterval(waPollInterval);
     }
 });
+
+// Broadcast character counter
+function initBroadcastCharCounter() {
+    const textarea = document.getElementById('wa-broadcast-msg');
+    const counter = document.getElementById('wa-broadcast-charcount');
+    if (!textarea || !counter) return;
+    textarea.removeEventListener('input', updateBroadcastCharCount);
+    textarea.addEventListener('input', updateBroadcastCharCount);
+    updateBroadcastCharCount();
+}
+
+function updateBroadcastCharCount() {
+    const textarea = document.getElementById('wa-broadcast-msg');
+    const counter = document.getElementById('wa-broadcast-charcount');
+    if (!textarea || !counter) return;
+    counter.textContent = textarea.value.length + ' حرف';
+}
+
+async function sendWhatsappBroadcast() {
+    const msgEl = document.getElementById('wa-broadcast-msg');
+    const btn = document.getElementById('wa-broadcast-btn');
+    const statusEl = document.getElementById('wa-broadcast-status');
+    if (!msgEl || !btn) return;
+
+    const message = msgEl.value.trim();
+    if (!message) {
+        alert('يرجى كتابة نص الرسالة قبل الإرسال.');
+        msgEl.focus();
+        return;
+    }
+
+    if (!confirm('⚠️ هل أنت متأكد من إرسال هذه الرسالة لجميع المشتركين؟\n\nالرسالة:\n' + message)) {
+        return;
+    }
+    if (!confirm('تأكيد نهائي: سيتم إرسال الرسالة في الخلفية. هل تريد المتابعة؟')) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإرسال...';
+    if (statusEl) {
+        statusEl.style.display = 'inline';
+        statusEl.textContent = '⏳ جاري معالجة الطلب...';
+        statusEl.style.color = '#d97706';
+    }
+
+    try {
+        const res = await apiFetch('/radius/api/whatsapp/broadcast', {
+            method: 'POST',
+            body: JSON.stringify({ message })
+        });
+        const result = await res.json().catch(() => ({ error: 'فشل الاتصال بالسيرفر' }));
+
+        if (result.error) {
+            alert('❌ ' + result.error);
+            if (statusEl) {
+                statusEl.textContent = '❌ فشل الإرسال';
+                statusEl.style.color = 'var(--danger)';
+            }
+        } else {
+            alert('✅ ' + result.message);
+            msgEl.value = '';
+            updateBroadcastCharCount();
+            if (statusEl) {
+                statusEl.textContent = '✅ ' + result.message;
+                statusEl.style.color = 'var(--success)';
+            }
+        }
+    } catch (e) {
+        alert('حدث خطأ غير متوقع أثناء الإرسال');
+        if (statusEl) {
+            statusEl.textContent = '❌ خطأ في الاتصال';
+            statusEl.style.color = 'var(--danger)';
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> إرسال الإشعار الجماعي';
+    }
+}
+
+async function sendDebtReminder() {
+    const btn = document.getElementById('wa-debt-btn');
+    if (!btn) return;
+
+    const statusEl = document.getElementById('wa-debt-status');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإرسال...';
+    if (statusEl) {
+        statusEl.style.display = 'inline';
+        statusEl.textContent = '⏳ جاري معالجة الطلب...';
+        statusEl.style.color = '#d97706';
+    }
+
+    try {
+        const res = await apiFetch('/radius/api/whatsapp/send-debt-reminder', { method: 'POST' });
+        const result = await res.json().catch(() => ({ error: 'فشل الاتصال بالسيرفر' }));
+
+        if (result.error) {
+            alert('❌ ' + result.error);
+            if (statusEl) {
+                statusEl.textContent = '❌ فشل الإرسال';
+                statusEl.style.color = 'var(--danger)';
+            }
+        } else {
+            alert('✅ ' + result.message);
+            if (statusEl) {
+                statusEl.textContent = '✅ ' + result.message;
+                statusEl.style.color = 'var(--success)';
+            }
+        }
+    } catch (e) {
+        alert('حدث خطأ غير متوقع أثناء إرسال تذكير الديون');
+        if (statusEl) {
+            statusEl.textContent = '❌ خطأ في الاتصال';
+            statusEl.style.color = 'var(--danger)';
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-money-bill-wave"></i> تذكير بالديون ✉️';
+    }
+}

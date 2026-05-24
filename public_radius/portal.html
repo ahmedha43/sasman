@@ -893,6 +893,7 @@
     }
 
     let hlsPlayer = null;
+    let hlsRecoverAttempts = 0;
 
     async function loadPortalStreams() {
         const listDiv = document.getElementById('streams-list');
@@ -913,7 +914,7 @@
             streams.forEach(stream => {
                 const item = document.createElement('div');
                 item.className = 'stream-item';
-                item.onclick = () => playStream(stream.id, stream.name, stream.source, stream.local_relay);
+                item.onclick = () => playStream(stream.id, stream.name, stream.source);
                 item.innerHTML = `
                     <div class="stream-info">
                         <div class="stream-title">${stream.name}</div>
@@ -924,11 +925,11 @@
                 listDiv.appendChild(item);
             });
         } catch (e) {
-            listDiv.innerHTML = '<div class="no-streams">❌ فشل تحميل قنوات البث المحلي.</div>';
+            listDiv.innerHTML = '<div class="no-streams">❌ فشل تحميل قنوات البث.</div>';
         }
     }
 
-    function playStream(streamId, streamName, streamSource, localRelay) {
+    function playStream(streamId, streamName, streamSource) {
         const container = document.getElementById('tv-player-container');
         const video = document.getElementById('tv-video');
         
@@ -944,29 +945,30 @@
             }
         });
 
-        // Determine stream HLS URL
-        let streamURL;
-        if (localRelay === 1) {
-            // Played locally from MediaMTX since the server is doing the relaying!
-            streamURL = window.location.protocol + '//' + window.location.hostname + ':8888/' + streamId + '/index.m3u8';
-        } else if (streamSource && (streamSource.startsWith('http://') || streamSource.startsWith('https://') || streamSource.includes('.m3u8'))) {
-            // Wrap in local secure CORS bypass proxy
-            streamURL = '/radius/api/portal/stream-proxy?url=' + encodeURIComponent(streamSource);
-        } else {
-            // The HLS URL points to MediaMTX HLS address: http://<router_ip>:8888/<stream_id>/
-            streamURL = window.location.protocol + '//' + window.location.hostname + ':8888/' + streamId + '/index.m3u8';
+        if (!streamSource) {
+            alert('مصدر القناة غير موجود.');
+            return;
         }
+
+        const isHttpSource = streamSource.startsWith('http://') || streamSource.startsWith('https://');
+        const streamURL = isHttpSource ? '/radius/api/portal/stream-proxy?url=' + encodeURIComponent(streamSource) : streamSource;
+        const isHlsStream = streamSource.toLowerCase().includes('.m3u8');
 
         if (hlsPlayer) {
             hlsPlayer.destroy();
             hlsPlayer = null;
         }
+        hlsRecoverAttempts = 0;
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
 
-        if (Hls.isSupported()) {
+        if (isHlsStream && Hls.isSupported()) {
             hlsPlayer = new Hls({
                 maxMaxBufferLength: 10,
-                enableWorker: true,
-                lowLatencyMode: true
+                enableWorker: false,
+                lowLatencyMode: false,
+                liveSyncDurationCount: 3
             });
             hlsPlayer.loadSource(streamURL);
             hlsPlayer.attachMedia(video);
@@ -974,6 +976,14 @@
                 video.play().catch(e => console.log("Auto-play blocked, waiting for user interaction."));
             });
             hlsPlayer.on(Hls.Events.ERROR, function (event, data) {
+                console.error("HLS error", {
+                    type: data.type,
+                    details: data.details,
+                    fatal: data.fatal,
+                    sourceBufferName: data.sourceBufferName,
+                    mimeType: data.mimeType,
+                    error: data.error ? data.error.message : null
+                });
                 if (data.fatal) {
                     switch (data.type) {
                         case Hls.ErrorTypes.NETWORK_ERROR:
@@ -981,23 +991,33 @@
                             hlsPlayer.startLoad();
                             break;
                         case Hls.ErrorTypes.MEDIA_ERROR:
-                            console.error("Fatal media error encountered, trying to recover...");
-                            hlsPlayer.recoverMediaError();
+                            hlsRecoverAttempts++;
+                            if (hlsRecoverAttempts <= 2) {
+                                console.error("Fatal media error encountered, trying to recover...");
+                                hlsPlayer.recoverMediaError();
+                            } else {
+                                console.error("Fatal media error persisted, stopping playback.");
+                                hlsPlayer.destroy();
+                                hlsPlayer = null;
+                                alert('تعذر تشغيل مصدر البث في هذا المتصفح. تأكد أن الرابط صالح ومتوافق مع تشغيل المتصفح.');
+                            }
                             break;
                         default:
                             console.error("Fatal error, cannot recover.");
                             hlsPlayer.destroy();
+                            hlsPlayer = null;
                             break;
                     }
                 }
             });
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        } else if (isHlsStream && video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = streamURL;
             video.addEventListener('loadedmetadata', () => {
                 video.play();
             });
         } else {
-            alert('⚠️ متصفحك لا يدعم تشغيل هذا البث المباشر.');
+            video.src = streamURL;
+            video.play().catch(e => console.log("Auto-play blocked, waiting for user interaction."));
         }
     }
 </script>

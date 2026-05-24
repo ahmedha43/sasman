@@ -206,9 +206,18 @@ func ImportFromSAS4(c *fiber.Ctx) error {
 		if password == "" {
 			password = getString(u, "ct_password")
 		}
-		profileName := getString(u, "profile_name")
+		profileName := getSAS4ProfileName(u)
 		expiration := getString(u, "expiration")
 		balance := getFloat(u, "balance")
+
+		// DEBUG: Log profile name to see what we're getting
+		if profileName != "" {
+			fmt.Printf("[sas4-import] User %s has profile_name: '%s'\n", username, profileName)
+		} else {
+			fmt.Printf("[sas4-import] User %s has EMPTY profile_name\n", username)
+			// Let's see what fields we do have
+			fmt.Printf("[sas4-import] User %s fields: %v\n", username, u)
+		}
 
 		// Metadata
 		firstName := getString(u, "firstname")
@@ -222,11 +231,17 @@ func ImportFromSAS4(c *fiber.Ctx) error {
 
 		// Ensure profile exists
 		if profileName != "" && !profilesSeen[profileName] {
+			fmt.Printf("[sas4-import] Creating profile: '%s'\n", profileName)
 			err := ensureProfileExists(profileName)
 			if err == nil {
 				profilesSeen[profileName] = true
 				profileCount++
+				fmt.Printf("[sas4-import] Profile '%s' created successfully\n", profileName)
+			} else {
+				fmt.Printf("[sas4-import] Failed to create profile '%s': %v\n", profileName, err)
 			}
+		} else if profileName == "" {
+			fmt.Printf("[sas4-import] Skipping profile creation for user %s - empty profile name\n", username)
 		}
 
 		// Save User
@@ -310,7 +325,89 @@ func getSAS4(url string, token string) (map[string]interface{}, error) {
 func getString(m map[string]interface{}, key string) string {
 	if v, ok := m[key]; ok {
 		if s, ok := v.(string); ok {
-			return s
+			return strings.TrimSpace(s)
+		}
+		if f, ok := v.(float64); ok {
+			if f == float64(int64(f)) {
+				return strconv.FormatInt(int64(f), 10)
+			}
+			return strconv.FormatFloat(f, 'f', -1, 64)
+		}
+		if b, ok := v.(bool); ok {
+			return strconv.FormatBool(b)
+		}
+	}
+	return ""
+}
+
+func getSAS4ProfileName(u map[string]interface{}) string {
+	keys := []string{
+		"profile_name",
+		"profile",
+		"profileName",
+		"profile_title",
+		"profileTitle",
+		"user_profile",
+		"userProfile",
+		"user_group",
+		"userGroup",
+		"groupname",
+		"group_name",
+		"group",
+		"package",
+		"package_name",
+		"service",
+		"service_name",
+		"subscription",
+		"subscription_name",
+	}
+
+	for _, key := range keys {
+		if name := getString(u, key); name != "" {
+			return name
+		}
+		if name := getNestedProfileName(u, key); name != "" {
+			return name
+		}
+	}
+
+	for key, value := range u {
+		keyLower := strings.ToLower(key)
+		if !strings.Contains(keyLower, "profile") &&
+			!strings.Contains(keyLower, "group") &&
+			!strings.Contains(keyLower, "package") &&
+			!strings.Contains(keyLower, "service") &&
+			!strings.Contains(keyLower, "subscription") {
+			continue
+		}
+		obj, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if name := firstStringFromMap(obj, "name", "profile_name", "title", "label", "groupname"); name != "" {
+			return name
+		}
+	}
+
+	return ""
+}
+
+func getNestedProfileName(u map[string]interface{}, key string) string {
+	value, ok := u[key]
+	if !ok {
+		return ""
+	}
+	obj, ok := value.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	return firstStringFromMap(obj, "name", "profile_name", "title", "label", "groupname")
+}
+
+func firstStringFromMap(m map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if value := getString(m, key); value != "" {
+			return value
 		}
 	}
 	return ""
@@ -331,11 +428,34 @@ func getFloat(m map[string]interface{}, key string) float64 {
 }
 
 func ensureProfileExists(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+
+	// DEBUG: Log when we're trying to create a profile
+	fmt.Printf("[sas4-import] ensureProfileExists called with name: '%s'\n", name)
+
 	// 1. Create a default group entry for FreeRADIUS logic (if not exists)
-	_, _ = DB.Exec("INSERT IGNORE INTO radgroupcheck (groupname, attribute, op, value) VALUES (?, 'Simultaneous-Use', ':=', '1')", name)
+	_, _ = DB.Exec(`
+		INSERT INTO radgroupcheck (groupname, attribute, op, value)
+		SELECT ?, 'Simultaneous-Use', ':=', '1'
+		WHERE NOT EXISTS (
+			SELECT 1 FROM radgroupcheck
+			WHERE groupname=? AND attribute='Simultaneous-Use'
+		)`, name, name)
 
 	// 2. Create metadata entry for SASMAN UI visibility (if not exists)
-	_, err := DB.Exec("INSERT IGNORE INTO radius_profile_meta (groupname, validity_days, price) VALUES (?, 30, 0)", name)
+	_, err := DB.Exec(`
+		INSERT INTO radius_profile_meta (groupname, validity_days, price, updated_at)
+		VALUES (?, 30, 0, CURRENT_TIMESTAMP)
+		ON CONFLICT(groupname) DO NOTHING`, name)
+
+	if err != nil {
+		fmt.Printf("[sas4-import] Error creating profile '%s': %v\n", name, err)
+	} else {
+		fmt.Printf("[sas4-import] Profile '%s' ensured in database\n", name)
+	}
 
 	return err
 }

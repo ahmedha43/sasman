@@ -1,6 +1,7 @@
 let currentAdmin = null;
 let radiusAdminsCache = [];
 let licenseState = { valid: false, router_connected: false };
+let radiusRemoteBaseURL = "";
 
 function escapeHtml(value) {
     if (!value) return '';
@@ -24,7 +25,7 @@ async function apiFetch(url, options = {}) {
 
 async function loadCurrentAdmin() {
     try {
-        const res = await apiFetch('/radius/api/auth/me');
+        const res = await fetch('/radius/api/auth/me', { credentials: 'same-origin' });
         if (!res.ok) return null;
         currentAdmin = await res.json();
         
@@ -86,6 +87,7 @@ async function loadLicenseStatus() {
 function renderLicenseGate(data) {
     const gate = document.getElementById('license-gate');
     const main = document.getElementById('main-area');
+    const routerBox = document.getElementById('router-setup-box');
     const html = `
         <div><strong>حالة الترخيص:</strong> ${data.valid ? '<span style="color:#166534;">مفعل ✅</span>' : '<span style="color:#991b1b;">غير مفعل</span>'}</div>
         <div style="font-size:13px; color:#475569; margin-top:4px;">${data.message || ''}</div>
@@ -93,9 +95,63 @@ function renderLicenseGate(data) {
         ${data.expires && data.valid ? `<div style="font-size:13px; color:#475569;"><strong>ينتهي:</strong> ${data.expires}</div>` : ''}
     `;
     document.querySelectorAll('#license-status-box').forEach(el => { el.innerHTML = html; });
+    if (routerBox) routerBox.style.display = data.router_connected ? 'none' : '';
     if (!gate || !main) return;
     if (data.valid) { gate.style.display = 'none'; main.style.display = ''; }
     else { gate.style.display = ''; main.style.display = 'none'; }
+}
+
+async function handleRouterConnect(e) {
+    if (e) e.preventDefault();
+    const btn = document.getElementById('router-connect-btn');
+    const msg = document.getElementById('router-connect-msg');
+    const payload = {
+        address: document.getElementById('setup-router-address')?.value.trim() || '',
+        user: document.getElementById('setup-router-user')?.value.trim() || '',
+        pass: document.getElementById('setup-router-pass')?.value || ''
+    };
+    if (!payload.address || !payload.user) {
+        if (msg) {
+            msg.textContent = 'أدخل عنوان الراوتر واسم المستخدم';
+            msg.style.color = 'var(--danger)';
+        }
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الاتصال...';
+    }
+    if (msg) {
+        msg.textContent = 'جاري الاتصال بالمايكروتك...';
+        msg.style.color = 'var(--text-muted)';
+    }
+
+    try {
+        const res = await fetch('/radius/api/router/connect', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'فشل الاتصال بالمايكروتك');
+        if (msg) {
+            msg.textContent = `تم الاتصال. السيريال: ${data.serial || ''}`;
+            msg.style.color = 'var(--success)';
+        }
+        await loadLicenseStatus();
+    } catch (err) {
+        if (msg) {
+            msg.textContent = err.message;
+            msg.style.color = 'var(--danger)';
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-plug"></i> اتصال وجلب السيريال';
+        }
+    }
 }
 
 async function handleProfileSubmit(e) {
@@ -198,6 +254,74 @@ async function loadAdmins() {
             return `<tr><td>${a.id}</td><td>${a.username}</td><td>${a.name || '-'}</td><td>${roleName}</td><td><span style="font-size:12px; color:#64748b;">${permsText}</span></td><td>${balance}</td><td>${created}</td><td>${btn}</td></tr>`;
         }).join('');
     } catch (e) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">خطأ في تحميل البيانات</td></tr>'; }
+}
+
+async function loadRadiusRemoteAccess() {
+    const card = document.getElementById('radius-remote-access-card');
+    const status = document.getElementById('radius-remote-access-status');
+    const buttons = document.getElementById('radius-remote-access-buttons');
+    if (!card || !status || !buttons) return;
+
+    card.style.display = '';
+    status.textContent = 'جاري فحص روابط Cloudflare...';
+    status.style.color = 'var(--text-muted)';
+    buttons.style.display = 'none';
+    radiusRemoteBaseURL = "";
+
+    try {
+        const res = await apiFetch('/radius/api/auth/cloudflared/url');
+        if (!res.ok) throw new Error('تعذر جلب روابط الوصول عن بُعد');
+        const data = await res.json();
+        const cloudflareURL = data.url || "";
+        const ngrokURL = data.ngrok && data.ngrok.web ? data.ngrok.web : "";
+        radiusRemoteBaseURL = cloudflareURL || ngrokURL;
+
+        if (!radiusRemoteBaseURL) {
+            status.textContent = 'لم يتم تجهيز رابط Cloudflare بعد. اضغط تحديث بعد لحظات.';
+            status.style.color = 'var(--warning-hover)';
+            return;
+        }
+
+        const provider = cloudflareURL ? 'Cloudflare' : 'Ngrok';
+        status.textContent = `الرابط جاهز عبر ${provider}: ${radiusRemoteBaseURL}`;
+        status.style.color = 'var(--success)';
+        buttons.style.display = 'flex';
+    } catch (err) {
+        status.textContent = err.message || 'فشل فحص روابط الوصول عن بُعد';
+        status.style.color = 'var(--danger)';
+    }
+}
+
+function copyRadiusRemotePath(path) {
+    if (!radiusRemoteBaseURL) {
+        alert('الرابط غير جاهز بعد. اضغط تحديث وحاول مرة أخرى.');
+        return;
+    }
+    const fullURL = radiusRemoteBaseURL.replace(/\/$/, '') + path;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullURL)
+            .then(() => alert('تم نسخ الرابط:\n' + fullURL))
+            .catch(() => fallbackRadiusCopy(fullURL));
+    } else {
+        fallbackRadiusCopy(fullURL);
+    }
+}
+
+function fallbackRadiusCopy(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        alert('تم نسخ الرابط:\n' + text);
+    } catch (e) {
+        alert('تعذر النسخ، الرابط هو:\n' + text);
+    }
+    document.body.removeChild(textArea);
 }
 
 function openAgentTxModal(id, username, type) {
@@ -308,7 +432,19 @@ async function handleLicenseSubmit(e) {
     e.preventDefault();
     const key = document.getElementById('license-key-input').value.trim();
     if (!key) return;
-    const res = await apiFetch('/radius/api/license/activate', { method: 'POST', body: JSON.stringify({ key }) });
+    const payload = { key };
+    const address = document.getElementById('setup-router-address')?.value.trim() || '';
+    if (!licenseState.router_connected && address) {
+        payload.address = address;
+        payload.user = document.getElementById('setup-router-user')?.value.trim() || '';
+        payload.pass = document.getElementById('setup-router-pass')?.value || '';
+    }
+    const res = await fetch('/radius/api/license/activate', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
     const data = await res.json();
     if (res.ok) { alert(data.message || 'تم التفعيل'); await loadLicenseStatus(); if (typeof loadProfiles === 'function') loadProfiles(); if (typeof loadUsers === 'function') loadUsers(); if (typeof loadNAS === 'function') loadNAS(); }
     else alert(data.error || 'خطأ');

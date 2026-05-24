@@ -48,7 +48,7 @@ func ClearRadiusLogs(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "تم تصفير السجل بنجاح"})
 }
 
-// WatchAndRotateLogs keeps the log file size under control (e.g., 10MB)
+// WatchAndRotateLogs keeps the log file size under control (e.g., 5MB)
 func WatchAndRotateLogs() {
 	ticker := time.NewTicker(30 * time.Second)
 	logPath := "data/radius.log"
@@ -59,15 +59,15 @@ func WatchAndRotateLogs() {
 			continue
 		}
 
-		// If larger than 10MB, keep only the last 2MB
-		if stat.Size() > 10*1024*1024 {
+		// If larger than 5MB, keep only the last 1MB
+		if stat.Size() > 5*1024*1024 {
 			log.Printf("[system] Rotating log file (current size: %d bytes)", stat.Size())
 			data, err := os.ReadFile(logPath)
 			if err != nil {
 				continue
 			}
 
-			keepSize := int64(2 * 1024 * 1024)
+			keepSize := int64(1 * 1024 * 1024)
 			start := int64(len(data)) - keepSize
 			if start < 0 {
 				start = 0

@@ -1,13 +1,13 @@
 const radiusModuleState = {};
 const radiusModules = {
-    account: ['/radius/js/import.js?v=9'],
-    profiles: ['/radius/js/profiles.js?v=9'],
-    users: ['/radius/js/profiles.js?v=9', '/radius/js/transactions.js?v=9', '/radius/js/users.js?v=9'],
-    vouchers: ['/radius/js/vouchers.js?v=9'],
-    nas: ['/radius/js/nas.js?v=9'],
-    streams: ['/radius/js/streams.js?v=9'],
-    whatsapp: ['/radius/js/whatsapp.js?v=9'],
-    logs: ['/radius/js/logs.js?v=9']
+    account: ['/radius/js/import.js?v=10'],
+    profiles: ['/radius/js/profiles.js?v=10'],
+    users: ['/radius/js/profiles.js?v=10', '/radius/js/transactions.js?v=10', '/radius/js/users.js?v=10'],
+    vouchers: ['/radius/js/vouchers.js?v=10'],
+    nas: ['/radius/js/nas.js?v=10'],
+    streams: ['/radius/js/streams.js?v=10'],
+    whatsapp: ['/radius/js/whatsapp.js?v=10'],
+    logs: ['/radius/js/logs.js?v=10']
 };
 
 function loadRadiusScript(src) {
@@ -53,6 +53,7 @@ async function showTab(tabId) {
     window.dispatchEvent(new CustomEvent('tabChanged', { detail: { tab: tabId } }));
 
     if (tabId === 'account' && typeof window.loadAdmins === 'function') window.loadAdmins();
+    if (tabId === 'account' && typeof window.loadRadiusRemoteAccess === 'function') window.loadRadiusRemoteAccess();
     if (tabId === 'account' && typeof window.loadBypassStatus === 'function') window.loadBypassStatus();
     if (tabId === 'account' && typeof window.loadTelegramBackupConfig === 'function') window.loadTelegramBackupConfig();
     if (tabId === 'profiles' && typeof window.loadProfiles === 'function') window.loadProfiles();
@@ -60,7 +61,6 @@ async function showTab(tabId) {
     if (tabId === 'vouchers' && typeof window.loadVouchers === 'function') window.loadVouchers();
     if (tabId === 'users' && typeof window.loadUsers === 'function') window.loadUsers();
     if (tabId === 'streams' && typeof window.loadStreams === 'function') window.loadStreams();
-    if (tabId === 'streams' && typeof window.checkMediaMTXStatus === 'function') window.checkMediaMTXStatus();
 }
 
 async function updateDashboard(usersData = null) {
@@ -132,6 +132,7 @@ async function preloadAllData() {
         
         // جلب جميع البيانات بدون استثناء بالخلفية
         if (typeof window.loadAdmins === 'function') window.loadAdmins();
+        if (typeof window.loadRadiusRemoteAccess === 'function') window.loadRadiusRemoteAccess();
         if (typeof window.loadBypassStatus === 'function') window.loadBypassStatus();
         if (typeof window.loadTelegramBackupConfig === 'function') window.loadTelegramBackupConfig();
         if (typeof window.loadProfiles === 'function') window.loadProfiles();
@@ -139,7 +140,6 @@ async function preloadAllData() {
         if (typeof window.loadVouchers === 'function') window.loadVouchers();
         if (typeof window.loadUsers === 'function') window.loadUsers();
         if (typeof window.loadStreams === 'function') window.loadStreams();
-        if (typeof window.checkMediaMTXStatus === 'function') window.checkMediaMTXStatus();
         if (typeof window.loadWhatsappConfig === 'function') window.loadWhatsappConfig();
         if (typeof window.loadMessageTemplates === 'function') window.loadMessageTemplates();
         if (typeof window.fetchLogs === 'function') window.fetchLogs();
@@ -161,6 +161,48 @@ function closeModal(id) {
 
 window.openModal = openModal;
 window.closeModal = closeModal;
+
+// ==========================================================================
+// Deferred Module-Call Dispatcher
+// ==========================================================================
+// Inline onclick handlers fire before lazy-loaded scripts have finished.
+// callWhenReady(scriptSrc, fnName) waits for the script to resolve, then
+// invokes the named function on the window object. If the script is already
+// loaded it calls immediately.
+const _pendingCalls = {};
+
+function callWhenReady(scriptSrc, fnName, ...args) {
+    const state = radiusModuleState[scriptSrc];
+    if (state instanceof Promise) {
+        // Script is already being loaded – queue a single call for when it resolves
+        if (!_pendingCalls[scriptSrc]) {
+            _pendingCalls[scriptSrc] = [];
+        }
+        _pendingCalls[scriptSrc].push({ fnName, args });
+        state.then(() => _flushPending(scriptSrc));
+        return;
+    }
+    if (window[fnName] && typeof window[fnName] === 'function') {
+        window[fnName](...args);
+        return;
+    }
+    // Function not yet defined – load the script and queue the call
+    loadRadiusScript(scriptSrc).then(() => _flushPending(scriptSrc));
+}
+
+function _flushPending(scriptSrc) {
+    const pending = _pendingCalls[scriptSrc];
+    if (!pending) return;
+    delete _pendingCalls[scriptSrc];
+    pending.forEach(({ fnName, args }) => {
+        if (window[fnName] && typeof window[fnName] === 'function') {
+            window[fnName](...args);
+        } else {
+            console.error(`[radius] ${fnName} is still undefined after ${scriptSrc} loaded.`);
+            alert('جاري تحميل الوحدة المطلوبة، يرجى المحاولة مرة أخرى بعد ثوانٍ.');
+        }
+    });
+}
 
 // ==========================================================================
 // Premium Toast Notification System

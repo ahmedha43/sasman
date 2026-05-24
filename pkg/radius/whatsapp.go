@@ -37,6 +37,7 @@ type WhatsappConfig struct {
 	PhoneNumber     string `json:"phone_number"`
 	ReminderEnabled int    `json:"reminder_enabled"`
 	ReminderHours   int    `json:"reminder_hours"`
+	DeviceJID       string `json:"device_jid"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
 }
@@ -70,6 +71,7 @@ func initWAStore() {
 		phone_number TEXT,
 		reminder_enabled INTEGER DEFAULT 0,
 		reminder_hours INTEGER DEFAULT 24,
+		device_jid TEXT DEFAULT '',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`)
@@ -97,6 +99,9 @@ func initWAStore() {
 	}
 	if !columns["reminder_hours"] {
 		_, _ = DB.Exec("ALTER TABLE radius_whatsapp_config ADD COLUMN reminder_hours INTEGER NOT NULL DEFAULT 24")
+	}
+	if !columns["device_jid"] {
+		_, _ = DB.Exec("ALTER TABLE radius_whatsapp_config ADD COLUMN device_jid TEXT DEFAULT ''")
 	}
 
 	// Ensure admin_id uniqueness for ON CONFLICT to work
@@ -174,24 +179,51 @@ func getWAClient(adminID int64) (*whatsmeow.Client, error) {
 		return nil, fmt.Errorf("WA store not initialized (check logs for errors)")
 	}
 
-	deviceRes, err := container.GetFirstDevice(context.Background())
-	if err != nil {
-		log.Printf("[whatsapp] Failed to get first device for admin %d: %v", adminID, err)
-		return nil, err
-	}
-	if deviceRes == nil {
-		return nil, fmt.Errorf("WA device store is unavailable")
+	clientLog := waLog.Stdout("Client", "ERROR", true)
+
+	// Per-admin device selection: each admin has their own WhatsApp session
+	var adminDeviceJID string
+	_ = DB.QueryRow("SELECT COALESCE(device_jid,'') FROM radius_whatsapp_config WHERE admin_id = ?", adminID).Scan(&adminDeviceJID)
+
+	if adminDeviceJID != "" {
+		if jid, jidErr := types.ParseJID(adminDeviceJID); jidErr == nil {
+			if allDevices, devErr := container.GetAllDevices(context.Background()); devErr == nil {
+				for _, d := range allDevices {
+					if d.ID != nil && d.ID.String() == jid.String() {
+						client = whatsmeow.NewClient(d, clientLog)
+						break
+					}
+				}
+			}
+		}
+		if client == nil {
+			// Stored JID no longer in device store, clear it and create new
+			log.Printf("[whatsapp] Device JID for admin %d not found in store, creating new device", adminID)
+			_, _ = DB.Exec("UPDATE radius_whatsapp_config SET device_jid = '' WHERE admin_id = ?", adminID)
+		}
 	}
 
-	clientLog := waLog.Stdout("Client", "ERROR", true)
-	client = whatsmeow.NewClient(deviceRes, clientLog)
+	if client == nil {
+		// No device for this admin yet: allocate a fresh unregistered device
+		client = whatsmeow.NewClient(container.NewDevice(), clientLog)
+	}
 
 	client.AddEventHandler(func(evt interface{}) {
 		switch evt.(type) {
 		case *events.Connected:
 			log.Printf("[whatsapp] Admin %d connected", adminID)
+			// Persist device JID so future restarts reload the correct device
+			if client.Store.ID != nil {
+				jidStr := client.Store.ID.String()
+				_, _ = DB.Exec(
+					`INSERT INTO radius_whatsapp_config (admin_id, device_jid) VALUES (?, ?)
+					ON CONFLICT(admin_id) DO UPDATE SET device_jid = excluded.device_jid`,
+					adminID, jidStr,
+				)
+			}
 		case *events.LoggedOut:
 			log.Printf("[whatsapp] Admin %d logged out", adminID)
+			_, _ = DB.Exec("UPDATE radius_whatsapp_config SET device_jid = '' WHERE admin_id = ?", adminID)
 			waMu.Lock()
 			delete(waClients, adminID)
 			waMu.Unlock()
@@ -207,7 +239,7 @@ func getWAClient(adminID int64) (*whatsmeow.Client, error) {
 	waMu.Unlock()
 
 	if client.Store.ID != nil {
-		err = client.Connect()
+		err := client.Connect()
 		if err != nil {
 			waMu.Lock()
 			delete(waClients, adminID)
@@ -227,9 +259,9 @@ func loadWhatsappConfig(adminID int64) (WhatsappConfig, error) {
 	initWAStore()
 
 	err = DB.QueryRow(
-		"SELECT id, admin_id, enabled, phone_number, reminder_enabled, reminder_hours, created_at, updated_at FROM radius_whatsapp_config WHERE admin_id = ? LIMIT 1",
+		"SELECT id, admin_id, enabled, phone_number, reminder_enabled, reminder_hours, COALESCE(device_jid,''), created_at, updated_at FROM radius_whatsapp_config WHERE admin_id = ? LIMIT 1",
 		adminID,
-	).Scan(&config.ID, &config.AdminID, &config.Enabled, &config.PhoneNumber, &config.ReminderEnabled, &config.ReminderHours, &createdAt, &updatedAt)
+	).Scan(&config.ID, &config.AdminID, &config.Enabled, &config.PhoneNumber, &config.ReminderEnabled, &config.ReminderHours, &config.DeviceJID, &createdAt, &updatedAt)
 
 	if err == sql.ErrNoRows {
 		return WhatsappConfig{AdminID: adminID, Enabled: 0}, nil
@@ -252,7 +284,8 @@ func loadMessageTemplate(key string) string {
 			"renew_debt": "تم تجديد اشتراكك ⏳\nالمستخدم: {username}\nالباقة: {profile}\nالسعر: {price} د.ع\nالمدة: {validity_days} يوم\nملاحظة: تمت إضافة المبلغ كديون\nرصيدك الحالي: {balance} د.ع",
 			"add_debt":   "تم إضافة ديون 📋\nالمستخدم: {username}\nالمبلغ: {amount} د.ع\nالملاحظات: {notes}\nرصيدك الحالي: {balance} د.ع",
 			"payment":    "تم تسديد ديون ✅\nالمستخدم: {username}\nالمبلغ: {amount} د.ع\nالملاحظات: {notes}\nرصيدك الحالي: {balance} د.ع",
-			"expiry_reminder": "تنبيه انتهاء الاشتراك ⚠️\nعزيزي {username}، نود إعلامك أن اشتراكك في باقة {profile} سينتهي قريباً.\nتاريخ الانتهاء: {expiry_date}\nيرجى التجديد لضمان استمرار الخدمة.",
+		"expiry_reminder": "تنبيه انتهاء الاشتراك ⚠️\nعزيزي {full_name}، نود إعلامك أن اشتراكك في باقة {profile} سينتهي قريباً.\nتاريخ الانتهاء: {expiry_date}\nيرجى التجديد لضمان استمرار الخدمة.",
+			"debt_reminder": "تذكير بالديون المستحقة 📋\nعزيزي {username}، نود تذكيرك بأن لديك ديوناً مستحقة بمبلغ {balance} د.ع.\nيرجى التواصل مع الوكيل لتسوية الحساب في أقرب وقت ممكن.\nشكراً لتعاملكم معنا 🙏",
 		}
 		if t, ok := defaults[key]; ok {
 			return t
@@ -265,10 +298,11 @@ func loadMessageTemplate(key string) string {
 func SendWhatsappNotification(username, templateKey string, vars map[string]string) {
 	var phone string
 	var adminID sql.NullInt64
+	var fullName string
 	err := DB.QueryRow(
-		"SELECT phone, admin_id FROM radius_user_meta WHERE username=?",
+		"SELECT phone, admin_id, COALESCE(full_name,'') FROM radius_user_meta WHERE username=?",
 		username,
-	).Scan(&phone, &adminID)
+	).Scan(&phone, &adminID, &fullName)
 
 	if err != nil || phone == "" {
 		return
@@ -289,8 +323,19 @@ func SendWhatsappNotification(username, templateKey string, vars map[string]stri
 		return
 	}
 
+	// Merge vars, always including full_name so every template can use {full_name}
+	varsWithFullName := make(map[string]string)
+	if vars != nil {
+		for k, v := range vars {
+			varsWithFullName[k] = v
+		}
+	}
+	if _, has := varsWithFullName["full_name"]; !has {
+		varsWithFullName["full_name"] = fullName
+	}
+
 	message := templateText
-	for k, v := range vars {
+	for k, v := range varsWithFullName {
 		message = strings.ReplaceAll(message, "{"+k+"}", v)
 	}
 
@@ -445,7 +490,8 @@ func seedDefaultTemplates() {
 		"renew_debt":      "تم تجديد اشتراكك ⏳\nالمستخدم: {username}\nالباقة: {profile}\nالسعر: {price} د.ع\nالمدة: {validity_days} يوم\nملاحظة: تمت إضافة المبلغ كديون\nرصيدك الحالي: {balance} د.ع",
 		"add_debt":        "تم إضافة ديون 📋\nالمستخدم: {username}\nالمبلغ: {amount} د.ع\nالملاحظات: {notes}\nرصيدك الحالي: {balance} د.ع",
 		"payment":         "تم تسديد ديون ✅\nالمستخدم: {username}\nالمبلغ: {amount} د.ع\nالملاحظات: {notes}\nرصيدك الحالي: {balance} د.ع",
-		"expiry_reminder": "تنبيه انتهاء الاشتراك ⚠️\nعزيزي {username}، نود إعلامك أن اشتراكك في باقة {profile} سينتهي قريباً.\nتاريخ الانتهاء: {expiry_date}\nيرجى التجديد لضمان استمرار الخدمة.",
+		"expiry_reminder": "تنبيه انتهاء الاشتراك ⚠️\nعزيزي {full_name}، نود إعلامك أن اشتراكك في باقة {profile} سينتهي قريباً.\nتاريخ الانتهاء: {expiry_date}\nيرجى التجديد لضمان استمرار الخدمة.",
+		"debt_reminder":   "تذكير بالديون المستحقة 📋\nعزيزي {full_name}، نود تذكيرك بأن لديك ديوناً مستحقة بمبلغ {balance} د.ع.\nيرجى التواصل مع الوكيل لتسوية الحساب في أقرب وقت ممكن.\nشكراً لتعاملكم معنا 🙏",
 	}
 
 	for key, text := range defaults {
@@ -501,6 +547,188 @@ func TestWhatsappNotification(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "تم إرسال رسالة الاختبار"})
 }
 
+func BroadcastWhatsappMessage(c *fiber.Ctx) error {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[whatsapp-panic] BroadcastWhatsappMessage: %v", r)
+			_ = c.Status(500).JSON(fiber.Map{"error": "Internal server crash during WhatsApp broadcast"})
+		}
+	}()
+
+	adminID, _ := c.Locals("admin_id").(int64)
+	role, _ := c.Locals("role").(string)
+
+	type Request struct {
+		Message string `json:"message"`
+	}
+	var req Request
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	req.Message = strings.TrimSpace(req.Message)
+	if req.Message == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "نص الرسالة مطلوب"})
+	}
+
+	client, err := getWAClient(adminID)
+	if err != nil {
+		log.Printf("[whatsapp] Broadcast getWAClient error for admin %d: %v", adminID, err)
+		return c.Status(500).JSON(fiber.Map{"error": "فشل فتح جلسة الواتساب: " + err.Error()})
+	}
+	if client == nil || !client.IsConnected() || !client.IsLoggedIn() {
+		return c.Status(400).JSON(fiber.Map{"error": "الواتساب غير متصل. يرجى مسح كود QR أولاً."})
+	}
+
+	// Fetch target phone numbers
+	var rows *sql.Rows
+	if role == "superadmin" {
+		rows, err = DB.Query("SELECT DISTINCT phone FROM radius_user_meta WHERE phone IS NOT NULL AND phone != ''")
+	} else {
+		rows, err = DB.Query("SELECT DISTINCT phone FROM radius_user_meta WHERE admin_id = ? AND phone IS NOT NULL AND phone != ''", adminID)
+	}
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل جلب أرقام الهواتف: " + err.Error()})
+	}
+	defer rows.Close()
+
+	var phones []string
+	for rows.Next() {
+		var phone string
+		if err := rows.Scan(&phone); err == nil {
+			phone = strings.TrimSpace(phone)
+			if phone != "" {
+				phones = append(phones, phone)
+			}
+		}
+	}
+
+	if len(phones) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "لا يوجد مستخدمين مسجلين بأرقام هواتف صالحة لإرسال الرسائل إليهم"})
+	}
+
+	// Send in background to prevent HTTP timeout
+	go func(targetPhones []string, msg string, waClient *whatsmeow.Client, currentAdminID int64) {
+		log.Printf("[whatsapp-broadcast] Starting broadcast of %d messages for admin %d", len(targetPhones), currentAdminID)
+		for i, phone := range targetPhones {
+			// Clean phone number (remove +, spaces, leading zeros)
+			cleanPhone := strings.TrimLeft(phone, "+")
+			cleanPhone = strings.ReplaceAll(cleanPhone, " ", "")
+			if cleanPhone == "" {
+				continue
+			}
+
+			targetJID := types.NewJID(cleanPhone, types.DefaultUserServer)
+			_, err := waClient.SendMessage(context.Background(), targetJID, &waE2E.Message{
+				Conversation: proto.String(msg),
+			})
+			if err != nil {
+				log.Printf("[whatsapp-broadcast] Failed to send to %s (index: %d): %v", phone, i, err)
+			} else {
+				log.Printf("[whatsapp-broadcast] Message sent to %s successfully (%d/%d)", phone, i+1, len(targetPhones))
+			}
+
+			// Delay to avoid spam filters
+			time.Sleep(1500 * time.Millisecond)
+		}
+		log.Printf("[whatsapp-broadcast] Finished broadcast of %d messages for admin %d", len(targetPhones), currentAdminID)
+	}(phones, req.Message, client, adminID)
+
+	return c.JSON(fiber.Map{"message": fmt.Sprintf("بدأ إرسال الرسالة إلى %d مستخدم في الخلفية تلافياً للحظر.", len(phones))})
+}
+
+
+// SendDebtReminderBulk sends WhatsApp reminders to all users with outstanding debts (balance > 0)
+func SendDebtReminderBulk(c *fiber.Ctx) error {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[whatsapp-panic] SendDebtReminderBulk: %v", r)
+			_ = c.Status(500).JSON(fiber.Map{"error": "Internal server crash during debt reminder"})
+		}
+	}()
+
+	adminID, _ := c.Locals("admin_id").(int64)
+	role, _ := c.Locals("role").(string)
+
+	client, err := getWAClient(adminID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل فتح جلسة الواتساب: " + err.Error()})
+	}
+	if client == nil || !client.IsConnected() || !client.IsLoggedIn() {
+		return c.Status(400).JSON(fiber.Map{"error": "الواتساب غير متصل. يرجى مسح كود QR أولاً."})
+	}
+
+	templateText := loadMessageTemplate("debt_reminder")
+	if templateText == "" {
+		return c.Status(500).JSON(fiber.Map{"error": "قالب تذكير الديون غير موجود"})
+	}
+
+	// Fetch all users with outstanding debt (balance > 0 means they owe money)
+	var rows *sql.Rows
+	if role == "superadmin" {
+		rows, err = DB.Query(
+			"SELECT username, COALESCE(phone,''), COALESCE(full_name,''), balance FROM radius_user_meta WHERE balance > 0 AND phone IS NOT NULL AND phone != ''")
+	} else {
+		rows, err = DB.Query(
+			"SELECT username, COALESCE(phone,''), COALESCE(full_name,''), balance FROM radius_user_meta WHERE admin_id = ? AND balance > 0 AND phone IS NOT NULL AND phone != ''",
+			adminID)
+	}
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل جلب المستخدمين: " + err.Error()})
+	}
+	defer rows.Close()
+
+	type debtUser struct {
+		Username string
+		Phone    string
+		FullName string
+		Balance  float64
+	}
+	var debtUsers []debtUser
+	for rows.Next() {
+		var u debtUser
+		if scanErr := rows.Scan(&u.Username, &u.Phone, &u.FullName, &u.Balance); scanErr == nil {
+			debtUsers = append(debtUsers, u)
+		}
+	}
+
+	if len(debtUsers) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "لا يوجد مستخدمون عليهم ديون أو لا تتوفر أرقام هواتفهم"})
+	}
+
+	// Send reminders in background
+	go func(users []debtUser, tmpl string, waClient *whatsmeow.Client) {
+		log.Printf("[whatsapp-debt-reminder] Starting debt reminders for %d users (admin %d)", len(users), adminID)
+		for i, u := range users {
+			msg := tmpl
+			msg = strings.ReplaceAll(msg, "{username}", u.Username)
+			msg = strings.ReplaceAll(msg, "{full_name}", u.FullName)
+			msg = strings.ReplaceAll(msg, "{balance}", fmt.Sprintf("%.0f", u.Balance))
+
+			cleanPhone := strings.TrimLeft(u.Phone, "+")
+			cleanPhone = strings.ReplaceAll(cleanPhone, " ", "")
+			if cleanPhone == "" {
+				continue
+			}
+
+			targetJID := types.NewJID(cleanPhone, types.DefaultUserServer)
+			_, sendErr := waClient.SendMessage(context.Background(), targetJID, &waE2E.Message{
+				Conversation: proto.String(msg),
+			})
+			if sendErr != nil {
+				log.Printf("[whatsapp-debt-reminder] Failed to send to %s: %v", u.Phone, sendErr)
+			} else {
+				log.Printf("[whatsapp-debt-reminder] Reminder sent to %s (%d/%d)", u.Username, i+1, len(users))
+			}
+			time.Sleep(1500 * time.Millisecond)
+		}
+		log.Printf("[whatsapp-debt-reminder] Finished sending debt reminders")
+	}(debtUsers, templateText, client)
+
+	return c.JSON(fiber.Map{"message": fmt.Sprintf("بدأ إرسال تذكير الديون إلى %d مستخدم في الخلفية.", len(debtUsers))})
+}
+
 func clearLocalWASession(adminID int64) {
 	initWAStore()
 
@@ -513,17 +741,27 @@ func clearLocalWASession(adminID int64) {
 		return
 	}
 
-	device, err := container.GetFirstDevice(context.Background())
-	if err != nil {
-		log.Printf("[whatsapp] Failed to load local session for admin %d during logout: %v", adminID, err)
-		return
+	// Find and delete only this admin's device (not the first/shared device)
+	var adminDeviceJID string
+	_ = DB.QueryRow("SELECT COALESCE(device_jid,'') FROM radius_whatsapp_config WHERE admin_id = ?", adminID).Scan(&adminDeviceJID)
+
+	if adminDeviceJID != "" {
+		if jid, jidErr := types.ParseJID(adminDeviceJID); jidErr == nil {
+			if allDevices, devErr := container.GetAllDevices(context.Background()); devErr == nil {
+				for _, device := range allDevices {
+					if device.ID != nil && device.ID.String() == jid.String() {
+						if delErr := device.Delete(context.Background()); delErr != nil {
+							log.Printf("[whatsapp] Failed to delete local session for admin %d: %v", adminID, delErr)
+						}
+						break
+					}
+				}
+			}
+		}
 	}
-	if device == nil || device.ID == nil {
-		return
-	}
-	if err := device.Delete(context.Background()); err != nil {
-		log.Printf("[whatsapp] Failed to delete local session for admin %d: %v", adminID, err)
-	}
+
+	// Always clear the stored JID from the config
+	_, _ = DB.Exec("UPDATE radius_whatsapp_config SET device_jid = '' WHERE admin_id = ?", adminID)
 }
 
 func GetWhatsappQR(c *fiber.Ctx) error {
@@ -566,6 +804,8 @@ func GetWhatsappQR(c *fiber.Ctx) error {
 		if deleteErr := client.Store.Delete(context.Background()); deleteErr != nil {
 			log.Printf("[whatsapp] Failed to delete unauthenticated session for admin %d: %v", adminID, deleteErr)
 		}
+		// Clear stored device JID since it's now invalid
+		_, _ = DB.Exec("UPDATE radius_whatsapp_config SET device_jid = '' WHERE admin_id = ?", adminID)
 		waMu.Lock()
 		delete(waClients, adminID)
 		waMu.Unlock()

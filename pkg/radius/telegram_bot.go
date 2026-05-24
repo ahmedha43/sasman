@@ -1,12 +1,15 @@
 package radius
 
 import (
+	"bufio"
 	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,8 +24,8 @@ type tgUpdateResponse struct {
 }
 
 type tgUpdate struct {
-	UpdateID      int64           `json:"update_id"`
-	Message       *tgMessage      `json:"message"`
+	UpdateID      int64            `json:"update_id"`
+	Message       *tgMessage       `json:"message"`
 	CallbackQuery *tgCallbackQuery `json:"callback_query"`
 }
 
@@ -40,7 +43,9 @@ type tgCallbackQuery struct {
 	Data    string     `json:"data"`
 }
 
-type tgChat struct{ ID int64 `json:"id"` }
+type tgChat struct {
+	ID int64 `json:"id"`
+}
 type tgUser struct {
 	ID        int64  `json:"id"`
 	Username  string `json:"username"`
@@ -52,11 +57,11 @@ type tgUser struct {
 type botState int
 
 const (
-	stateIdle          botState = iota
-	stateAwaitSearch            // waiting for search text
-	stateAwaitUsername          // waiting for username to view
-	stateAwaitRenewUser         // waiting for username to renew
-	stateAwaitRenewProfile      // waiting for profile selection (username stored)
+	stateIdle              botState = iota
+	stateAwaitSearch                // waiting for search text
+	stateAwaitUsername              // waiting for username to view
+	stateAwaitRenewUser             // waiting for username to renew
+	stateAwaitRenewProfile          // waiting for profile selection (username stored)
 )
 
 type userSession struct {
@@ -196,6 +201,8 @@ func handleMessage(cfg telegramBackupConfig, msg *tgMessage) {
 		showProfilesList(cfg.BotToken, chatID)
 	case "/users", "/subscribers":
 		showUsersList(cfg.BotToken, chatID, 0)
+	case "/links":
+		showRemoteLinks(cfg.BotToken, chatID)
 	case "/search":
 		parts := strings.Fields(text)
 		if len(parts) < 2 {
@@ -250,6 +257,8 @@ func handleCallback(cfg telegramBackupConfig, cb *tgCallbackQuery) {
 		showProfilesList(cfg.BotToken, chatID)
 	case data == "users_list":
 		showUsersList(cfg.BotToken, chatID, 0)
+	case data == "remote_links":
+		showRemoteLinks(cfg.BotToken, chatID)
 	case strings.HasPrefix(data, "subscribers_page:"):
 		pageStr := strings.TrimPrefix(data, "subscribers_page:")
 		page, _ := strconv.Atoi(pageStr)
@@ -296,8 +305,66 @@ func sendMainMenu(token string, chatID int64, name string) {
 		{{Label: "🟢 المتصلون الآن", Data: "online"}, {Label: "📋 الباقات", Data: "profiles"}},
 		{{Label: "🔍 بحث عن مشترك", Data: "search"}, {Label: "👤 عرض مشترك", Data: "view_user"}},
 		{{Label: "👥 جميع المشتركين", Data: "users_list"}, {Label: "🔄 تجديد مشترك", Data: "renew_start"}},
+		{{Label: "🌐 روابط الوصول", Data: "remote_links"}},
 	})
 	sendMessage(token, chatID, text, keyboard, false)
+}
+
+func showRemoteLinks(token string, chatID int64) {
+	baseURL := currentServerPublicURL()
+	if baseURL == "" {
+		sendMessage(token, chatID,
+			"⚠️ لم يتم العثور على رابط وصول عام حالياً.\n\n"+
+				"تأكد أن Cloudflare Tunnel يعمل، ثم أعد المحاولة من زر الروابط أو الأمر /links.",
+			backBtn(), true)
+		return
+	}
+
+	baseURL = strings.TrimRight(baseURL, "/")
+	text := fmt.Sprintf(
+		"🌐 *روابط الوصول المباشر من الخادم:*\n\n"+
+			"📡 *RADIUS:*\n`%s/radius`\n\n"+
+			"🧰 *MikroTik:*\n`%s/mikrotik`\n\n"+
+			"يمكنك نسخ الرابط مباشرة من الرسالة.",
+		baseURL, baseURL)
+	sendMessage(token, chatID, text, backBtn(), true)
+}
+
+func currentServerPublicURL() string {
+	for _, key := range []string{"SASMAN_PUBLIC_URL", "PUBLIC_URL", "APP_URL"} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return latestCloudflaredURL()
+}
+
+func latestCloudflaredURL() string {
+	if os.Getenv("CLOUDFLARE_TUNNEL_ENABLED") == "false" {
+		return ""
+	}
+
+	paths := []string{"/app/data/cloudflared.log", "data/cloudflared.log"}
+	urlRegex := regexp.MustCompile(`https://[a-z0-9-]+\.trycloudflare\.com`)
+	for _, path := range paths {
+		file, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+
+		var latest string
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			if found := urlRegex.FindString(scanner.Text()); found != "" && !strings.Contains(found, "api.trycloudflare.com") {
+				latest = found
+			}
+		}
+		_ = file.Close()
+		if latest != "" {
+			return latest
+		}
+	}
+	return ""
 }
 
 func showUsersList(token string, chatID int64, page int) {
@@ -339,7 +406,7 @@ func showUsersList(token string, chatID int64, page int) {
 
 	totalPages := (total + limit - 1) / limit
 	text := fmt.Sprintf("👥 *قائمة المشتركين (صفحة %d/%d):*\nاجمالي المشتركين: *%d*\nاضغط على المشترك لعرض تفاصيله والتحكم به:", page+1, totalPages, total)
-	
+
 	var keyboardRows [][]inlineBtn
 	for _, u := range users {
 		label := fmt.Sprintf("👤 %s (%s)", u.username, u.fullName)
@@ -686,6 +753,7 @@ func registerBotCommands(token string) {
 		{"online", "المتصلون الآن"},
 		{"profiles", "الباقات المتوفرة"},
 		{"users", "عرض جميع المشتركين"},
+		{"links", "روابط الوصول عن بعد"},
 		{"search", "بحث عن مشترك"},
 		{"user", "عرض تفاصيل مشترك"},
 		{"renew", "تجديد مشترك"},

@@ -159,3 +159,31 @@ function openNASModal() {
 function closeNASModal() {
     document.getElementById('nas-modal').classList.remove('active');
 }
+
+async function quickSetupNAS() {
+    if (!confirm('سيتم إضافة راديوس جديد بعنوان 172.17.0.1 وكلمة مرور 123456 وجعله متاحاً لجميع الوكلاء (Global). وسيتم إرسال هذا الإعداد مباشرة للمايكروتك. هل تود المتابعة؟')) return;
+    
+    // Check if router is connected before proceeding (basic check, backend will enforce it too)
+    const btn = document.querySelector('button[onclick="quickSetupNAS()"]');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإعداد...';
+    }
+    
+    try {
+        const res = await apiFetch('/radius/api/nas/quick-setup', { method: 'POST' });
+        const result = await res.json();
+        alert(result.message || result.error);
+        if (res.ok) {
+            loadNAS();
+        }
+    } catch (e) {
+        alert('حدث خطأ أثناء الاتصال بالخادم.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '⚡ إعداد راديوس سريع (نظام ومايكروتك)';
+        }
+    }
+}
+

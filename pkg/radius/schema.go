@@ -154,7 +154,8 @@ func EnsureSchema() {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			reminder_enabled INTEGER NOT NULL DEFAULT 0,
-			reminder_hours INTEGER NOT NULL DEFAULT 24
+			reminder_hours INTEGER NOT NULL DEFAULT 24,
+			device_jid TEXT NOT NULL DEFAULT ''
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS radius_vouchers (
@@ -263,7 +264,8 @@ func EnsureSchema() {
 	DB.Exec("ALTER TABLE radius_whatsapp_config ADD COLUMN admin_id INTEGER DEFAULT 1")
 	DB.Exec("ALTER TABLE radius_whatsapp_config ADD COLUMN reminder_enabled INTEGER NOT NULL DEFAULT 0")
 	DB.Exec("ALTER TABLE radius_whatsapp_config ADD COLUMN reminder_hours INTEGER NOT NULL DEFAULT 24")
-	
+	DB.Exec("ALTER TABLE radius_whatsapp_config ADD COLUMN device_jid TEXT NOT NULL DEFAULT ''")
+
 	// Ensure admin_id uniqueness for ON CONFLICT to work
 	DB.Exec("DELETE FROM radius_whatsapp_config WHERE id NOT IN (SELECT MAX(id) FROM radius_whatsapp_config GROUP BY admin_id)")
 	DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_admin ON radius_whatsapp_config(admin_id)")

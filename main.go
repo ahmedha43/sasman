@@ -16,11 +16,11 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"runtime/debug"
 
 	"mikrotik-manager/pkg/core"
 	"mikrotik-manager/pkg/lan"
@@ -96,7 +96,7 @@ func main() {
 	// Set up memory limit to ~150MB to prevent the app from consuming too much RAM over time
 	// Adjust as necessary depending on your deployment environment
 	// runtime/debug is imported, we need to add it to imports
-	
+
 	app := fiber.New(fiber.Config{
 		AppName:           "SASMAN MikroTik Manager v2.0 [UNIFIED]",
 		ReduceMemoryUsage: true,
@@ -129,6 +129,8 @@ func main() {
 		// 1. Whitelist: Always allow login page and its assets
 		if path == "/radius/login.html" ||
 			strings.HasPrefix(path, "/radius/api/auth") ||
+			strings.HasPrefix(path, "/radius/api/license") ||
+			path == "/radius/api/router/connect" ||
 			strings.HasPrefix(path, "/radius/js") ||
 			strings.HasPrefix(path, "/radius/css") ||
 			strings.HasPrefix(path, "/radius/fonts") ||
@@ -142,6 +144,11 @@ func main() {
 		// 2. Protection: Intercept root, /admin, and /radius (but skip /radius/api)
 		if path == "/" || path == "/admin" || strings.HasPrefix(path, "/admin/") ||
 			(strings.HasPrefix(path, "/radius") && !strings.HasPrefix(path, "/radius/api")) {
+
+			validLicense, _, _ := core.VerifyLicense(shared.RouterConfigState.License, shared.RouterConfigState.Serial)
+			if strings.HasPrefix(path, "/radius") && !validLicense {
+				return c.Next()
+			}
 
 			// Check for RADIUS session cookie
 			token := c.Cookies("sasman_admin_session")
@@ -192,8 +199,10 @@ func main() {
 	// Protected Main API (Requires RADIUS Admin Account)
 	api := app.Group("/api", radius.RequireAdmin)
 
-	// MikroTik WebFig Proxy (Requires RADIUS Admin Account)
-	app.All("/mikrotik/*", radius.RequireAdmin, func(c *fiber.Ctx) error {
+	// MikroTik WebFig Proxy.
+	// Public tunnel links open the router WebFig directly, while local access
+	// remains protected by the RADIUS admin session.
+	mikrotikProxyHandler := func(c *fiber.Ctx) error {
 		routerAddress := shared.RouterConfigState.Address
 		if routerAddress == "" {
 			return c.Status(400).SendString("Router address not configured. Please login first.")
@@ -241,7 +250,15 @@ func main() {
 			}
 			proxy.ServeHTTP(w, r)
 		}))(c)
-	})
+	}
+	mikrotikAccessGuard := func(c *fiber.Ctx) error {
+		if isPublicTunnelRequest(c) {
+			return c.Next()
+		}
+		return radius.RequireAdmin(c)
+	}
+	app.All("/mikrotik", mikrotikAccessGuard, mikrotikProxyHandler)
+	app.All("/mikrotik/*", mikrotikAccessGuard, mikrotikProxyHandler)
 
 	// Core & Authentication
 	api.Post("/login", loginHandler)
@@ -297,6 +314,7 @@ func main() {
 	radiusAPI.Post("/auth/login", radius.LoginHandler)
 	radiusAPI.Post("/auth/logout", radius.LogoutHandler)
 	radiusAPI.Get("/license/status", radius.LicenseStatusHandler)
+	radiusAPI.Post("/router/connect", radius.RouterConnectHandler)
 	radiusAPI.Post("/vouchers/redeem", radius.RedeemVoucher)
 
 	// User Portal (Public login for subscribers)
@@ -322,9 +340,10 @@ func main() {
 	radiusAccount.Get("/backup/telegram", radius.GetTelegramBackupConfig)
 	radiusAccount.Post("/backup/telegram", radius.SaveTelegramBackupConfig)
 	radiusAccount.Post("/backup/telegram/test", radius.TestTelegramBackup)
+	radiusAccount.Get("/cloudflared/url", getCloudflareTunnelURL)
 
-	// License activation requires admin auth only
-	radiusAPI.Post("/license/activate", radius.RequireAdmin, radius.LicenseActivateHandler)
+	// License activation is public while unlicensed so first-run setup can fetch the MikroTik serial.
+	radiusAPI.Post("/license/activate", radius.RequireAdminUnlessUnlicensed, radius.LicenseActivateHandler)
 
 	// Licensed area (auth + license gate)
 	radiusSecure := radiusAPI.Group("", radius.RequireAdmin, radius.RequireLicense)
@@ -334,8 +353,6 @@ func main() {
 	radiusSecure.Post("/streams", streaming.CreateStreamAdmin)
 	radiusSecure.Put("/streams/:id", streaming.UpdateStreamAdmin)
 	radiusSecure.Delete("/streams/:id", streaming.DeleteStreamAdmin)
-	radiusSecure.Get("/streams/server/status", streaming.GetMediaMTXStatus)
-	radiusSecure.Post("/streams/server/control", streaming.ControlMediaMTX)
 
 	// Profiles
 	radiusSecure.Get("/profiles", radius.GetProfiles)
@@ -359,6 +376,7 @@ func main() {
 	// NAS
 	radiusSecure.Get("/nas", radius.GetNAS)
 	radiusSecure.Post("/nas", radius.CreateNAS)
+	radiusSecure.Post("/nas/quick-setup", radius.QuickSetupNAS)
 	radiusSecure.Put("/nas/:id", radius.UpdateNAS)
 	radiusSecure.Delete("/nas/:ip", radius.DeleteNAS)
 
@@ -382,10 +400,12 @@ func main() {
 	radiusSecure.Get("/whatsapp/config", radius.GetWhatsappConfig)
 	radiusSecure.Post("/whatsapp/config", radius.SaveWhatsappConfig)
 	radiusSecure.Post("/whatsapp/test", radius.TestWhatsappNotification)
+	radiusSecure.Post("/whatsapp/broadcast", radius.BroadcastWhatsappMessage)
 	radiusSecure.Get("/whatsapp/qr", radius.GetWhatsappQR)
 	radiusSecure.Post("/whatsapp/logout", radius.LogoutWhatsapp)
 	radiusSecure.Get("/whatsapp/templates", radius.GetMessageTemplates)
 	radiusSecure.Post("/whatsapp/templates", radius.SaveMessageTemplate)
+	radiusSecure.Post("/whatsapp/send-debt-reminder", radius.SendDebtReminderBulk)
 
 	// Global Blind Accept Bypass (SAS 4 style)
 	radiusSecure.Get("/bypass", radius.GetBypassStatus)
@@ -805,6 +825,7 @@ func rewriteDeviceProxyHTML(body string, cleanIP string) string {
 	return replacer.Replace(body)
 }
 
+
 // Global Auth Handlers (Managed here for simplicity in initial refactor)
 
 func loginHandler(c *fiber.Ctx) error {
@@ -862,6 +883,42 @@ func routingListHandler(c *fiber.Ctx) error {
 		keys = append(keys, k)
 	}
 	return c.JSON(keys)
+}
+
+func isPublicTunnelRequest(c *fiber.Ctx) bool {
+	host := strings.ToLower(strings.TrimSpace(c.Hostname()))
+	if host == "" {
+		host = strings.ToLower(strings.TrimSpace(c.Get("Host")))
+	}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+
+	if host == "" || host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return false
+	}
+	if strings.HasSuffix(host, ".trycloudflare.com") ||
+		strings.Contains(host, "ngrok") ||
+		strings.HasSuffix(host, ".loca.lt") ||
+		strings.HasSuffix(host, ".tunnelmole.net") {
+		return true
+	}
+
+	for _, key := range []string{"SASMAN_PUBLIC_URL", "PUBLIC_URL", "APP_URL"} {
+		rawURL := strings.TrimSpace(os.Getenv(key))
+		if rawURL == "" {
+			continue
+		}
+		if u, err := url.Parse(rawURL); err == nil && strings.EqualFold(u.Hostname(), host) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // getCloudflareTunnelURL reads the cloudflared log file and extracts the tunnel URL

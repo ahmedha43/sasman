@@ -183,7 +183,71 @@
             <!-- License Gate Alert -->
             <div id="license-gate" class="card" style="display:none; border-right:4px solid var(--danger);">
                 <h2 style="color:var(--danger); margin-top:0;"><i class="fa-solid fa-lock"></i> النظام غير مُفعَّل</h2>
+                
+                <!-- Developer Contact & Payment Info -->
+                <div style="margin:15px 0; padding:15px; background:var(--primary-light); border-radius:var(--radius-md); border:1px solid var(--primary);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h3 style="margin:0; color:var(--primary); font-size:1.1rem;"><i class="fa-solid fa-headset"></i> التواصل مع المطور والدفع</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <a href="https://wa.me/qr/U22CICF7BZKDN1" target="_blank" title="تواصل عبر واتساب" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #25D366; color: white; font-size: 20px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                                <i class="fa-brands fa-whatsapp"></i>
+                            </a>
+                            <a href="https://t.me/Aa79n" target="_blank" title="تواصل عبر تلغرام" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #0088cc; color: white; font-size: 20px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                                <i class="fa-brands fa-telegram"></i>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <p style="margin-bottom:8px;"><strong>المطور:</strong> أحمد الدليمي</p>
+                    
+                    <div style="background:white; padding:12px; border-radius:8px; border:1px dashed var(--primary);">
+                        <p style="margin-bottom:5px;"><strong>وسائل دفع الترخيص (اضغط للنسخ):</strong></p>
+                        <ul style="list-style:none; padding:0; margin:0;">
+                            <li style="margin-bottom:8px;">
+                                <i class="fa-solid fa-money-bill-wave"></i> <strong>زين كاش (ZainCash):</strong> 
+                                <code style="background:#eee; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #ccc;" onclick="navigator.clipboard.writeText('07819597948'); alert('تم نسخ رقم زين كاش: 07819597948')">07819597948</code>
+                            </li>
+                            <li style="margin-bottom:8px;">
+                                <i class="fa-solid fa-key"></i> <strong>سوبر كي (SuperKey):</strong> 
+                                <code style="background:#eee; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #ccc;" onclick="navigator.clipboard.writeText('9596119421'); alert('تم نسخ رقم سوبر كي: 9596119421')">9596119421</code>
+                            </li>
+                            <li style="margin-bottom:8px;">
+                                <i class="fa-solid fa-wallet"></i> <strong>TRC20:</strong> 
+                                <code style="background:#eee; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #ccc;" onclick="navigator.clipboard.writeText('TUnDec4ULJPCzcQwVyQg4ASRuNwvL5H4mq'); alert('تم نسخ عنوان TRC20')">TUnDec4ULJPCzcQwVyQg4ASRuNwvL5H4mq</code>
+                            </li>
+                            <li style="margin-bottom:8px;">
+                                <i class="fa-solid fa-id-card"></i> <strong>Binance UID:</strong> 
+                                <code style="background:#eee; padding:4px 8px; border-radius:4px; cursor:pointer; border:1px solid #ccc;" onclick="navigator.clipboard.writeText('500747355'); alert('تم نسخ Binance UID')">500747355</code>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
                 <div id="license-status-box" style="margin:12px 0;"></div>
+                <div id="router-setup-box" style="margin:18px 0; padding:18px; border:1px solid var(--border); border-radius:var(--radius-md); background:#fafbfc;">
+                    <h3 style="margin:0 0 12px 0; padding:0; border:none; font-size:1rem;"><i class="fa-solid fa-router"></i> اتصال المايكروتك</h3>
+                    <p class="field-hint" style="margin-bottom:12px;">أدخل بيانات MikroTik أولاً حتى يتم جلب السيريال المستخدم في الترخيص.</p>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>عنوان الراوتر API</label>
+                            <input type="text" id="setup-router-address" placeholder="192.168.88.1:8728" value="192.168.88.1:8728">
+                        </div>
+                        <div class="form-group">
+                            <label>اسم المستخدم</label>
+                            <input type="text" id="setup-router-user" placeholder="admin" value="admin">
+                        </div>
+                        <div class="form-group">
+                            <label>كلمة المرور</label>
+                            <input type="password" id="setup-router-pass" placeholder="كلمة مرور المايكروتك">
+                        </div>
+                    </div>
+                    <div class="action-row" style="align-items:center;">
+                        <button class="btn" id="router-connect-btn" style="width:auto; background:var(--info); color:white; border:none;" onclick="handleRouterConnect(event)">
+                            <i class="fa-solid fa-plug"></i> اتصال وجلب السيريال
+                        </button>
+                        <span id="router-connect-msg" class="field-hint" style="font-weight:700;"></span>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label>مفتاح التفعيل</label>
                     <input type="text" id="license-key-input" placeholder="الصق مفتاح الترخيص هنا">
@@ -366,7 +430,10 @@
                     <div class="card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px;">
                             <h3 style="margin:0; border:none; padding:0;"><i class="fa-solid fa-server"></i> الراوترات المربوطة حالياً</h3>
-                            <button class="btn btn-primary" style="width:auto; padding:10px 20px;" onclick="openNASModal()">➕ ربط راوتر جديد (NAS)</button>
+                            <div style="display:flex; gap:10px;">
+                                <button class="btn superadmin-only" style="width:auto; padding:10px 20px; background:var(--success); color:white; border:none; display:none;" onclick="callWhenReady('/radius/js/nas.js?v=10', 'quickSetupNAS')">⚡ إعداد راديوس سريع (نظام ومايكروتك)</button>
+                                <button class="btn btn-primary" style="width:auto; padding:10px 20px;" onclick="openNASModal()">➕ ربط راوتر جديد (NAS)</button>
+                            </div>
                         </div>
                         <div style="overflow-x:auto;">
                             <table>
@@ -427,6 +494,25 @@
                                 </div>
                                 <button class="btn btn-primary" type="submit" style="width:auto; padding:10px 25px;">تحديث كلمة المرور</button>
                             </form>
+                        </div>
+                    </div>
+
+                    <!-- Remote Access Links -->
+                    <div id="radius-remote-access-card" class="card" style="margin-top:25px; border-right:4px solid var(--info); display:none;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px;">
+                            <h3 style="margin:0; border:none; padding:0;"><i class="fa-solid fa-globe"></i> روابط الوصول عن بُعد (Remote Access)</h3>
+                            <button class="btn" style="width:auto; padding:8px 14px;" onclick="loadRadiusRemoteAccess()">
+                                <i class="fa-solid fa-rotate"></i> تحديث
+                            </button>
+                        </div>
+                        <p id="radius-remote-access-status" class="field-hint" style="margin-bottom:14px;">جاري فحص روابط Cloudflare...</p>
+                        <div id="radius-remote-access-buttons" class="action-row" style="display:none;">
+                            <button class="btn btn-primary" style="width:auto; padding:10px 18px;" onclick="copyRadiusRemotePath('/radius')">
+                                <i class="fa-solid fa-copy"></i> نسخ رابط RADIUS
+                            </button>
+                            <button class="btn" style="width:auto; padding:10px 18px; background:var(--info); color:white; border:none;" onclick="copyRadiusRemotePath('/mikrotik')">
+                                <i class="fa-solid fa-copy"></i> نسخ رابط MikroTik
+                            </button>
                         </div>
                     </div>
 
@@ -642,13 +728,47 @@
                                 </div>
 
                                 <div style="margin-top:10px;">
-                                    <button id="wa-qr-btn" class="btn btn-primary" style="width:auto; padding:10px 25px;" onclick="getWhatsappQR()">جلب كود الربط (QR Code)</button>
+                                    <button id="wa-qr-btn" class="btn btn-primary" style="width:auto; padding:10px 25px;" onclick="callWhenReady('/radius/js/whatsapp.js?v=10', 'getWhatsappQR')">جلب كود الربط (QR Code)</button>
                                 </div>
                             </div>
                         </div>
                         <div class="action-row" style="margin-top:20px;">
                             <button class="btn btn-primary" style="width:auto; padding:10px 25px;" onclick="saveWhatsappConfig()">حفظ إعدادات الواتساب</button>
                             <button class="btn" style="width:auto; padding:10px 25px;" onclick="testWhatsappNotification()">📨 إرسال رسالة اختبارية</button>
+                        </div>
+                    </div>
+
+                    <!-- WhatsApp Broadcast card -->
+                    <div class="card" style="margin-top:25px; border-right:4px solid #f59e0b; background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);">
+                        <h3 style="display:flex; align-items:center; gap:10px;">
+                            <span style="background:linear-gradient(135deg, #f59e0b, #d97706); color:white; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px;">📢</span>
+                            إرسال إشعار جماعي لجميع المشتركين
+                        </h3>
+                        <p class="field-hint" style="margin-bottom:15px;">اكتب رسالة وأرسلها لجميع المستخدمين المسجلين بأرقام هواتف دفعة واحدة. مثلاً: إعلان عطل، صيانة، أو أي تنبيه عام.</p>
+                        
+                        <div style="position:relative;">
+                            <textarea id="wa-broadcast-msg" rows="4" placeholder="اكتب نص الرسالة هنا... مثال: 📢 إعلام عام: ستتم صيانة الشبكة غداً من الساعة 2 إلى 4 فجراً. نعتذر عن أي انقطاع." style="width:100%; font-family:inherit; font-size:14px; resize:vertical; border:2px solid #fcd34d; border-radius:10px; padding:14px; background:white; transition: border-color 0.3s;"></textarea>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                                <span id="wa-broadcast-charcount" style="font-size:12px; color:var(--muted);">0 حرف</span>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:10px; align-items:center; margin-top:15px; flex-wrap:wrap;">
+                            <button id="wa-broadcast-btn" class="btn" style="background:linear-gradient(135deg, #f59e0b, #d97706); color:white; border:none; width:auto; padding:12px 30px; font-weight:700; font-size:15px; border-radius:10px; cursor:pointer; display:flex; align-items:center; gap:8px; transition: transform 0.2s, box-shadow 0.2s;" onclick="callWhenReady('/radius/js/whatsapp.js?v=10', 'sendWhatsappBroadcast')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(245,158,11,0.4)'" onmouseout="this.style.transform=''; this.style.boxShadow=''">
+                                <i class="fa-solid fa-paper-plane"></i> إرسال الإشعار الجماعي
+                            </button>
+                            <button id="wa-debt-btn" class="btn" style="background:linear-gradient(135deg, #ef4444, #dc2626); color:white; border:none; width:auto; padding:12px 30px; font-weight:700; font-size:15px; border-radius:10px; cursor:pointer; display:flex; align-items:center; gap:8px; transition: transform 0.2s, box-shadow 0.2s;" onclick="callWhenReady('/radius/js/whatsapp.js?v=10', 'sendDebtReminder')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(239,68,68,0.4)'" onmouseout="this.style.transform=''; this.style.boxShadow=''">
+                                <i class="fa-solid fa-money-bill-wave"></i> تذكير بالديون ✉️
+                            </button>
+                            <span id="wa-broadcast-status" style="font-size:13px; color:var(--muted); display:none;"></span>
+                            <span id="wa-debt-status" style="font-size:13px; color:var(--muted); display:none;"></span>
+                        </div>
+
+                        <div style="margin-top:14px; padding:10px 14px; background:#fef3c7; border-radius:8px; border:1px solid #fcd34d;">
+                            <p style="margin:0; font-size:13px; color:#92400e;">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <strong>حماية من الحظر:</strong> يتم إرسال الرسائل بفاصل زمني 1.5 ثانية بين كل رسالة تلقائياً لتجنب حظر حساب الواتساب.
+                            </p>
                         </div>
                     </div>
 
@@ -664,6 +784,7 @@
                             <span style="background:#f3e8ff; color:#6b21a8; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">{amount}</span>
                             <span style="background:#f3e8ff; color:#6b21a8; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">{notes}</span>
                             <span style="background:#f3e8ff; color:#6b21a8; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">{balance}</span>
+                            <span style="background:#f3e8ff; color:#6b21a8; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">{full_name}</span>
                         </div>
                         <div id="templates-list"></div>
                     </div>
@@ -698,28 +819,8 @@
                     </div>
                 </div>
 
-                <!-- ================= 8. TAB STREAMS (LOCAL STREAMING) ================= -->
+                <!-- ================= 8. TAB STREAMS ================= -->
                 <div id="tab-streams" class="tab-content">
-                    <!-- MediaMTX Server control widget -->
-                    <div class="card" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); color: white; border: 1px solid #334155; margin-bottom: 20px; box-shadow: var(--shadow-lg);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                            <div>
-                                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px; color: #f8fafc; font-size: 17px;">
-                                    ⚙️ التحكم بخادم البث المباشر المحلي (MediaMTX Engine)
-                                </h3>
-                                <p style="margin: 6px 0 0 0; font-size: 13px; color: #94a3b8; line-height: 1.5;">
-                                    يمكنك إطفاء خادم البث بالكامل لتوفير استهلاك الرام (RAM) والمعالج (CPU) بنسبة 100% عندما لا تقوم بالبث.
-                                </p>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span id="server-status-badge" style="padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #334155; color: #cbd5e1;">جاري الفحص...</span>
-                                <button id="server-toggle-btn" class="btn" style="width: auto; padding: 8px 18px; font-weight: bold; background: #0284c7; color: white; border:none;" onclick="toggleMediaMTXServer()">
-                                    تشغيل الخادم 🚀
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
                             <h2 style="margin:0;"><i class="fa-solid fa-tower-broadcast"></i> قنوات البث المباشر المضافة حالياً</h2>
@@ -727,8 +828,7 @@
                         </div>
                         
                         <p class="field-hint" style="margin-bottom:20px; color:var(--text); line-height:1.6;">
-                            رابط استقبال البث من برنامج OBS (RTMP Source): <code>rtmp://&lt;router_ip&gt;:1935/&lt;معرف_القناة&gt;</code> <br>
-                            رابط المشاهدة للمشتركين داخل البوابة الذاتية (HLS): <code>http://&lt;router_ip&gt;:8888/&lt;معرف_القناة&gt;/index.m3u8</code>
+                            أضف رابط مصدر مباشر فقط، مثل رابط HLS ينتهي بـ <code>.m3u8</code> أو رابط ملف فيديو مباشر. لا توجد خدمة بث محلي أو استقبال OBS داخل النظام.
                         </p>
 
                         <div style="overflow-x:auto;">
@@ -813,7 +913,7 @@
             <div id="renew-price-display" style="margin-top:8px; padding:10px; background:var(--warning-light); border:1px solid rgba(255, 193, 7, 0.2); border-radius:6px; color:#92400e; font-weight:600; display:none;"></div>
             
             <div class="checkbox-row" style="margin-top:15px; padding:12px; background:var(--success-light); border-radius:8px; border:1px solid rgba(77, 189, 116, 0.2);">
-                <input type="checkbox" id="renew-paid" onchange="updateRenewPriceDisplay()">
+                <input type="checkbox" id="renew-paid" onchange="updateRenewPriceDisplay()" checked>
                 <label for="renew-paid" style="margin:0; font-weight:600; color:#166534; cursor:pointer;">✅ المبلغ واصل / مدفوع (لا تُضاف ديون)</label>
             </div>
             <div class="action-row" style="margin-top:20px;">
@@ -921,11 +1021,10 @@
                 <input type="text" id="stream-name" placeholder="مثال: MBC 1 HD">
             </div>
             <div class="form-group">
-                <label>مصدر البث (Source / m3u8 / RTSP / File):</label>
-                <input type="text" id="stream-source" value="publisher" placeholder="مثال: publisher أو http://server.com/live.m3u8">
+                <label>مصدر البث (Source URL):</label>
+                <input type="text" id="stream-source" placeholder="مثال: https://server.com/live/playlist.m3u8">
                 <p class="field-hint">
-                    ضع <code>publisher</code> للبث المباشر المحلي عبر برنامج OBS.<br>
-                    أو ضع <strong>رابط بث مباشر خارجي</strong> ينتهي بامتداد <code>.m3u8</code> أو رابط ملف فيديو للتشغيل المباشر.
+                    ضع رابط بث مباشر خارجي ينتهي بامتداد <code>.m3u8</code> أو رابط ملف فيديو مباشر.
                 </p>
             </div>
             <div class="form-group">
@@ -934,15 +1033,6 @@
                     <option value="active">نشطة (متاحة للمشتركين)</option>
                     <option value="inactive">معطلة (مخفية)</option>
                 </select>
-            </div>
-            <div class="form-group" style="padding: 10px; background: #f0fdf4; border-radius: 8px; border: 1px solid #dcfce7; margin-top: 15px;">
-                <label style="display:flex; align-items:center; gap:8px; font-weight:bold; color:#15803d; cursor:pointer; margin:0;">
-                    <input type="checkbox" id="stream-local-relay" value="1">
-                    <span>🔁 تفعيل إعادة البث المحلي (Local Relay)</span>
-                </label>
-                <p class="field-hint" style="color:#166534; margin:5px 22px 0 0;">
-                    عند التفعيل، سيقوم السيرفر بسحب البث مرة واحدة فقط من الرابط الخارجي، وتوزيعه محلياً داخل الشبكة (يستهلك إنترنت السيرفر فقط، المشاهدين يشاهدون محلياً باستهلاك صفر إنترنت!).
-                </p>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
                 <button class="btn" style="width:auto;" onclick="closeModal('stream-modal')">إلغاء</button>
@@ -962,6 +1052,7 @@
                 <div>
                     <label>اسم الباقة:</label>
                     <input type="text" id="prof-name" placeholder="مثال: 10M_30Days">
+                    <input type="hidden" id="prof-original-name">
                 </div>
                 <div>
                     <label>الداونلود (Mbps):</label>
@@ -1292,8 +1383,8 @@
     <!-- ==========================================================================
          APPLICATION SCRIPTS INCLUSIONS
          ========================================================================== -->
-    <script src="/radius/js/auth.js?v=7"></script>
-    <script src="/radius/js/core.js?v=9"></script>
+    <script src="/radius/js/auth.js?v=10"></script>
+    <script src="/radius/js/core.js?v=10"></script>
 
     <!-- Sidebar controller & Dashboard override script -->
     <script>
@@ -1421,5 +1512,6 @@
         }, 60000); // Every 60 seconds
     </script>
 
+    <script src="/radius/js/ai.js"></script>
 </body>
 </html>

@@ -429,14 +429,17 @@ func handleAcctRequest(w radius.ResponseWriter, r *radius.Request) {
 
 	sessionSecs := int64(rfc2866.AcctSessionTime_Get(r.Packet))
 
-	statusStr := "تحديث"
+	statusStr := ""
 	switch statusType {
 	case rfc2866.AcctStatusType_Value_Start:
 		statusStr = "بدء اتصال 🟢"
 	case rfc2866.AcctStatusType_Value_Stop:
 		statusStr = "قطع اتصال 🔴"
 	}
-	radiusLogger.Printf("[radius] 📊 محاسبة: يوزر [%s] | الحالة: %s | الجلسة: %s | IP: %s", username, statusStr, sid, ip)
+	
+	if statusStr != "" {
+		radiusLogger.Printf("[radius] 📊 محاسبة: يوزر [%s] | الحالة: %s | الجلسة: %s | IP: %s", username, statusStr, sid, ip)
+	}
 
 	updateLMDBAccounting(username, statusType, sid, ip, cli, inOct, outOct, sessionSecs)
 }

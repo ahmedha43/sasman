@@ -1,6 +1,8 @@
 package radius
 
 import (
+	"mikrotik-manager/pkg/core"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -151,3 +153,58 @@ func DeleteNAS(c *fiber.Ctx) error {
 	reloadFreeRADIUS()
 	return c.JSON(fiber.Map{"message": "تم حذف الراوتر بنجاح"})
 }
+
+func QuickSetupNAS(c *fiber.Ctx) error {
+	role, _ := c.Locals("role").(string)
+
+	if role != "superadmin" {
+		return c.Status(403).JSON(fiber.Map{"error": "صلاحية التعديل محصورة بمدير النظام فقط"})
+	}
+
+	ip := "172.17.0.1"
+	name := "SASMAN"
+	secret := "123456"
+	profileNASIP := "172.17.0.1"
+	targetAdminID := int64(0) // is_global = true
+
+	var count int
+	DB.QueryRow("SELECT COUNT(*) FROM nas WHERE nasname=?", ip).Scan(&count)
+	if count == 0 {
+		_, err := DB.Exec(
+			"INSERT INTO nas (nasname, shortname, secret, profile_nas_ip, admin_id) VALUES (?, ?, ?, ?, ?)",
+			ip, name, secret, profileNASIP, targetAdminID,
+		)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "فشل الإضافة في قاعدة البيانات: " + err.Error()})
+		}
+	} else {
+		DB.Exec("UPDATE nas SET shortname=?, secret=?, profile_nas_ip=?, admin_id=? WHERE nasname=?", name, secret, profileNASIP, targetAdminID, ip)
+	}
+
+	reloadFreeRADIUS()
+
+	// Add to MikroTik
+	client, err := core.GetSharedClient()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "تم الإضافة بالنظام، لكن تعذر الاتصال بالمايكروتك: " + err.Error()})
+	}
+
+	// Check if already exists in MikroTik
+	res, _ := core.SafeRun(client, "/radius/print", "?address="+ip)
+	if res != nil && len(res.Re) == 0 {
+		_, err = core.SafeRun(client, "/radius/add", "=address="+ip, "=secret="+secret, "=service=ppp,hotspot,wireless", "=timeout=3000ms")
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "تم الإضافة بالنظام، لكن فشل في مايكروتك: " + err.Error()})
+		}
+	} else if res != nil && len(res.Re) > 0 {
+		// Update existing
+		id := res.Re[0].Map[".id"]
+		core.SafeRun(client, "/radius/set", "=.id="+id, "=secret="+secret, "=service=ppp,hotspot,wireless")
+	}
+
+	// Enable incoming radius
+	core.SafeRun(client, "/radius/incoming/set", "=accept=yes", "=port=3799")
+
+	return c.JSON(fiber.Map{"message": "تم إعداد الراديوس السريع في النظام والمايكروتك بنجاح"})
+}
+

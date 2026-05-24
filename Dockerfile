@@ -15,16 +15,11 @@ ENV GOSUMDB=off
 COPY go.mod go.sum ./
 COPY routeros_pkg ./routeros_pkg
 
-# Now download dependencies
-RUN go mod download
+# Now download dependencies with retries and no cache
+RUN go mod download -x -modcacherw
 
 # Copy the rest of the source code
 COPY . .
-
-# Build lal streaming server from source
-RUN git clone --depth 1 --branch v0.35.41 https://github.com/q191201771/lal.git /tmp/lal && \
-    cd /tmp/lal/app/lalserver && go build -o /go/bin/lalserver . && \
-    rm -rf /tmp/lal
 
 # ARG variables populated by buildx
 ARG TARGETOS
@@ -62,25 +57,16 @@ RUN ARCH=$(uname -m) && \
     curl -sSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CLOUDFLARED_ARCH}" -o /usr/local/bin/cloudflared && \
     chmod +x /usr/local/bin/cloudflared
 
-# Install yt-dlp and ffmpeg for YouTube stream relay support
-RUN curl -sSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" -o /usr/local/bin/yt-dlp && \
-    chmod a+rx /usr/local/bin/yt-dlp && \
-    apk add --no-cache ffmpeg
-
 # Ensure data directories exist
 RUN mkdir -p /app/data /var/run/supervisord /var/log/supervisord /var/log/supervisor /etc/supervisor/conf.d \
     && chmod 777 /app/data
 
 # Copy binaries, entrypoint script, supervisord config, and all static assets from builder stage
 COPY --from=builder /app/main ./
-COPY --from=builder /go/bin/lalserver /usr/local/bin/lal
 COPY --from=builder /app/docker-entrypoint.sh ./
 COPY --from=builder /app/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/public_radius ./public_radius
-COPY --from=builder /app/lal.yaml ./
-COPY --from=builder /app/lalserver.conf.json ./
-COPY --from=builder /app/mediamtx.yml ./
 RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh && \
     sed -i 's/\r$//' /etc/supervisor/conf.d/supervisord.conf
 
@@ -88,9 +74,7 @@ RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh && \
 # 80: Dashboard
 # 1812/udp: RADIUS Auth
 # 1813/udp: RADIUS Acct
-# 1935: RTMP Streaming
-# 8888: HLS Streaming
-EXPOSE 80 1812/udp 1813/udp 1935 8888
+EXPOSE 80 1812/udp 1813/udp
 
 ENV PORT=80
 ENV GODEBUG=x509negativeserial=1

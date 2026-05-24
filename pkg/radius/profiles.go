@@ -89,19 +89,20 @@ func GetProfiles(c *fiber.Ctx) error {
 
 func CreateProfile(c *fiber.Ctx) error {
 	type Request struct {
-		Name             string  `json:"name"`
-		Download         string  `json:"download"` // M
-		Upload           string  `json:"upload"`   // M
-		Pool             string  `json:"pool"`
-		MikrotikGroup    string  `json:"mikrotik_group"`
-		Validity         string  `json:"validity"` // days
-		NasIP            string  `json:"nas_ip"`   // Optional NAS IP binding
-		Price            float64 `json:"price"`
-		AgentPrice       float64 `json:"agent_price"`
-		Simultaneous     string  `json:"simultaneous"`
-		ExpiredPool      string  `json:"expired_pool"`
-		ExpiredProfile   string  `json:"expired_profile"`
-		AdminID          int64   `json:"admin_id"` // For superadmin
+		Name           string  `json:"name"`
+		OriginalName   string  `json:"original_name"`
+		Download       string  `json:"download"` // M
+		Upload         string  `json:"upload"`   // M
+		Pool           string  `json:"pool"`
+		MikrotikGroup  string  `json:"mikrotik_group"`
+		Validity       string  `json:"validity"` // days
+		NasIP          string  `json:"nas_ip"`   // Optional NAS IP binding
+		Price          float64 `json:"price"`
+		AgentPrice     float64 `json:"agent_price"`
+		Simultaneous   string  `json:"simultaneous"`
+		ExpiredPool    string  `json:"expired_pool"`
+		ExpiredProfile string  `json:"expired_profile"`
+		AdminID        int64   `json:"admin_id"` // For superadmin
 	}
 
 	var req Request
@@ -116,6 +117,18 @@ func CreateProfile(c *fiber.Ctx) error {
 		// But usually we expect download/upload.
 	}
 
+	// ---------- 1. Handle renames: rewrite old → new everywhere ----------
+	if req.OriginalName != "" && req.OriginalName != req.Name {
+		// Update users whose profile is still the old name
+		_, _ = DB.Exec("UPDATE radius_users SET groupname=? WHERE groupname=?", req.Name, req.OriginalName)
+
+		// Drop old profile rows (reply / check / meta)
+		_, _ = DB.Exec("DELETE FROM radgroupreply WHERE groupname=?", req.OriginalName)
+		_, _ = DB.Exec("DELETE FROM radgroupcheck WHERE groupname=?", req.OriginalName)
+		_, _ = DB.Exec("DELETE FROM radius_profile_meta WHERE groupname=?", req.OriginalName)
+	}
+
+	// ---------- 2. Create / update the (new) profile ----------
 	DB.Exec("DELETE FROM radgroupreply WHERE groupname=?", req.Name)
 	DB.Exec("DELETE FROM radgroupcheck WHERE groupname=?", req.Name)
 
