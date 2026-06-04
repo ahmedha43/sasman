@@ -1,6 +1,47 @@
 let isLicensed = false;
 let remoteBaseURL = "";
 
+// Premium Toast Notification System
+function getOrCreateToastContainer() {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
+function showToast(message, type = 'success') {
+    const container = getOrCreateToastContainer();
+    const toast = document.createElement('div');
+    toast.className = `sas-toast ${type}`;
+    
+    let icon = '<i class="fa-solid fa-circle-check"></i>';
+    if (type === 'error') icon = '<i class="fa-solid fa-circle-xmark"></i>';
+    if (type === 'warning') icon = '<i class="fa-solid fa-circle-exclamation"></i>';
+    if (type === 'info') icon = '<i class="fa-solid fa-circle-info"></i>';
+    
+    toast.innerHTML = `
+        <div class="sas-toast-icon">${icon}</div>
+        <div class="sas-toast-message">${message}</div>
+    `;
+    container.appendChild(toast);
+    
+    // Slide-in transition trigger
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 50);
+    
+    // Slide-out and remove
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            toast.remove();
+        }, 350);
+    }, 3500);
+}
+
 // Unified Remote Access URL functions (Handles Cloudflare & Ngrok)
 async function loadCloudflareTunnelURL() {
     try {
@@ -65,7 +106,7 @@ function showTunnels(loading, hint, buttons, ready) {
 
 function copyPathLink(path) {
     if (!remoteBaseURL) {
-        return alert('يرجى الانتظار حتى يتم تجهيز الرابط...');
+        return showToast('يرجى الانتظار حتى يتم تجهيز الرابط المباشر...', 'warning');
     }
     const cleanBase = remoteBaseURL.replace(/\/$/, "");
     const fullURL = cleanBase + path;
@@ -77,7 +118,7 @@ function copyToClipboard(text) {
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
-            alert('تم النسخ بنجاح:\n' + text);
+            showToast('تم نسخ الرابط الحافظة بنجاح 📋', 'success');
         }).catch(err => {
             console.error('Clipboard API failed, using fallback:', err);
             fallbackCopyText(text);
@@ -99,12 +140,12 @@ function fallbackCopyText(text) {
     try {
         const successful = document.execCommand('copy');
         if (successful) {
-            alert('تم النسخ بنجاح:\n' + text);
+            showToast('تم نسخ الرابط بنجاح 📋', 'success');
         } else {
-            alert('فشل النسخ، يرجى النسخ يدوياً.');
+            showToast('فشل نسخ الرابط تلقائياً، يرجى النسخ يدوياً.', 'error');
         }
     } catch (err) {
-        alert('فشل النسخ، يرجى النسخ يدوياً.');
+        showToast('فشل نسخ الرابط تلقائياً، يرجى النسخ يدوياً.', 'error');
     }
     document.body.removeChild(textArea);
 }
@@ -154,13 +195,13 @@ async function checkLicense() {
 
         if (data.valid) {
             isLicensed = true;
-            badge.innerText = "نظام مفعل ✅";
+            badge.innerHTML = '<i class="fa-solid fa-circle-check" style="margin-left:4px;"></i> نظام مفعل ✅';
             badge.className = "license-badge license-valid";
             expiryEl.innerText = "تاريخ الانتهاء: " + data.expires;
             main.classList.remove('locked');
         } else {
             isLicensed = false;
-            badge.innerText = data.message || "نظام غير مفعل ❌";
+            badge.innerHTML = '<i class="fa-solid fa-circle-xmark" style="margin-left:4px;"></i> نظام غير مفعل ❌';
             badge.className = "license-badge license-invalid";
             expiryEl.innerText = "يرجى إدخال كود تنشيط صالح للسيريال أعلاه.";
             main.classList.add('locked');
@@ -172,10 +213,10 @@ async function checkLicense() {
 
 async function activateLicense() {
     const key = document.getElementById('license-key-input').value.trim();
-    if (!key) return alert("يرجى إدخال كود التنشيط");
+    if (!key) return showToast("يرجى إدخال كود التنشيط أولاً", "warning");
 
     const msgEl = document.getElementById('activation-msg');
-    msgEl.innerText = "جارِ التحقق...";
+    msgEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:6px;"></i> جاري التحقق...`;
     msgEl.style.color = "#475569";
 
     try {
@@ -187,18 +228,21 @@ async function activateLicense() {
         const result = await res.json();
 
         if (res.ok) {
-            msgEl.innerText = result.message;
+            msgEl.innerHTML = `<i class="fa-solid fa-circle-check" style="margin-left:6px;"></i> ${result.message}`;
             msgEl.style.color = "#10b981";
+            showToast("تم ترخيص وتفعيل النظام بنجاح! 🔑", "success");
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
         } else {
-            msgEl.innerText = result.error;
+            msgEl.innerHTML = `<i class="fa-solid fa-circle-xmark" style="margin-left:6px;"></i> ${result.error}`;
             msgEl.style.color = "#ef4444";
+            showToast(result.error, "error");
         }
     } catch (e) {
-        msgEl.innerText = "فشل الاتصال بالسيرفر";
+        msgEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="margin-left:6px;"></i> فشل الاتصال بالسيرفر`;
         msgEl.style.color = "#ef4444";
+        showToast("فشل الاتصال بالسيرفر", "error");
     }
 }
 
@@ -209,25 +253,36 @@ async function login() {
         pass: document.getElementById('login-pass').value
     };
     const btn = document.querySelector('#login-overlay .btn');
-    btn.innerText = "جاري الاتصال...";
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-left:8px;"></i> جاري الاتصال بالراوتر...`;
+    btn.disabled = true;
 
-    const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    const result = await res.json();
-    if (res.ok) {
-        unlockUI();
-        await checkLicense();
-        if (isLicensed) {
-            loadAll();
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (res.ok) {
+            unlockUI();
+            showToast("تم الاتصال بالراوتر بنجاح! 🔌", "success");
+            await checkLicense();
+            if (isLicensed) {
+                loadAll();
+            } else {
+                showTab('license');
+            }
         } else {
-            showTab('license');
+            document.getElementById('login-error').innerText = result.error;
+            showToast(result.error, "error");
+            btn.innerHTML = `<i class="fa-solid fa-plug"></i> اتصال بالراوتر ودخول`;
+            btn.disabled = false;
         }
-    } else {
-        document.getElementById('login-error').innerText = result.error;
-        btn.innerText = "دخول الآن";
+    } catch (e) {
+        document.getElementById('login-error').innerText = "فشل الاتصال بخادم الإدارة";
+        showToast("فشل الاتصال بخادم الإدارة", "error");
+        btn.innerHTML = `<i class="fa-solid fa-plug"></i> اتصال بالراوتر ودخول`;
+        btn.disabled = false;
     }
 }
 
@@ -243,6 +298,7 @@ function lockUI() {
 
 async function logout() {
     await fetch('/api/logout', { method: 'POST' });
+    showToast("تم تسجيل الخروج بنجاح", "info");
     location.reload();
 }
 
@@ -258,9 +314,13 @@ async function loadAll() {
 function showTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    
+    const content = document.getElementById(`tab-${tabId}`);
+    if (content) content.classList.add('active');
+    
     const btn = document.querySelector(`button[onclick="showTab('${tabId}')"]`);
     if (btn) btn.classList.add('active');
+    
     localStorage.setItem('sasman_active_tab', tabId);
 
     // Lazy load MikroTik WebFig when tab is selected
@@ -273,11 +333,19 @@ function showTab(tabId) {
 }
 
 async function purgeSystem() {
-    if (!confirm('هل أنت متأكد من مسح جميع إعدادات النظام؟')) return;
-    const res = await fetch('/api/purge', { method: 'DELETE' });
-    const result = await res.json();
-    alert(result.message || result.error);
-    loadInterfaces();
+    if (!confirm('هل أنت متأكد من مسح وتصفير جميع إعدادات موازنة ودمج النظام؟')) return;
+    try {
+        const res = await fetch('/api/purge', { method: 'DELETE' });
+        const result = await res.json();
+        if (res.ok) {
+            showToast("تم تنظيف وتصفير المنظومة بنجاح! 🗑", "success");
+        } else {
+            showToast(result.error, "error");
+        }
+        loadInterfaces();
+    } catch (e) {
+        showToast("فشل الاتصال بالسيرفر", "error");
+    }
 }
 
 window.onload = checkAuth;
@@ -291,47 +359,8 @@ setInterval(() => {
         loadWanStatus();
         loadRoutingStatus();
     }
-    // Always refresh tunnel URL every 30 seconds
     loadCloudflareTunnelURL();
 }, 5000);
-
-// Cloudflare Tunnel URL functions (Duplicate - disabled)
-/*
-async function loadCloudflareTunnelURL() {
-    try {
-        const response = await fetch('/api/cloudflared/url');
-        const data = await response.json();
-        
-        const section = document.getElementById('cloudflared-section');
-        const urlElement = document.getElementById('cloudflared-url');
-        
-        if (!section || !urlElement) return;
-        
-        if (data.enabled && data.url) {
-            section.style.display = 'block';
-            urlElement.href = data.url;
-            urlElement.textContent = data.url;
-        } else {
-            section.style.display = 'none';
-        }
-    } catch (error) {
-        console.log('Cloudflare Tunnel not available:', error);
-        const section = document.getElementById('cloudflared-section');
-        if (section) section.style.display = 'none';
-    }
-}
-
-function copyCloudflaredURL() {
-    const urlElement = document.getElementById('cloudflared-url');
-    const url = urlElement.href;
-    
-    navigator.clipboard.writeText(url).then(() => {
-        alert('تم نسخ الرابط بنجاح!');
-    }).catch(err => {
-        console.error('فشل نسخ الرابط:', err);
-        alert('فشل نسخ الرابط. يرجى نسخه يدوياً.');
-    });
-} */
 
 async function loadNgrokToken() {
     try {
@@ -345,7 +374,7 @@ async function loadNgrokToken() {
 
 async function saveNgrokToken() {
     const token = document.getElementById('ngrok-token-input').value.trim();
-    if (!token) return alert('يرجى إدخال التوكن أولاً');
+    if (!token) return showToast('يرجى إدخال التوكن أولاً', 'warning');
 
     try {
         const res = await fetch('/api/ngrok/token', {
@@ -354,11 +383,13 @@ async function saveNgrokToken() {
             body: JSON.stringify({ token: token })
         });
         const data = await res.json();
-        alert(data.message);
+        if (res.ok) {
+            showToast('تم حفظ وتشغيل توكن Ngrok بنجاح! 🚀', 'success');
+        } else {
+            showToast(data.error, 'error');
+        }
         loadCloudflareTunnelURL(); // Re-check status
     } catch (e) {
-        alert('فشل حفظ التوكن');
+        showToast('فشل اتصال حفظ التوكن بالخادم', 'error');
     }
 }
-
-// Unified copy function moved to top area

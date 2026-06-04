@@ -282,7 +282,9 @@ func main() {
 	api.Post("/wan/dhcp-client", wan.AddDhcpClient)
 	api.Delete("/wan/dhcp-client/:id", wan.DeleteDhcpClient)
 	api.Post("/wan/pcc/rebalance", wan.ApplyPcc)
+	api.Post("/wan/preflight", wan.GetWanPreflight)
 	api.Post("/wan/setup-batch", wan.SetupMultiWan)
+	api.Post("/wan/optimize", wan.OptimizeWanQuality)
 	api.Delete("/purge", wan.PurgeSASMAN)
 	api.Get("/status/wan", wan.GetWanStatus)
 
@@ -825,7 +827,6 @@ func rewriteDeviceProxyHTML(body string, cleanIP string) string {
 	return replacer.Replace(body)
 }
 
-
 // Global Auth Handlers (Managed here for simplicity in initial refactor)
 
 func loginHandler(c *fiber.Ctx) error {
@@ -880,6 +881,12 @@ func routingListHandler(c *fiber.Ctx) error {
 		keys = append(keys, k)
 	}
 	for k := range shared.RoutingDataState.Ips {
+		if k == "Local_and_DNS" || k == "Internet_IPs" {
+			continue
+		}
+		keys = append(keys, k)
+	}
+	for k := range shared.RoutingDataState.Games {
 		keys = append(keys, k)
 	}
 	return c.JSON(keys)

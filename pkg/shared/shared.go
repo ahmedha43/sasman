@@ -9,9 +9,15 @@ import (
 )
 
 // RoutingData models
+type GameConfig struct {
+	Protocol string `json:"protocol"`
+	Ports    string `json:"ports"`
+}
+
 type RoutingData struct {
-	Apps map[string][]string `json:"apps"`
-	Ips  map[string][]string `json:"ips"`
+	Apps  map[string][]string   `json:"apps"`
+	Ips   map[string][]string   `json:"ips"`
+	Games map[string]GameConfig `json:"games"`
 }
 
 var RoutingDataState RoutingData
@@ -69,6 +75,7 @@ func LoadData() {
 		log.Printf("[Init] Warning: routing_data.json not found, starting fresh.\n")
 		RoutingDataState.Apps = make(map[string][]string)
 		RoutingDataState.Ips = make(map[string][]string)
+		RoutingDataState.Games = make(map[string]GameConfig)
 		return
 	}
 	json.Unmarshal(file, &RoutingDataState)

@@ -5,6 +5,7 @@ import (
 
 	"mikrotik-manager/pkg/core"
 
+	"github.com/go-routeros/routeros/v3"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -18,6 +19,7 @@ func GetRoutingStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
+	routeRes, _ := core.SafeRun(client, "/ip/route/print")
 
 	routes := make([]map[string]interface{}, 0)
 	for _, re := range res.Re {
@@ -26,23 +28,66 @@ func GetRoutingStatus(c *fiber.Ctx) error {
 			continue
 		}
 
-		target := re.Map["dst-address-list"]
-		if target == "" {
-			target = re.Map["src-address-list"]
-		}
-		if target == "" {
-			target = "All Traffic"
+		target := ""
+		if strings.HasPrefix(comment, "Route-") {
+			target = strings.TrimPrefix(comment, "Route-")
+		} else {
+			target = re.Map["dst-address-list"]
+			if target == "" {
+				target = re.Map["src-address-list"]
+			}
+			if target == "" {
+				target = "All Traffic"
+			}
 		}
 
+		routingMark := re.Map["new-routing-mark"]
+		gateways := routingStatusGateways(routeRes, routingMark, comment)
 		routes = append(routes, map[string]interface{}{
-			"id":      re.Map[".id"],
-			"app":     target,
-			"gateway": re.Map["new-routing-mark"],
-			"enabled": re.Map["disabled"] == "false",
-			"comment": comment,
+			"id":       re.Map[".id"],
+			"app":      target,
+			"gateway":  routingMark,
+			"gateways": gateways,
+			"enabled":  re.Map["disabled"] != "true",
+			"comment":  comment,
 		})
 	}
 	return c.JSON(routes)
+}
+
+func routingStatusGateways(routeRes *routeros.Reply, routingMark string, comment string) []string {
+	if routeRes == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	gateways := []string{}
+	for _, re := range routeRes.Re {
+		route := re.Map
+		if route["disabled"] == "true" || route["dst-address"] != "0.0.0.0/0" {
+			continue
+		}
+		if routeRoutingTable(route) != routingMark && route["comment"] != comment {
+			continue
+		}
+		gateway := strings.TrimSpace(route["gateway"])
+		if gateway == "" || seen[gateway] {
+			continue
+		}
+		seen[gateway] = true
+		gateways = append(gateways, gateway)
+	}
+	return gateways
+}
+
+func routeRoutingTable(route map[string]string) string {
+	table := strings.TrimSpace(route["routing-table"])
+	if table == "" {
+		table = strings.TrimSpace(route["vrf-interface"])
+	}
+	if table == "" {
+		table = "main"
+	}
+	return table
 }
 
 func ToggleRouting(c *fiber.Ctx) error {

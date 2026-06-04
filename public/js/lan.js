@@ -18,10 +18,14 @@ async function setupBridge() {
             body: JSON.stringify(payload)
         });
         const result = await res.json();
-        alert(result.message || result.error);
+        if (res.ok) {
+            showToast("تم إنشاء وتجهيز واجهة البريج المحلي بنجاح! 🌉", "success");
+        } else {
+            showToast(result.error || "حدث خطأ أثناء تهيئة البريج", "error");
+        }
         loadInterfaces();
     } catch (e) {
-        alert("فشل الاتصال بالسيرفر");
+        showToast("فشل الاتصال بالسيرفر لإتمام التهيئة", "error");
     }
 }
 
@@ -30,9 +34,13 @@ async function purgeBridge() {
     try {
         const res = await fetch('/api/lan/purge', { method: 'POST' });
         const result = await res.json();
-        alert(result.message || result.error);
+        if (res.ok) {
+            showToast("تم حذف وتصفير جميع إعدادات البريج والمنافذ بنجاح 🗑", "success");
+        } else {
+            showToast(result.error || "حدث خطأ أثناء التصفير", "error");
+        }
         loadAll();
     } catch (e) {
-        alert("فشل الاتصال بالسيرفر");
+        showToast("فشل الاتصال بالسيرفر لإتمام التصفير", "error");
     }
 }

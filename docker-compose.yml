@@ -1,0 +1,19 @@
+services:
+  sasman-app:
+    image: ahmedkin99/sasman-manager:latest
+    container_name: sasman-server
+    cap_add:
+      - NET_ADMIN # تمنح الحاوية صلاحيات استخدام ICMP Ping المحلي لتفادي الفحص الاحتياطي عبر الراوتر
+    restart: always
+    network_mode: host # مفضل جداً لأجهزة الـ TV Box لضمان عمل الـ RADIUS UDP بأقل تأخير وبدون مشاكل NAT الحاويات
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=80
+      - GODEBUG=x509negativeserial=1
+      - CLOUDFLARE_TUNNEL_ENABLED=true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
