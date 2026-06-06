@@ -40,6 +40,7 @@ async function showTab(tabId) {
     if (btn) btn.classList.add('active');
 
     localStorage.setItem('radius_active_tab', tabId);
+    resetRadiusContentScroll();
 
     try {
         await ensureTabModules(tabId);
@@ -62,6 +63,14 @@ async function showTab(tabId) {
     if (tabId === 'vouchers' && typeof window.loadVouchers === 'function') window.loadVouchers();
     if (tabId === 'users' && typeof window.loadUsers === 'function') window.loadUsers();
     if (tabId === 'streams' && typeof window.loadStreams === 'function') window.loadStreams();
+}
+
+function resetRadiusContentScroll() {
+    requestAnimationFrame(() => {
+        const content = document.querySelector('.content-body');
+        if (content) content.scrollTop = 0;
+        window.scrollTo({ top: 0, behavior: 'auto' });
+    });
 }
 
 async function updateDashboard(usersData = null) {
