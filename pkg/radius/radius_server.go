@@ -149,6 +149,13 @@ func handleRadiusPacket(w radius.ResponseWriter, r *radius.Request) {
 func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	username := rfc2865.UserName_GetString(r.Packet)
 
+	// 0. Check Scheduled Internet Shutdown
+	if IsShutdownActiveForUser(username) {
+		radiusLogger.Printf("[radius] ❌ رفض الاتصال: يوزر [%s] | السبب: جدول قطع الخدمة نشط حالياً", username)
+		writeAccessReject(w, r, username, "internet_shutdown")
+		return
+	}
+
 	// 1. Check Global Bypass (Blind Accept)
 	if isBypassEnabled() {
 		radiusLogger.Printf("[radius] ✅ تجاوز عام نشط: تم قبول اتصال [%s] تلقائياً", username)
@@ -386,6 +393,8 @@ func translateRejectReason(reason string) string {
 		return "عدم تطابق عنوان IP الخاص بالـ NAS"
 	case "invalid user data":
 		return "بيانات المستخدم غير صالحة"
+	case "internet_shutdown":
+		return "تم قطع الإنترنت مؤقتاً لجدول قطع الخدمة المجدول"
 	default:
 		return reason
 	}

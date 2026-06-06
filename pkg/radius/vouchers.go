@@ -33,6 +33,8 @@ func GenerateVouchers(c *fiber.Ctx) error {
 		ProfileName string  `json:"profile_name"`
 		Count       int     `json:"count"`
 		Price       float64 `json:"price"`
+		CodeType    string  `json:"code_type"`
+		CodeLength  int     `json:"code_length"`
 	}
 	var req Request
 	if err := c.BodyParser(&req); err != nil {
@@ -57,9 +59,56 @@ func GenerateVouchers(c *fiber.Ctx) error {
 	defer tx.Rollback()
 
 	vouchers := make([]string, 0)
-	batchID := fmt.Sprintf("VCH-%d-%s", time.Now().Unix(), generateRandomCode(6))
+	batchID := fmt.Sprintf("VCH-%d-%s", time.Now().Unix(), generateRandomCode(6, "alphanumeric"))
+
+	length := req.CodeLength
+	if length <= 0 {
+		length = 10
+	}
+	if length < 4 {
+		length = 4
+	}
+	if length > 30 {
+		length = 30
+	}
+
+	codeType := req.CodeType
+	if codeType == "" {
+		codeType = "alphanumeric"
+	}
+
 	for i := 0; i < req.Count; i++ {
-		code := generateRandomCode(10)
+		var code string
+		var exists bool
+
+		for attempt := 0; attempt < 30; attempt++ {
+			code = generateRandomCode(length, codeType)
+
+			var count int
+			err = tx.QueryRow("SELECT COUNT(*) FROM radius_vouchers WHERE code = ?", code).Scan(&count)
+			if err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "Failed to check voucher uniqueness: " + err.Error()})
+			}
+
+			inBatch := false
+			for _, v := range vouchers {
+				if v == code {
+					inBatch = true
+					break
+				}
+			}
+
+			if count == 0 && !inBatch {
+				exists = false
+				break
+			}
+			exists = true
+		}
+
+		if exists {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to generate unique voucher code. Please try a longer length or different type."})
+		}
+
 		_, err = tx.Exec(`INSERT INTO radius_vouchers (batch_id, code, profile_name, validity_days, price, created_by) 
 						 VALUES (?, ?, ?, ?, ?, ?)`, batchID, code, req.ProfileName, validityDays, req.Price, adminID)
 		if err != nil {
@@ -233,12 +282,27 @@ func RedeemVoucher(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "تم تفعيل الكرت بنجاح! تم تجديد اشتراكك."})
 }
 
-func generateRandomCode(n int) string {
-	const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // No I, O, 0, 1 for clarity
+func generateRandomCode(n int, codeType string) string {
+	var pool string
+	switch codeType {
+	case "numbers":
+		pool = "0123456789"
+	case "letters":
+		pool = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+	case "alphanumeric":
+		fallthrough
+	default:
+		pool = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	}
+
+	if n <= 0 {
+		n = 10
+	}
+
 	ret := make([]byte, n)
 	for i := 0; i < n; i++ {
-		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
-		ret[i] = letters[num.Int64()]
+		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(pool))))
+		ret[i] = pool[num.Int64()]
 	}
 	return string(ret)
 }

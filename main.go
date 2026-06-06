@@ -93,6 +93,9 @@ func main() {
 	// Start WhatsApp Expiration Reminder Worker
 	radius.StartReminderWorker()
 
+	// Start scheduled internet shutdown monitor
+	radius.StartShutdownMonitor()
+
 	// Set up memory limit to ~150MB to prevent the app from consuming too much RAM over time
 	// Adjust as necessary depending on your deployment environment
 	// runtime/debug is imported, we need to add it to imports
@@ -343,6 +346,8 @@ func main() {
 	radiusAccount.Post("/backup/telegram", radius.SaveTelegramBackupConfig)
 	radiusAccount.Post("/backup/telegram/test", radius.TestTelegramBackup)
 	radiusAccount.Get("/cloudflared/url", getCloudflareTunnelURL)
+	radiusAccount.Get("/shutdown/config", radius.GetShutdownConfig)
+	radiusAccount.Post("/shutdown/config", radius.SaveShutdownConfig)
 
 	// License activation is public while unlicensed so first-run setup can fetch the MikroTik serial.
 	radiusAPI.Post("/license/activate", radius.RequireAdminUnlessUnlicensed, radius.LicenseActivateHandler)
@@ -369,6 +374,8 @@ func main() {
 	radiusSecure.Post("/users/:user/disconnect", radius.DisconnectUser)
 	radiusSecure.Post("/users/:user/toggle-status", radius.ToggleUserStatus)
 	radiusSecure.Post("/import/sas4", radius.ImportFromSAS4)
+	radiusSecure.Post("/import/excel", radius.ImportFromExcel)
+	radiusSecure.Get("/export/excel", radius.ExportToExcel)
 	radiusSecure.Post("/system/reset", radius.ResetDatabase)
 
 	// RADIUS Logs

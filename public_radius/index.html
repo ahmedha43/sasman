@@ -592,12 +592,101 @@
                                 <input type="password" id="sas4-pass" placeholder="••••••••">
                             </div>
                         </div>
-                        <div style="margin-top:16px;">
+                        <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
                             <button class="btn" style="background:var(--warning); color:var(--text); font-weight:700; width:auto; padding:10px 24px; border:none;" onclick="handleSAS4Migration()">
                                 🚀 بدء استيراد البيانات الآن
                             </button>
                         </div>
+                        
+                        <div style="margin-top:25px; border-top:1px dashed var(--border); padding-top:20px;">
+                            <h4><i class="fa-solid fa-file-excel" style="color:#107c41;"></i> استيراد وتصدير المشتركين عبر ملفات Excel</h4>
+                            <p style="color:var(--muted); font-size:0.85rem; margin:5px 0 15px 0;">
+                                يمكنك استيراد مشتركين جدد مباشرة من ملف Excel، أو تصدير كافة بيانات المشتركين الحالية بنفس الهيكل.
+                            </p>
+                            <div style="display:flex; gap:15px; align-items:flex-end; flex-wrap:wrap;">
+                                <div class="form-group" style="margin:0; flex:1; min-width:250px;">
+                                    <label>اختر ملف Excel (.xlsx):</label>
+                                    <input type="file" id="sas4-excel-file" accept=".xlsx" style="padding:6px; background:white; border:1px solid var(--border);">
+                                </div>
+                                <button class="btn btn-primary" style="width:auto; padding:10px 20px; display:flex; align-items:center; gap:8px;" onclick="importFromExcel()">
+                                    📥 استيراد من Excel
+                                </button>
+                                <button class="btn" style="width:auto; padding:10px 20px; background:#107c41; color:white; border:none; display:flex; align-items:center; gap:8px;" onclick="exportToExcel()">
+                                    📤 تصدير إلى Excel
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div id="sas4-status" style="margin-top:12px; font-weight:bold; color:var(--primary);"></div>
+                    </div>
+
+                    <!-- Scheduled Internet Shutdown section -->
+                    <div class="card superadmin-only" style="margin-top:25px; border-right:4px solid var(--danger); display:none;">
+                        <h3><i class="fa-solid fa-clock"></i> جدول قطع الإنترنت المجدول (Blackout Scheduler)</h3>
+                        <p class="field-hint" style="margin-bottom:15px;">يقوم النظام بتعطيل مصادقة المشتركين وطرد المتصلين منهم تلقائياً خلال التواريخ والأوقات المحددة أدناه.</p>
+                        
+                        <div class="grid">
+                            <div class="form-group">
+                                <label>حالة الجدول المجدول:</label>
+                                <select id="shutdown-enabled">
+                                    <option value="0">معطّل</option>
+                                    <option value="1">مفعّل</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>وقت بدء القطع (مثال: 05:59:55):</label>
+                                <input type="text" id="shutdown-start-time" placeholder="HH:MM:SS" value="06:00:00">
+                            </div>
+                            <div class="form-group">
+                                <label>وقت نهاية القطع (مثال: 07:30:00):</label>
+                                <input type="text" id="shutdown-end-time" placeholder="HH:MM:SS" value="07:30:00">
+                            </div>
+                        </div>
+
+                        <!-- Add date form group -->
+                        <div class="form-group" style="margin-top:20px; background: rgba(0,0,0,0.02); padding: 15px; border-radius: 8px; border: 1px dashed var(--border);">
+                            <label style="font-weight: 700; margin-bottom: 10px;"><i class="fa-solid fa-calendar-plus"></i> إضافة تاريخ قطع جديد:</label>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <input type="date" id="shutdown-date-input" style="flex: 1; min-width: 150px; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+                                <button class="btn btn-primary" type="button" onclick="addShutdownDate()" style="width: auto; padding: 10px 20px; display: flex; align-items: center; gap: 8px; margin: 0;">
+                                    <i class="fa-solid fa-plus"></i> إضافة اليوم
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Dates list/grid container -->
+                        <div class="form-group" style="margin-top:15px;">
+                            <label style="font-weight: 700;"><i class="fa-solid fa-calendar-days"></i> التواريخ المجدولة حالياً:</label>
+                            <div id="shutdown-dates-container" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                                <!-- Dynamically populated by JS -->
+                        </div>
+
+                        <!-- Excluded Users section -->
+                        <div class="form-group" style="margin-top:25px; border-top: 1px dashed var(--border); padding-top: 20px;">
+                            <label style="font-weight: 700; margin-bottom: 10px;"><i class="fa-solid fa-user-shield"></i> استثناء مشتركين من قطع الخدمة:</label>
+                            <p class="field-hint" style="margin-bottom: 15px;">المشتركون المضافون هنا لن يتم قطع خدمتهم أو فصلهم من الشبكة نهائياً حتى في أوقات القطع المجدول.</p>
+                            
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: rgba(0,0,0,0.02); padding: 15px; border-radius: 8px; border: 1px dashed var(--border);">
+                                <div style="flex: 1; min-width: 200px; position: relative;">
+                                    <input type="text" id="shutdown-exclude-input" list="users-datalist" placeholder="اكتب يوزر المشترك للبحث..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+                                    <datalist id="users-datalist"></datalist>
+                                </div>
+                                <button class="btn btn-primary" type="button" onclick="addExcludedUser()" style="width: auto; padding: 10px 20px; display: flex; align-items: center; gap: 8px; margin: 0; font-weight: bold;">
+                                    <i class="fa-solid fa-user-plus"></i> إضافة للاستثناء
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top:15px;">
+                            <label style="font-weight: 700;"><i class="fa-solid fa-users-slash"></i> قائمة المشتركين المستطنين حالياً:</label>
+                            <div id="shutdown-excluded-container" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
+                                <!-- Dynamically populated by JS -->
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary" style="width:auto; padding:10px 25px; margin-top:20px;" onclick="saveShutdownConfig()">
+                            💾 حفظ إعدادات جدول القطع
+                        </button>
                     </div>
 
                     <!-- Backup & Restore section -->
@@ -936,6 +1025,18 @@
             <div class="form-group">
                 <label>عدد الكروت المطلوب توليدها:</label>
                 <input type="number" id="vch-count" value="10" min="1" max="100">
+            </div>
+            <div class="form-group">
+                <label>نوع كود الكرت:</label>
+                <select id="vch-code-type">
+                    <option value="alphanumeric">حروف وأرقام</option>
+                    <option value="numbers">أرقام فقط</option>
+                    <option value="letters">حروف فقط</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>طول الكود (عدد الخانات):</label>
+                <input type="number" id="vch-code-length" value="10" min="4" max="30">
             </div>
             <div class="form-group">
                 <label>سعر الكرت (اختياري - د.ع):</label>
@@ -1511,7 +1612,5 @@
             }
         }, 60000); // Every 60 seconds
     </script>
-
-    <script src="/radius/js/ai.js"></script>
 </body>
 </html>

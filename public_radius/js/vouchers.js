@@ -183,6 +183,8 @@ async function generateVouchers() {
     const profile = document.getElementById('vch-profile-select').value;
     const count = parseInt(document.getElementById('vch-count').value, 10);
     const price = parseFloat(document.getElementById('vch-price').value) || 0;
+    const codeType = document.getElementById('vch-code-type').value || 'alphanumeric';
+    const codeLength = parseInt(document.getElementById('vch-code-length').value, 10) || 10;
 
     if (!profile) {
         alert('يرجى اختيار باقة');
@@ -200,7 +202,13 @@ async function generateVouchers() {
     try {
         const res = await apiFetch('/radius/api/vouchers/generate', {
             method: 'POST',
-            body: JSON.stringify({ profile_name: profile, count: count, price: price })
+            body: JSON.stringify({ 
+                profile_name: profile, 
+                count: count, 
+                price: price,
+                code_type: codeType,
+                code_length: codeLength
+            })
         });
         const result = await res.json();
         if (result.error) {

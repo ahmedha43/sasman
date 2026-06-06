@@ -56,6 +56,7 @@ async function showTab(tabId) {
     if (tabId === 'account' && typeof window.loadRadiusRemoteAccess === 'function') window.loadRadiusRemoteAccess();
     if (tabId === 'account' && typeof window.loadBypassStatus === 'function') window.loadBypassStatus();
     if (tabId === 'account' && typeof window.loadTelegramBackupConfig === 'function') window.loadTelegramBackupConfig();
+    if (tabId === 'account' && typeof window.loadShutdownConfig === 'function') window.loadShutdownConfig();
     if (tabId === 'profiles' && typeof window.loadProfiles === 'function') window.loadProfiles();
     if (tabId === 'nas' && typeof window.loadNAS === 'function') window.loadNAS();
     if (tabId === 'vouchers' && typeof window.loadVouchers === 'function') window.loadVouchers();
@@ -129,12 +130,13 @@ async function preloadAllData() {
         for (const tab of tabsToLoad) {
             await ensureTabModules(tab);
         }
-        
+
         // جلب جميع البيانات بدون استثناء بالخلفية
         if (typeof window.loadAdmins === 'function') window.loadAdmins();
         if (typeof window.loadRadiusRemoteAccess === 'function') window.loadRadiusRemoteAccess();
         if (typeof window.loadBypassStatus === 'function') window.loadBypassStatus();
         if (typeof window.loadTelegramBackupConfig === 'function') window.loadTelegramBackupConfig();
+        if (typeof window.loadShutdownConfig === 'function') window.loadShutdownConfig();
         if (typeof window.loadProfiles === 'function') window.loadProfiles();
         if (typeof window.loadNAS === 'function') window.loadNAS();
         if (typeof window.loadVouchers === 'function') window.loadVouchers();
@@ -143,7 +145,7 @@ async function preloadAllData() {
         if (typeof window.loadWhatsappConfig === 'function') window.loadWhatsappConfig();
         if (typeof window.loadMessageTemplates === 'function') window.loadMessageTemplates();
         if (typeof window.fetchLogs === 'function') window.fetchLogs();
-        
+
     } catch (e) {
         console.error("Failed to preload all data:", e);
     }
@@ -251,11 +253,11 @@ function showToast(message, type = 'success', duration = 4000) {
 // Override native alert to use our premium toast system
 window.alert = function (message) {
     if (!message) return;
-    
+
     // Auto-detect type based on common keywords
     let type = 'info';
     const msgStr = message.toString();
-    
+
     if (msgStr.includes('✅') || msgStr.includes('نجاح') || msgStr.includes('تم') || msgStr.includes('بنجاح') || msgStr.includes('مفعّل') || msgStr.includes('تحديث')) {
         type = 'success';
     } else if (msgStr.includes('❌') || msgStr.includes('فشل') || msgStr.includes('خطأ') || msgStr.includes('تعذر') || msgStr.includes('غير متوقع') || msgStr.includes('عطل')) {
@@ -263,7 +265,7 @@ window.alert = function (message) {
     } else if (msgStr.includes('⚠️') || msgStr.includes('تنبيه') || msgStr.includes('تحذير') || msgStr.includes('تنبيه خطير')) {
         type = 'warning';
     }
-    
+
     showToast(message, type);
 };
 
