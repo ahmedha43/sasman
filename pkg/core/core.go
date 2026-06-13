@@ -5,10 +5,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	"mikrotik-manager/pkg/firebase"
 	"mikrotik-manager/pkg/shared"
-	"sync"
 
 	"github.com/go-routeros/routeros/v3"
 	"github.com/gofiber/fiber/v2"
@@ -257,6 +258,7 @@ func ActivateLicense(c *fiber.Ctx) error {
 	shared.RouterConfigState.License = req.Key
 	shared.RouterConfigState.Serial = serial
 	shared.SaveConfig()
+	firebase.SyncAsync("core_license_activated", firebase.RemoteAccess{})
 
 	return c.JSON(fiber.Map{"message": "تم تفعيل النظام بنجاح!"})
 }

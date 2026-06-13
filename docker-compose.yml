@@ -1,5 +1,8 @@
 services:
   sasman-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ahmedkin99/sasman-manager:latest
     container_name: sasman-server
     cap_add:
@@ -12,6 +15,8 @@ services:
       - PORT=80
       - GODEBUG=x509negativeserial=1
       - CLOUDFLARE_TUNNEL_ENABLED=true
+      - SASMAN_IMAGE=ahmedkin99/sasman-manager:latest
+      - DEBUG_RADIUS=true
     logging:
       driver: "json-file"
       options:

@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -49,7 +50,8 @@ func StartRadiusServer() {
 	// Initialize Logger
 	logFile, err := os.OpenFile("data/radius.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err == nil {
-		radiusLogger = log.New(logFile, "", log.LstdFlags)
+		// Log to both standard output (which supervisor captures) and the log file
+		radiusLogger = log.New(io.MultiWriter(os.Stdout, logFile), "", log.LstdFlags)
 	} else {
 		log.Printf("[radius] WARNING: Could not open data/radius.log, logging to stdout: %v", err)
 		radiusLogger = log.Default()
@@ -148,6 +150,11 @@ func handleRadiusPacket(w radius.ResponseWriter, r *radius.Request) {
 
 func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	username := rfc2865.UserName_GetString(r.Packet)
+	debugEnabled := os.Getenv("DEBUG_RADIUS") == "1" || os.Getenv("DEBUG_RADIUS") == "true" || os.Getenv("DEBUG") == "1"
+
+	if debugEnabled {
+		radiusLogger.Printf("[radius] [DEBUG] handleAuthRequest: processing user [%s] from remote %v", username, r.RemoteAddr)
+	}
 
 	// 0. Check Scheduled Internet Shutdown
 	if IsShutdownActiveForUser(username) {
@@ -166,12 +173,22 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	// 2. Fetch User Data from LMDB
 	data, err := getLMDBUserData(username)
 	if err != nil {
+		if debugEnabled {
+			radiusLogger.Printf("[radius] [DEBUG] User [%s] not found in LMDB or query failed: %v", username, err)
+		}
 		writeAccessReject(w, r, username, "user not found")
 		return
 	}
 
+	if debugEnabled {
+		radiusLogger.Printf("[radius] [DEBUG] Retrieved raw LMDB data for user [%s]: %q", username, data)
+	}
+
 	lines := strings.Split(data, "\n")
 	if len(lines) < 1 {
+		if debugEnabled {
+			radiusLogger.Printf("[radius] [DEBUG] Invalid user data format in LMDB for user [%s]", username)
+		}
 		writeAccessReject(w, r, username, "invalid user data")
 		return
 	}
@@ -194,14 +211,42 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	if password := rfc2865.UserPassword_GetString(r.Packet); password != "" {
 		// PAP
 		authSuccess = (password == dbPassword)
-	} else if chapPass := r.Packet.Get(rfc2865.CHAPPassword_Type); chapPass != nil {
+		if debugEnabled {
+			radiusLogger.Printf("[radius] [DEBUG] PAP auth check for [%s]: received=%q (len=%d), dbPassword=%q (len=%d), Match=%t",
+				username, password, len(password), dbPassword, len(dbPassword), authSuccess)
+			if !authSuccess {
+				radiusLogger.Printf("[radius] [DEBUG] PAP mismatch hex: received=%x, dbPassword=%x", []byte(password), []byte(dbPassword))
+			}
+		}
+	} else if chapPass := rfc2865.CHAPPassword_Get(r.Packet); len(chapPass) > 0 {
 		// CHAP
 		authProtocol = "CHAP"
-		challenge := r.Packet.Get(rfc2865.CHAPChallenge_Type)
-		if challenge == nil {
-			challenge = r.Packet.Authenticator[:]
+		if len(chapPass) == 17 {
+			chapIdent := chapPass[0]
+			chapHash := chapPass[1:]
+
+			challenge := rfc2865.CHAPChallenge_Get(r.Packet)
+			if len(challenge) == 0 {
+				challenge = r.Packet.Authenticator[:]
+			}
+
+			// Calculate MD5 hash: MD5(chapIdent + dbPassword + challenge)
+			h := md5.New()
+			h.Write([]byte{chapIdent})
+			h.Write([]byte(dbPassword))
+			h.Write(challenge)
+			expectedHash := h.Sum(nil)
+
+			authSuccess = bytes.Equal(expectedHash, chapHash)
+
+			if debugEnabled {
+				radiusLogger.Printf("[radius] [DEBUG] CHAP check for [%s]: ident=%d, challenge=%x, receivedHash=%x, expectedHash=%x, Match=%t",
+					username, chapIdent, challenge, chapHash, expectedHash, authSuccess)
+			}
 		} else {
-			challenge = challenge[2:]
+			if debugEnabled {
+				radiusLogger.Printf("[radius] [DEBUG] CHAP check for [%s]: invalid CHAPPassword length: %d (expected 17)", username, len(chapPass))
+			}
 		}
 	} else if msc2Resp := microsoft.MSCHAP2Response_Get(r.Packet); msc2Resp != nil {
 		// MS-CHAPv2
@@ -222,10 +267,29 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 				recvKey, _ := rfc3079.GetAsymmetricStartKey(masterKey, 16, false)
 				mppeKeys = append(sendKey, recvKey...)
 			}
+			if debugEnabled {
+				radiusLogger.Printf("[radius] [DEBUG] MS-CHAPv2 check for [%s]: challenge=%x, peerChallenge=%x, peerResponse=%x, calculated NTResponse=%x, error=%v, Match=%t",
+					username, challenge, peerChallenge, peerResponse, ntResponse, err, authSuccess)
+				if !authSuccess {
+					radiusLogger.Printf("[radius] [DEBUG] MS-CHAPv2 fail details: dbPassword=%q (len=%d), dbPasswordHex=%x", dbPassword, len(dbPassword), []byte(dbPassword))
+				}
+			}
+		} else {
+			if debugEnabled {
+				radiusLogger.Printf("[radius] [DEBUG] MS-CHAPv2 invalid structure for [%s]: challenge length=%d (expected 16), msc2Resp length=%d (expected 50)",
+					username, len(challenge), len(msc2Resp))
+			}
+		}
+	} else {
+		if debugEnabled {
+			radiusLogger.Printf("[radius] [DEBUG] Unknown or unsupported auth protocol for user [%s]. Packet attributes: %v", username, r.Packet)
 		}
 	}
 
 	if !authSuccess {
+		if debugEnabled {
+			radiusLogger.Printf("[radius] [DEBUG] Authentication failed for user [%s] using protocol %s", username, authProtocol)
+		}
 		writeAccessReject(w, r, username, "invalid credentials")
 		return
 	}

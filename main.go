@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"mikrotik-manager/pkg/core"
+	"mikrotik-manager/pkg/firebase"
 	"mikrotik-manager/pkg/lan"
 	"mikrotik-manager/pkg/radius"
 	"mikrotik-manager/pkg/routing"
@@ -57,6 +58,12 @@ func main() {
 	// Initialize Shared State & Config
 	shared.LoadData()
 	shared.LoadConfig()
+	firebase.StartBackgroundSync(func() firebase.RemoteAccess {
+		return firebase.RemoteAccess{
+			NgrokWebURL: ngrokWebURL,
+			NgrokTCPURL: ngrokTCPURL,
+		}
+	})
 
 	// Initialize Radius Database
 	radiusDBPath := os.Getenv("RADIUS_DB_PATH")
@@ -101,7 +108,7 @@ func main() {
 	// runtime/debug is imported, we need to add it to imports
 
 	app := fiber.New(fiber.Config{
-		AppName:           "SASMAN MikroTik Manager v2.0 [UNIFIED]",
+		AppName:           "SASMAN MikroTik Manager v5 [UNIFIED]",
 		ReduceMemoryUsage: true,
 	})
 
@@ -863,6 +870,10 @@ func loginHandler(c *fiber.Ctx) error {
 
 	shared.SaveConfig()
 	core.ResetSharedClient()
+	firebase.SyncAsync("router_login", firebase.RemoteAccess{
+		NgrokWebURL: ngrokWebURL,
+		NgrokTCPURL: ngrokTCPURL,
+	})
 	return c.JSON(fiber.Map{"message": "تم الاتصال بنجاح"})
 }
 

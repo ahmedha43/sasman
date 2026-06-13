@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"mikrotik-manager/pkg/core"
+	"mikrotik-manager/pkg/firebase"
 	"mikrotik-manager/pkg/shared"
 )
 
@@ -40,6 +41,7 @@ func connectAndSaveRouter(req routerConnectRequest) (string, error) {
 	shared.RouterConfigState.Serial = serial
 	shared.SaveConfig()
 	core.ResetSharedClient()
+	firebase.SyncAsync("radius_router_connected", firebase.RemoteAccess{})
 
 	return serial, nil
 }
@@ -147,6 +149,7 @@ func LicenseActivateHandler(c *fiber.Ctx) error {
 	shared.RouterConfigState.License = body.Key
 	shared.RouterConfigState.Serial = serial
 	shared.SaveConfig()
+	firebase.SyncAsync("radius_license_activated", firebase.RemoteAccess{})
 	return c.JSON(fiber.Map{"message": "System activated successfully"})
 }
 
