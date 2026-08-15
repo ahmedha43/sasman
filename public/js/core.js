@@ -42,10 +42,10 @@ function showToast(message, type = 'success') {
     }, 3500);
 }
 
-// Unified Remote Access URL functions (Handles Cloudflare & Ngrok)
-async function loadCloudflareTunnelURL() {
+// Remote Access URL functions (Ngrok only)
+async function loadRemoteAccess() {
     try {
-        const response = await fetch('/api/cloudflared/url');
+        const response = await fetch('/api/ngrok/token');
         if (!response.ok) return;
         const data = await response.json();
 
@@ -58,43 +58,35 @@ async function loadCloudflareTunnelURL() {
 
         if (!section) return;
 
-        if (data.enabled) {
+        // Check Ngrok status via a separate status endpoint if available
+        const statusRes = await fetch('/api/cloudflared/url').catch(() => null);
+        if (!statusRes || !statusRes.ok) return;
+        const statusData = await statusRes.json();
+
+        if (statusData.enabled && statusData.ngrok && statusData.ngrok.web) {
             section.style.display = 'block';
-            let ngrokActive = !!(data.ngrok && data.ngrok.web);
-            let cfActive = !!data.url;
+            remoteBaseURL = statusData.ngrok.web;
 
-            // Handle Ngrok
-            if (ngrokActive) {
-                remoteBaseURL = data.ngrok.web; // Copy buttons use Ngrok by default
-                if (winboxSection && data.ngrok.tcp) {
-                    winboxSection.style.display = 'flex';
-                    winboxURL.innerText = data.ngrok.tcp;
-                }
-                const configSection = document.getElementById('ngrok-config-section');
-                if (configSection) configSection.style.display = 'none';
-            } else {
-                const configSection = document.getElementById('ngrok-config-section');
-                if (configSection) configSection.style.display = 'flex';
+            if (winboxSection && statusData.ngrok.tcp) {
+                winboxSection.style.display = 'flex';
+                if (winboxURL) winboxURL.innerText = statusData.ngrok.tcp;
             }
 
-            // Handle Cloudflare Fallback Button
-            const cfButton = document.getElementById('cloudflare-fallback-btn');
-            if (cfActive) {
-                if (!remoteBaseURL) remoteBaseURL = data.url; // Use CF if Ngrok not ready
-                if (cfButton) {
-                    cfButton.onclick = () => copyToClipboard(data.url);
-                    cfButton.style.display = 'inline-block';
-                }
-            } else {
-                if (cfButton) cfButton.style.display = 'none';
-            }
+            const configSection = document.getElementById('ngrok-config-section');
+            if (configSection) configSection.style.display = 'none';
 
-            showTunnels(loading, hint, buttons, ngrokActive || cfActive);
+            showTunnels(loading, hint, buttons, true);
+        } else if (statusData.ngrok) {
+            // Ngrok token exists but not connected yet — show config
+            section.style.display = 'block';
+            const configSection = document.getElementById('ngrok-config-section');
+            if (configSection) configSection.style.display = 'flex';
+            showTunnels(loading, hint, buttons, false);
         } else {
             section.style.display = 'none';
         }
     } catch (error) {
-        console.log('Tunnel lookup failed:', error);
+        console.log('Remote access lookup failed:', error);
     }
 }
 
@@ -308,7 +300,8 @@ async function loadAll() {
     await loadWanStatus();
     await loadRoutingStatus();
     await loadNgrokToken();
-    await loadCloudflareTunnelURL();
+    await loadTunnelSettings();
+    await loadRemoteAccess();
 }
 
 function showTab(tabId) {
@@ -350,8 +343,8 @@ async function purgeSystem() {
 
 window.onload = checkAuth;
 
-// Load Cloudflare Tunnel URL immediately
-document.addEventListener('DOMContentLoaded', loadCloudflareTunnelURL);
+// Load Remote Access status on page load
+document.addEventListener('DOMContentLoaded', loadRemoteAccess);
 
 // Interval for monitoring (every 5 seconds)
 setInterval(() => {
@@ -359,7 +352,7 @@ setInterval(() => {
         loadWanStatus();
         loadRoutingStatus();
     }
-    loadCloudflareTunnelURL();
+    loadRemoteAccess();
 }, 5000);
 
 async function loadNgrokToken() {
@@ -370,6 +363,53 @@ async function loadNgrokToken() {
             document.getElementById('ngrok-token-input').value = data.token;
         }
     } catch (e) { }
+}
+
+async function loadTunnelSettings() {
+    try {
+        const res = await fetch('/api/tunnel/settings');
+        const data = await res.json();
+        if (res.ok) {
+            document.getElementById('tunnel-mode-input').value = data.mode || '';
+            document.getElementById('tunnel-subdomain-input').value = data.subdomain || '';
+            document.getElementById('tunnel-token-input').value = data.token || '';
+            document.getElementById('tunnel-gateway-input').value = data.gateway_url || '';
+        }
+    } catch (e) { }
+}
+
+async function saveTunnelSettings() {
+    const payload = {
+        mode: document.getElementById('tunnel-mode-input').value.trim(),
+        subdomain: document.getElementById('tunnel-subdomain-input').value.trim(),
+        token: document.getElementById('tunnel-token-input').value.trim(),
+        gateway_url: document.getElementById('tunnel-gateway-input').value.trim()
+    };
+
+    const msgEl = document.getElementById('tunnel-settings-msg');
+    msgEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-left:6px;"></i> جاري الحفظ...';
+
+    try {
+        const res = await fetch('/api/tunnel/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            msgEl.innerHTML = '<i class="fa-solid fa-circle-check" style="margin-left:6px;"></i> ' + (data.message || 'تم الحفظ');
+            msgEl.style.color = '#10b981';
+            showToast('تم حفظ إعدادات Tunnel بنجاح', 'success');
+        } else {
+            msgEl.innerHTML = '<i class="fa-solid fa-circle-xmark" style="margin-left:6px;"></i> ' + (data.error || 'فشل الحفظ');
+            msgEl.style.color = '#ef4444';
+            showToast(data.error || 'فشل الحفظ', 'error');
+        }
+    } catch (e) {
+        msgEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="margin-left:6px;"></i> فشل الاتصال بالسيرفر';
+        msgEl.style.color = '#ef4444';
+        showToast('فشل الاتصال بالسيرفر', 'error');
+    }
 }
 
 async function saveNgrokToken() {
@@ -388,7 +428,7 @@ async function saveNgrokToken() {
         } else {
             showToast(data.error, 'error');
         }
-        loadCloudflareTunnelURL(); // Re-check status
+        loadRemoteAccess(); // Re-check status
     } catch (e) {
         showToast('فشل اتصال حفظ التوكن بالخادم', 'error');
     }

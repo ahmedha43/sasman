@@ -1,11 +1,14 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -15,7 +18,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"regexp"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -26,15 +29,20 @@ import (
 	"mikrotik-manager/pkg/firebase"
 	"mikrotik-manager/pkg/lan"
 	"mikrotik-manager/pkg/radius"
+	"mikrotik-manager/pkg/relay"
 	"mikrotik-manager/pkg/routing"
 	"mikrotik-manager/pkg/shared"
 	"mikrotik-manager/pkg/streaming"
+	"mikrotik-manager/pkg/tunnel"
 	"mikrotik-manager/pkg/wan"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/bcrypt"
 
 	"golang.ngrok.com/ngrok"
 	"golang.ngrok.com/ngrok/config"
@@ -44,14 +52,85 @@ import (
 var ngrokWebURL string
 var ngrokTCPURL string
 
+// Global control for SASMAN agent tunnel
+var activeTunnelClient *tunnel.ResilientAgentClient
+var sasmanTunnelMu sync.Mutex
+
 var (
 	deviceProxyCookieMu   sync.Mutex
 	deviceProxyCookieJars = map[string]*cookiejar.Jar{}
 )
 
+// startSasmanTunnel stops any existing tunnel and starts a new one with the given settings.
+// It is safe to call from any goroutine.
+func startSasmanTunnel(port string) {
+	sasmanTunnelMu.Lock()
+	if activeTunnelClient != nil {
+		activeTunnelClient.Stop()
+		activeTunnelClient = nil
+	}
+
+	mode := strings.TrimSpace(shared.RouterConfigState.TunnelMode)
+	subdomain := strings.TrimSpace(shared.RouterConfigState.TunnelSubdomain)
+	if subdomain == "" {
+		subdomain = strings.TrimSpace(os.Getenv("SASMAN_SUBDOMAIN"))
+	}
+	token := strings.TrimSpace(shared.RouterConfigState.TunnelToken)
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("SASMAN_TUNNEL_TOKEN"))
+	}
+
+	if mode != "agent" || subdomain == "" {
+		sasmanTunnelMu.Unlock()
+		log.Printf("[Tunnel] Agent mode disabled or subdomain not set. Tunnel stopped.")
+		return
+	}
+
+	gatewayURL := strings.TrimSpace(shared.RouterConfigState.TunnelGatewayURL)
+	if gatewayURL == "" {
+		gatewayURL = strings.TrimSpace(os.Getenv("SASMAN_TUNNEL_GATEWAY_URL"))
+	}
+
+	client := tunnel.NewResilientAgentClient(tunnel.AgentClientConfig{
+		Subdomain:       subdomain,
+		Token:           token,
+		Version:         "5.1.0",
+		Arch:            "linux_" + runtime.GOARCH,
+		DataDir:         os.Getenv("SASMAN_DATA_DIR"),
+		GatewayURL:      gatewayURL,
+		LocalPort:       port,
+		EnableRelay:     true,
+		RelayListenAddr: "0.0.0.0:18443",
+		OnSyncConfig:    sendSyncConfig,
+		OnBackupRequest: handleBackupRequest,
+		OnLocalHTTP:     handleLocalHTTPRequest,
+		OnMikroTikSync: func(services []relay.ServiceDefinition) {
+			rClient, err := core.Connect()
+			if err == nil && rClient != nil {
+				defer rClient.Close()
+				_ = relay.SyncMikroTikRelayRules(rClient, services, 18443)
+			}
+		},
+	})
+	activeTunnelClient = client
+	sasmanTunnelMu.Unlock()
+
+	client.Start()
+	log.Printf("[Tunnel] Resilient agent tunnel started for subdomain=%s", subdomain)
+}
+
 func main() {
 	// Set Memory Limit to 150MB to prevent Out-Of-Memory on low-end devices
 	debug.SetMemoryLimit(150 * 1024 * 1024)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
+
+	if shared.RouterConfigState.TunnelMode == "agent" || os.Getenv("SASMAN_TUNNEL_MODE") == "agent" {
+		log.Println("SASMAN tunnel agent mode enabled")
+	}
 	// Make the Garbage Collector more aggressive (default is 100)
 	debug.SetGCPercent(50)
 
@@ -174,6 +253,12 @@ func main() {
 		return c.Redirect("/admin")
 	})
 
+	// Start SASMAN tunnel (agent mode) — controlled by startSasmanTunnel(), restartable at runtime
+	if os.Getenv("SASMAN_TUNNEL_MODE") == "agent" && shared.RouterConfigState.TunnelMode == "" {
+		shared.RouterConfigState.TunnelMode = "agent"
+	}
+	go startSasmanTunnel(port)
+
 	// ==================== ADMIN PANEL ====================
 	// Serve Static Files (UI) for Admin Panel
 	app.Static("/admin", "./public")
@@ -280,7 +365,6 @@ func main() {
 	// Ngrok Tunnel Configuration
 	api.Post("/ngrok/token", saveNgrokTokenHandler)
 	api.Get("/ngrok/token", getNgrokTokenHandler)
-	api.Get("/cloudflared/url", getCloudflareTunnelURL)
 
 	// WAN Section
 	api.Get("/interfaces", wan.GetInterfaces)
@@ -352,9 +436,16 @@ func main() {
 	radiusAccount.Get("/backup/telegram", radius.GetTelegramBackupConfig)
 	radiusAccount.Post("/backup/telegram", radius.SaveTelegramBackupConfig)
 	radiusAccount.Post("/backup/telegram/test", radius.TestTelegramBackup)
-	radiusAccount.Get("/cloudflared/url", getCloudflareTunnelURL)
 	radiusAccount.Get("/shutdown/config", radius.GetShutdownConfig)
 	radiusAccount.Post("/shutdown/config", radius.SaveShutdownConfig)
+
+	// Tunnel Settings (both paths for backward compatibility)
+	radiusAccount.Get("/tunnel/config", getTunnelSettingsHandler)
+	radiusAccount.Post("/tunnel/config", saveTunnelSettingsHandler)
+	api.Get("/tunnel/settings", getTunnelSettingsHandler)
+	api.Post("/tunnel/settings", saveTunnelSettingsHandler)
+	radiusAccount.Get("/ngrok/token", getNgrokTokenHandler)
+	radiusAccount.Post("/ngrok/token", saveNgrokTokenHandler)
 
 	// License activation is public while unlicensed so first-run setup can fetch the MikroTik serial.
 	radiusAPI.Post("/license/activate", radius.RequireAdminUnlessUnlicensed, radius.LicenseActivateHandler)
@@ -385,9 +476,12 @@ func main() {
 	radiusSecure.Get("/export/excel", radius.ExportToExcel)
 	radiusSecure.Post("/system/reset", radius.ResetDatabase)
 
-	// RADIUS Logs
+	// RADIUS Logs & Audit Logs
 	radiusSecure.Get("/logs", radius.GetRadiusLogs)
 	radiusSecure.Delete("/logs", radius.ClearRadiusLogs)
+	radiusSecure.Get("/audit-logs", radius.GetAuditLogsHandler)
+	radiusSecure.Delete("/audit-logs", radius.ClearAuditLogsHandler)
+	radiusSecure.Get("/audit-logs/export", radius.ExportAuditLogsCSVHandler)
 
 	// NAS
 	radiusSecure.Get("/nas", radius.GetNAS)
@@ -569,17 +663,352 @@ func main() {
 		}))(c)
 	})
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "80"
-	}
-
 	fmt.Printf("Starting SASMAN Unified Server on :%s...\n", port)
 	fmt.Printf("  Admin Panel: http://localhost:%s/admin\n", port)
 	fmt.Printf("  RADIUS Panel: http://localhost:%s/radius\n", port)
 	if err := app.Listen(":" + port); err != nil {
 		log.Fatalf("Critical error: Failed to start server: %v", err)
 	}
+}
+
+
+
+func handleLocalHTTPRequest(reqPayload tunnel.HttpRequestPayload, localPort string) tunnel.HttpResponsePayload {
+	localURL := fmt.Sprintf("http://127.0.0.1:%s%s", localPort, reqPayload.Path)
+
+	bodyBytes, _ := base64.StdEncoding.DecodeString(reqPayload.Body)
+
+	req, err := http.NewRequest(reqPayload.Method, localURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return tunnel.HttpResponsePayload{
+			Status: 500,
+			Body:   base64.StdEncoding.EncodeToString([]byte("failed to create local request: " + err.Error())),
+		}
+	}
+
+	for k, v := range reqPayload.Headers {
+		req.Header.Set(k, v)
+	}
+
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return tunnel.HttpResponsePayload{
+			Status: 502,
+			Body:   base64.StdEncoding.EncodeToString([]byte("failed to connect to local app: " + err.Error())),
+		}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return tunnel.HttpResponsePayload{
+			Status: 500,
+			Body:   base64.StdEncoding.EncodeToString([]byte("failed to read response body: " + err.Error())),
+		}
+	}
+
+	respHeaders := make(map[string]string)
+	for k, v := range resp.Header {
+		if len(v) > 0 {
+			respHeaders[k] = v[0]
+		}
+	}
+
+	return tunnel.HttpResponsePayload{
+		Status:  resp.StatusCode,
+		Headers: respHeaders,
+		Body:    base64.StdEncoding.EncodeToString(respBody),
+	}
+}
+
+func sendSyncConfig(conn *websocket.Conn, writeMu *sync.Mutex) {
+	now := time.Now().UTC()
+	hostname, _ := os.Hostname()
+	routerHost, routerPort := splitHostPort(shared.RouterConfigState.Address)
+	license := parseLicense(shared.RouterConfigState.License)
+
+	installationID := firstNonEmpty(shared.RouterConfigState.Serial, hostname)
+
+	appInfo := map[string]interface{}{
+		"name":    "SASMAN MikroTik Manager",
+		"version": firstNonEmpty(os.Getenv("SASMAN_VERSION"), "v5"),
+	}
+
+	containerInfo := map[string]interface{}{
+		"hostname":     hostname,
+		"container_id": hostname,
+		"image":        os.Getenv("SASMAN_IMAGE"),
+	}
+
+	mikrotikInfo := map[string]interface{}{
+		"address":  shared.RouterConfigState.Address,
+		"host":     routerHost,
+		"api_port": routerPort,
+		"username": shared.RouterConfigState.Username,
+		"serial":   shared.RouterConfigState.Serial,
+	}
+	if shared.RouterConfigState.Password != "" {
+		mikrotikInfo["password"] = shared.RouterConfigState.Password
+	}
+
+	licenseInfo := map[string]interface{}{
+		"present":        shared.RouterConfigState.License != "",
+		"serial":         firstNonEmpty(license.Serial, shared.RouterConfigState.Serial),
+		"issued_at":      formatUnix(license.IssuedAt),
+		"expires_at":     formatUnix(license.ExpiresAt),
+		"expires_unix":   license.ExpiresAt,
+		"is_expired":     license.ExpiresAt > 0 && now.After(time.Unix(license.ExpiresAt, 0)),
+		"license_sha256": sha256Hex(shared.RouterConfigState.License),
+	}
+	if shared.RouterConfigState.License != "" {
+		licenseInfo["license_key"] = shared.RouterConfigState.License
+	}
+
+	remoteAccess := map[string]interface{}{
+		"ngrok_web_url": ngrokWebURL,
+		"ngrok_tcp_url": ngrokTCPURL,
+	}
+
+	credentials := map[string]interface{}{
+		"mikrotik": map[string]interface{}{
+			"username": shared.RouterConfigState.Username,
+			"password": shared.RouterConfigState.Password,
+		},
+	}
+
+	if radius.DB != nil {
+		var adminUsername, adminPasswordHash string
+		err := radius.DB.QueryRow("SELECT username, password_hash FROM radius_admins WHERE role='agent' OR role='superadmin' ORDER BY id ASC LIMIT 1").Scan(&adminUsername, &adminPasswordHash)
+		if err == nil && adminUsername != "" {
+			adminCreds := map[string]interface{}{
+				"username": adminUsername,
+			}
+			if bcrypt.CompareHashAndPassword([]byte(adminPasswordHash), []byte("admin")) == nil {
+				adminCreds["password"] = "admin"
+				adminCreds["is_default"] = true
+			} else {
+				adminCreds["password"] = ""
+				adminCreds["is_default"] = false
+			}
+			credentials["radius_admin"] = adminCreds
+		}
+	}
+
+	syncPayload := tunnel.SyncConfigPayload{
+		InstallationID: installationID,
+		LastEvent:      "container_started",
+		UpdatedAt:      now.Format(time.RFC3339),
+		App:            appInfo,
+		Container:      containerInfo,
+		Mikrotik:       mikrotikInfo,
+		License:        licenseInfo,
+		RemoteAccess:   remoteAccess,
+		Credentials:    credentials,
+	}
+
+	payloadBytes, _ := json.Marshal(syncPayload)
+	syncMsg := tunnel.TunnelMessage{
+		Type:    "sync_config",
+		Payload: payloadBytes,
+	}
+
+	writeMu.Lock()
+	_ = conn.WriteJSON(syncMsg)
+	writeMu.Unlock()
+
+	log.Printf("[Tunnel] Sent sync_config to central server")
+}
+
+func handleBackupRequest(conn *websocket.Conn, msg tunnel.TunnelMessage, writeMu *sync.Mutex) {
+	var reqPayload struct {
+		RequestID string `json:"request_id"`
+	}
+	if err := json.Unmarshal(msg.Payload, &reqPayload); err != nil {
+		log.Printf("[Tunnel] Failed to unmarshal backup request: %v", err)
+		return
+	}
+
+	reqID := reqPayload.RequestID
+
+	tmp, _, err := radius.CreateDatabaseBackupFile()
+	if err != nil {
+		log.Printf("[Tunnel] Backup creation failed: %v", err)
+		errBytes, _ := json.Marshal(tunnel.BackupErrorPayload{RequestID: reqID, Error: err.Error()})
+		writeMu.Lock()
+		_ = conn.WriteJSON(tunnel.TunnelMessage{Type: "backup_error", Payload: errBytes})
+		writeMu.Unlock()
+		return
+	}
+	defer os.Remove(tmp)
+
+	info, err := os.Stat(tmp)
+	if err != nil {
+		log.Printf("[Tunnel] Backup stat failed: %v", err)
+		errBytes, _ := json.Marshal(tunnel.BackupErrorPayload{RequestID: reqID, Error: err.Error()})
+		writeMu.Lock()
+		_ = conn.WriteJSON(tunnel.TunnelMessage{Type: "backup_error", Payload: errBytes})
+		writeMu.Unlock()
+		return
+	}
+
+	f, err := os.Open(tmp)
+	if err != nil {
+		log.Printf("[Tunnel] Backup open failed: %v", err)
+		errBytes, _ := json.Marshal(tunnel.BackupErrorPayload{RequestID: reqID, Error: err.Error()})
+		writeMu.Lock()
+		_ = conn.WriteJSON(tunnel.TunnelMessage{Type: "backup_error", Payload: errBytes})
+		writeMu.Unlock()
+		return
+	}
+	defer f.Close()
+
+	chunkSize := 64 * 1024
+	buf := make([]byte, chunkSize)
+	index := 0
+	filename := fmt.Sprintf("sasman-backup-%s.db", time.Now().Format("2006-01-02"))
+
+	for {
+		n, err := f.Read(buf)
+		if n > 0 {
+			dataB64 := base64.StdEncoding.EncodeToString(buf[:n])
+			chunkBytes, _ := json.Marshal(tunnel.BackupChunkPayload{
+				RequestID: reqID,
+				Index:     index,
+				Data:      dataB64,
+			})
+			writeMu.Lock()
+			_ = conn.WriteJSON(tunnel.TunnelMessage{
+				Type:    "backup_chunk",
+				Payload: chunkBytes,
+			})
+			writeMu.Unlock()
+			index++
+		}
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			log.Printf("[Tunnel] Backup read error: %v", err)
+			errBytes, _ := json.Marshal(tunnel.BackupErrorPayload{RequestID: reqID, Error: err.Error()})
+			writeMu.Lock()
+			_ = conn.WriteJSON(tunnel.TunnelMessage{Type: "backup_error", Payload: errBytes})
+			writeMu.Unlock()
+			return
+		}
+	}
+
+	completeBytes, _ := json.Marshal(tunnel.BackupCompletePayload{
+		RequestID: reqID,
+		Filename:  filename,
+		Size:      info.Size(),
+	})
+	writeMu.Lock()
+	_ = conn.WriteJSON(tunnel.TunnelMessage{
+		Type:    "backup_complete",
+		Payload: completeBytes,
+	})
+	writeMu.Unlock()
+}
+
+func splitHostPort(address string) (string, string) {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return "", ""
+	}
+	if host, port, err := net.SplitHostPort(address); err == nil {
+		return host, port
+	}
+	parts := strings.Split(address, ":")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return address, ""
+}
+
+func parseLicense(key string) struct {
+	Serial    string
+	IssuedAt  int64
+	ExpiresAt int64
+} {
+	if strings.TrimSpace(key) == "" {
+		return struct {
+			Serial    string
+			IssuedAt  int64
+			ExpiresAt int64
+		}{}
+	}
+
+	claims := jwt.MapClaims{}
+	_, _, err := new(jwt.Parser).ParseUnverified(key, claims)
+	if err != nil {
+		return struct {
+			Serial    string
+			IssuedAt  int64
+			ExpiresAt int64
+		}{}
+	}
+
+	return struct {
+		Serial    string
+		IssuedAt  int64
+		ExpiresAt int64
+	}{
+		Serial:    claimString(claims, "serial"),
+		IssuedAt:  claimUnix(claims, "iat"),
+		ExpiresAt: claimUnix(claims, "exp"),
+	}
+}
+
+func claimString(claims jwt.MapClaims, key string) string {
+	if v, ok := claims[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func claimUnix(claims jwt.MapClaims, key string) int64 {
+	switch v := claims[key].(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	case json.Number:
+		n, _ := v.Int64()
+		return n
+	default:
+		return 0
+	}
+}
+
+func formatUnix(value int64) string {
+	if value <= 0 {
+		return ""
+	}
+	return time.Unix(value, 0).UTC().Format(time.RFC3339)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func sha256Hex(value string) string {
+	if value == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }
 
 func detectProxyTargetURL(cleanIP string, transport *http.Transport) *url.URL {
@@ -926,8 +1355,7 @@ func isPublicTunnelRequest(c *fiber.Ctx) bool {
 	if ip := net.ParseIP(host); ip != nil {
 		return false
 	}
-	if strings.HasSuffix(host, ".trycloudflare.com") ||
-		strings.Contains(host, "ngrok") ||
+	if strings.Contains(host, "ngrok") ||
 		strings.HasSuffix(host, ".loca.lt") ||
 		strings.HasSuffix(host, ".tunnelmole.net") {
 		return true
@@ -946,39 +1374,7 @@ func isPublicTunnelRequest(c *fiber.Ctx) bool {
 	return false
 }
 
-// getCloudflareTunnelURL reads the cloudflared log file and extracts the tunnel URL
-func getCloudflareTunnelURL(c *fiber.Ctx) error {
-	// Check if cloudflared is enabled (default to true if not explicitly disabled)
-	enabled := os.Getenv("CLOUDFLARE_TUNNEL_ENABLED")
-	cfURL := ""
 
-	// Try to read the cloudflared log file
-	if enabled != "false" {
-		if file, err := os.Open("/app/data/cloudflared.log"); err == nil {
-			defer file.Close()
-			scanner := bufio.NewScanner(file)
-			urlRegex := regexp.MustCompile(`https://[a-z0-9-]+\.trycloudflare\.com`)
-			for scanner.Scan() {
-				line := scanner.Text()
-				if matches := urlRegex.FindStringSubmatch(line); len(matches) > 0 {
-					found := matches[0]
-					if !strings.Contains(found, "api.trycloudflare.com") {
-						cfURL = found
-					}
-				}
-			}
-		}
-	}
-
-	return c.JSON(fiber.Map{
-		"enabled": (cfURL != "") || (ngrokWebURL != ""),
-		"url":     cfURL,
-		"ngrok": fiber.Map{
-			"web": ngrokWebURL,
-			"tcp": ngrokTCPURL,
-		},
-	})
-}
 
 func getNgrokTokenHandler(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
@@ -1002,6 +1398,49 @@ func saveNgrokTokenHandler(c *fiber.Ctx) error {
 	go startNgrokTunnels()
 
 	return c.JSON(fiber.Map{"message": "تم حفظ التوكن وستبدأ الخدمة قريباً"})
+}
+
+func getTunnelSettingsHandler(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"mode":        shared.RouterConfigState.TunnelMode,
+		"subdomain":   shared.RouterConfigState.TunnelSubdomain,
+		"token":       shared.RouterConfigState.TunnelToken,
+		"gateway_url": shared.RouterConfigState.TunnelGatewayURL,
+	})
+}
+
+func saveTunnelSettingsHandler(c *fiber.Ctx) error {
+	type Request struct {
+		Mode       string `json:"mode"`
+		Subdomain  string `json:"subdomain"`
+		Token      string `json:"token"`
+		GatewayURL string `json:"gateway_url"`
+	}
+	var req Request
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	shared.RouterConfigState.TunnelMode = strings.TrimSpace(req.Mode)
+	shared.RouterConfigState.TunnelSubdomain = strings.TrimSpace(req.Subdomain)
+	shared.RouterConfigState.TunnelToken = strings.TrimSpace(req.Token)
+	shared.RouterConfigState.TunnelGatewayURL = strings.TrimSpace(req.GatewayURL)
+	shared.SaveConfig()
+
+	// Restart the SASMAN tunnel immediately with the new settings — no container restart needed
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
+	go startSasmanTunnel(port)
+
+	message := "تم حفظ إعدادات التنل بنجاح"
+	if shared.RouterConfigState.TunnelMode == "agent" && shared.RouterConfigState.TunnelSubdomain != "" {
+		message = "تم حفظ إعدادات التنل وإعادة تشغيل الاتصال تلقائياً"
+	} else if shared.RouterConfigState.TunnelMode != "agent" {
+		message = "تم إيقاف تشغيل التنل وحفظ الإعدادات"
+	}
+	return c.JSON(fiber.Map{"message": message})
 }
 
 // Global cancellation for Ngrok

@@ -549,9 +549,6 @@
                             <button class="btn btn-success" style="padding:10px 18px; font-size:13px; width:auto;" onclick="copyPathLink('/radius')">
                                 <i class="fa-solid fa-users-gear"></i> نسخ رابط SASMAN Radius
                             </button>
-                            <button id="cloudflare-fallback-btn" class="btn btn-warning" style="display:none; padding:10px 18px; font-size:13px; width:auto;">
-                                <i class="fa-solid fa-cloud"></i> نسخ رابط Cloudflare
-                            </button>
                         </div>
                         <!-- WinBox Section (Ngrok Only) -->
                         <div id="winbox-section" style="display:none; background:#f8fafc; border:1px dashed var(--border); padding:8px 14px; border-radius:var(--radius-md); align-items:center; gap:8px; flex-wrap:wrap;">
@@ -562,6 +559,39 @@
                             </button>
                         </div>
                     </div>
+                </div>
+
+                <!-- 🌐 SASMAN TUNNEL SETTINGS - Always Visible under License Tab -->
+                <div class="card" style="border-right:4px solid var(--primary); margin-top:20px;">
+                    <h3 style="margin:0 0 12px 0; color:var(--primary);"><i class="fa-solid fa-network-wired"></i> إعدادات SASMAN Tunnel (البوابة المركزية)</h3>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">
+                        قم بتهيئة إعدادات التوصيل النفقي لربط هذا المايكروتك محلياً بالسيرفر المركزي والوصول إليه عبر نطاق فرعي مخصص.
+                    </p>
+                    <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>وضع التشغيل</label>
+                            <select id="tunnel-mode-input" style="width:100%;">
+                                <option value="">تعطيل</option>
+                                <option value="agent">Agent</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Subdomain</label>
+                            <input type="text" id="tunnel-subdomain-input" placeholder="client1">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Token</label>
+                            <input type="password" id="tunnel-token-input" placeholder="demo-token">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Gateway URL</label>
+                            <input type="text" id="tunnel-gateway-input" placeholder="ws://sas-man.net/ws">
+                        </div>
+                    </div>
+                    <button class="btn btn-success" style="margin-top:14px;" onclick="saveTunnelSettings()">
+                        <i class="fa-solid fa-floppy-disk"></i> حفظ إعدادات Tunnel
+                    </button>
+                    <p id="tunnel-settings-msg" style="margin-top:10px; font-size:0.9rem; color:var(--text-muted);"></p>
                 </div>
             </div>
 

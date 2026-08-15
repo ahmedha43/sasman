@@ -1,0 +1,470 @@
+package storage
+
+import (
+	"database/sql"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"mikrotik-manager/pkg/ota"
+
+	_ "modernc.org/sqlite"
+)
+
+type Customer struct {
+	ID          string
+	Name        string
+	Email       string
+	CompanyName string
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type License struct {
+	ID         string
+	CustomerID string
+	LicenseKey string
+	HWUUID     string
+	PlanName   string
+	Status     string
+	IssuedAt   time.Time
+	ExpiresAt  *time.Time
+	RevokedAt  *time.Time
+	Metadata   string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type Subdomain struct {
+	ID         string
+	CustomerID string
+	LicenseID  string
+	Subdomain  string
+	ZoneName   string
+	Status     string
+	Token      string
+	WinboxPort int
+	GroupName  string
+	AssignedAt time.Time
+	RevokedAt  *time.Time
+	LastSeenAt *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type SQLiteRepository struct {
+	db *sql.DB
+}
+
+func NewSQLiteRepository(path string) (*SQLiteRepository, error) {
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	// Performance Pragmas: WAL mode, Normal sync, Memory temp store, and 5s busy timeout
+	_, _ = db.Exec("PRAGMA journal_mode = WAL;")
+	_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
+	_, _ = db.Exec("PRAGMA temp_store = MEMORY;")
+	_, _ = db.Exec("PRAGMA busy_timeout = 5000;")
+
+	return &SQLiteRepository{db: db}, nil
+}
+
+func (r *SQLiteRepository) CreateSchema() error {
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS customers (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT,
+            company_name TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+		`CREATE TABLE IF NOT EXISTS licenses (
+            id TEXT PRIMARY KEY,
+            customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+            license_key TEXT NOT NULL UNIQUE,
+            hw_uuid TEXT UNIQUE,
+            plan_name TEXT NOT NULL DEFAULT 'basic',
+            status TEXT NOT NULL DEFAULT 'active',
+            issued_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT,
+            revoked_at TEXT,
+            metadata TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+		`CREATE TABLE IF NOT EXISTS subdomains (
+            id TEXT PRIMARY KEY,
+            customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+            license_id TEXT NOT NULL REFERENCES licenses(id) ON DELETE CASCADE,
+            subdomain TEXT NOT NULL UNIQUE,
+            zone_name TEXT NOT NULL DEFAULT 'sas-man.net',
+            status TEXT NOT NULL DEFAULT 'active',
+            token TEXT NOT NULL,
+            winbox_port INTEGER NOT NULL,
+            group_name TEXT NOT NULL DEFAULT 'default',
+            assigned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            revoked_at TEXT,
+            last_seen_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+		`CREATE INDEX IF NOT EXISTS idx_licenses_customer_id ON licenses(customer_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_subdomains_customer_id ON subdomains(customer_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_subdomains_subdomain ON subdomains(subdomain);`,
+		`CREATE TABLE IF NOT EXISTS ota_releases (
+            version TEXT NOT NULL,
+            channel TEXT NOT NULL DEFAULT 'stable',
+            target_arch TEXT NOT NULL,
+            binary_data BLOB NOT NULL,
+            sha256 TEXT NOT NULL,
+            signature_ed25519 TEXT NOT NULL,
+            min_agent_version TEXT NOT NULL DEFAULT '5.0.0',
+            release_notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (version, target_arch)
+        );`,
+		`CREATE TABLE IF NOT EXISTS agent_ota_status (
+            subdomain TEXT PRIMARY KEY,
+            current_version TEXT NOT NULL DEFAULT 'v5.0.0',
+            target_version TEXT NOT NULL DEFAULT '',
+            arch TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'idle',
+            last_error TEXT NOT NULL DEFAULT '',
+            last_attempt_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+	}
+
+	for _, q := range queries {
+		if _, err := r.db.Exec(q); err != nil {
+			return fmt.Errorf("exec %s: %w", q, err)
+		}
+	}
+
+	// Column migration for existing db
+	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN token TEXT NOT NULL DEFAULT ''")
+	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN winbox_port INTEGER NOT NULL DEFAULT 0")
+	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN group_name TEXT NOT NULL DEFAULT 'default'")
+	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_version TEXT NOT NULL DEFAULT 'v5.0.0'")
+	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_arch TEXT NOT NULL DEFAULT 'linux_arm64'")
+
+	// Create group_name index after migration
+	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_group_name ON subdomains(group_name);")
+
+	return nil
+}
+
+func (r *SQLiteRepository) SaveCustomer(c Customer) error {
+	_, err := r.db.Exec(`
+        INSERT INTO customers (id, name, email, company_name, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            name=excluded.name,
+            email=excluded.email,
+            company_name=excluded.company_name,
+            status=excluded.status,
+            updated_at=excluded.updated_at
+    `, c.ID, c.Name, c.Email, c.CompanyName, c.Status, c.CreatedAt.UTC().Format(time.RFC3339), c.UpdatedAt.UTC().Format(time.RFC3339))
+	return err
+}
+
+func (r *SQLiteRepository) SaveLicense(l License) error {
+	var expiresAt, revokedAt interface{}
+	if l.ExpiresAt != nil {
+		expiresAt = l.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	if l.RevokedAt != nil {
+		revokedAt = l.RevokedAt.UTC().Format(time.RFC3339)
+	}
+
+	_, err := r.db.Exec(`
+        INSERT INTO licenses (id, customer_id, license_key, hw_uuid, plan_name, status, issued_at, expires_at, revoked_at, metadata, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            customer_id=excluded.customer_id,
+            license_key=excluded.license_key,
+            hw_uuid=excluded.hw_uuid,
+            plan_name=excluded.plan_name,
+            status=excluded.status,
+            expires_at=excluded.expires_at,
+            revoked_at=excluded.revoked_at,
+            metadata=excluded.metadata,
+            updated_at=excluded.updated_at
+    `, l.ID, l.CustomerID, l.LicenseKey, l.HWUUID, l.PlanName, l.Status, l.IssuedAt.UTC().Format(time.RFC3339), expiresAt, revokedAt, l.Metadata, l.CreatedAt.UTC().Format(time.RFC3339), l.UpdatedAt.UTC().Format(time.RFC3339))
+	return err
+}
+
+func (r *SQLiteRepository) CreateOrGetSubdomain(customerID, licenseID, subdomain string) (*Subdomain, error) {
+	row := r.db.QueryRow(`SELECT id, customer_id, license_id, subdomain, zone_name, status, token, winbox_port, group_name, assigned_at, revoked_at, last_seen_at, created_at, updated_at FROM subdomains WHERE subdomain = ?`, subdomain)
+	var s Subdomain
+	var assignedAt, revokedAt, lastSeenAt, createdAt, updatedAt string
+	err := row.Scan(&s.ID, &s.CustomerID, &s.LicenseID, &s.Subdomain, &s.ZoneName, &s.Status, &s.Token, &s.WinboxPort, &s.GroupName, &assignedAt, &revokedAt, &lastSeenAt, &createdAt, &updatedAt)
+	if err == nil {
+		return &s, nil
+	}
+	if err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	id := fmt.Sprintf("sub-%d", time.Now().UnixNano())
+	token := "default-token"
+	port := 0
+	groupName := "default"
+	_, err = r.db.Exec(`
+        INSERT INTO subdomains (id, customer_id, license_id, subdomain, zone_name, status, token, winbox_port, group_name, assigned_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, id, customerID, licenseID, subdomain, "sas-man.net", "active", token, port, groupName, time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Subdomain{ID: id, CustomerID: customerID, LicenseID: licenseID, Subdomain: subdomain, ZoneName: "sas-man.net", Status: "active", Token: token, WinboxPort: port, GroupName: groupName}, nil
+}
+
+func (r *SQLiteRepository) ResetSubdomain(subdomain string) error {
+	_, err := r.db.Exec(`
+        UPDATE subdomains
+        SET status = 'active', revoked_at = NULL, updated_at = ?, last_seen_at = ?
+        WHERE subdomain = ?
+    `, time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), subdomain)
+	return err
+}
+
+func (r *SQLiteRepository) DeleteSubdomain(subdomain string) error {
+	_, err := r.db.Exec(`DELETE FROM subdomains WHERE subdomain = ?`, subdomain)
+	return err
+}
+
+func (r *SQLiteRepository) UpdateSubdomainStatus(subdomain, token string, port int) error {
+	_, err := r.db.Exec(`
+        UPDATE subdomains
+        SET token = ?, winbox_port = ?, updated_at = ?
+        WHERE subdomain = ?
+    `, token, port, time.Now().UTC().Format(time.RFC3339), subdomain)
+	return err
+}
+
+func (r *SQLiteRepository) UpdateSubdomainGroup(subdomain, groupName string) error {
+	if groupName == "" {
+		groupName = "default"
+	}
+	_, err := r.db.Exec(`
+        UPDATE subdomains
+        SET group_name = ?, updated_at = ?
+        WHERE subdomain = ?
+    `, groupName, time.Now().UTC().Format(time.RFC3339), subdomain)
+	return err
+}
+
+func (r *SQLiteRepository) GetSubdomainGroup(subdomain string) string {
+	var group string
+	err := r.db.QueryRow("SELECT group_name FROM subdomains WHERE subdomain = ?", subdomain).Scan(&group)
+	if err != nil || group == "" {
+		return "default"
+	}
+	return group
+}
+
+func (r *SQLiteRepository) ListAgentGroups() ([]string, error) {
+	rows, err := r.db.Query("SELECT DISTINCT group_name FROM subdomains WHERE group_name != '' ORDER BY group_name ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var groups []string
+	for rows.Next() {
+		var g string
+		if err := rows.Scan(&g); err == nil {
+			groups = append(groups, g)
+		}
+	}
+	return groups, nil
+}
+
+func (r *SQLiteRepository) ListAllSubdomains() ([]string, error) {
+	rows, err := r.db.Query("SELECT subdomain FROM subdomains WHERE status = 'active'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err == nil {
+			list = append(list, s)
+		}
+	}
+	return list, nil
+}
+
+func (r *SQLiteRepository) GetSubdomainArch(subdomain string) (string, error) {
+	var arch string
+	err := r.db.QueryRow("SELECT COALESCE(agent_arch, 'linux_arm64') FROM subdomains WHERE subdomain = ?", subdomain).Scan(&arch)
+	if err != nil {
+		return "linux_arm64", err
+	}
+	return arch, nil
+}
+
+func (r *SQLiteRepository) Close() error {
+	return r.db.Close()
+}
+
+func (r *SQLiteRepository) GetDB() *sql.DB {
+	return r.db
+}
+
+func (r *SQLiteRepository) BackupTo(destPath string) error {
+	_ = os.Remove(destPath)
+	_, err := r.db.Exec(fmt.Sprintf("VACUUM INTO '%s'", strings.ReplaceAll(destPath, "'", "''")))
+	return err
+}
+
+func (r *SQLiteRepository) Reopen(path string) error {
+	_ = r.db.Close()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return err
+	}
+	db.SetMaxOpenConns(1)
+	if err := db.Ping(); err != nil {
+		return err
+	}
+
+	_, _ = db.Exec("PRAGMA journal_mode = WAL;")
+	_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
+	_, _ = db.Exec("PRAGMA temp_store = MEMORY;")
+	_, _ = db.Exec("PRAGMA busy_timeout = 5000;")
+
+	r.db = db
+	return r.CreateSchema()
+}
+
+// ─── OTA Releases & Status Storage ──────────────────────────────────────────
+
+func (r *SQLiteRepository) SaveRelease(m ota.ReleaseManifest, binaryData []byte) error {
+	_, err := r.db.Exec(`
+        INSERT INTO ota_releases (version, channel, target_arch, binary_data, sha256, signature_ed25519, min_agent_version, release_notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(version, target_arch) DO UPDATE SET
+            channel=excluded.channel,
+            binary_data=excluded.binary_data,
+            sha256=excluded.sha256,
+            signature_ed25519=excluded.signature_ed25519,
+            min_agent_version=excluded.min_agent_version,
+            release_notes=excluded.release_notes,
+            created_at=excluded.created_at
+    `, m.Version, m.Channel, m.TargetArch, binaryData, m.Sha256, m.SignatureEd25519, m.MinAgentVersion, m.ReleaseNotes, time.Now().UTC().Format(time.RFC3339))
+	return err
+}
+
+func (r *SQLiteRepository) GetRelease(version string, targetArch string) (*ota.ReleaseManifest, []byte, error) {
+	row := r.db.QueryRow(`
+        SELECT version, channel, target_arch, binary_data, sha256, signature_ed25519, min_agent_version, release_notes, created_at
+        FROM ota_releases WHERE version = ? AND target_arch = ?
+    `, version, targetArch)
+
+	var m ota.ReleaseManifest
+	var binaryData []byte
+	var createdAtStr string
+	err := row.Scan(&m.Version, &m.Channel, &m.TargetArch, &binaryData, &m.Sha256, &m.SignatureEd25519, &m.MinAgentVersion, &m.ReleaseNotes, &createdAtStr)
+	if err != nil {
+		return nil, nil, err
+	}
+	m.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr)
+	m.BinaryURL = fmt.Sprintf("/api/ota/bin/%s/%s", m.TargetArch, m.Version)
+	return &m, binaryData, nil
+}
+
+func (r *SQLiteRepository) ListReleases() ([]ota.ReleaseManifest, error) {
+	rows, err := r.db.Query(`
+        SELECT version, channel, target_arch, sha256, signature_ed25519, min_agent_version, release_notes, created_at
+        FROM ota_releases ORDER BY created_at DESC
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []ota.ReleaseManifest
+	for rows.Next() {
+		var m ota.ReleaseManifest
+		var createdAtStr string
+		if err := rows.Scan(&m.Version, &m.Channel, &m.TargetArch, &m.Sha256, &m.SignatureEd25519, &m.MinAgentVersion, &m.ReleaseNotes, &createdAtStr); err == nil {
+			m.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr)
+			m.BinaryURL = fmt.Sprintf("/api/ota/bin/%s/%s", m.TargetArch, m.Version)
+			list = append(list, m)
+		}
+	}
+	return list, nil
+}
+
+func (r *SQLiteRepository) UpdateAgentOTAStatus(st ota.AgentOTAStatus) error {
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.Exec(`
+        INSERT INTO agent_ota_status (subdomain, current_version, target_version, arch, status, last_error, last_attempt_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(subdomain) DO UPDATE SET
+            current_version=CASE WHEN excluded.current_version != '' THEN excluded.current_version ELSE agent_ota_status.current_version END,
+            target_version=CASE WHEN excluded.target_version != '' THEN excluded.target_version ELSE agent_ota_status.target_version END,
+            arch=CASE WHEN excluded.arch != '' THEN excluded.arch ELSE agent_ota_status.arch END,
+            status=excluded.status,
+            last_error=excluded.last_error,
+            last_attempt_at=excluded.last_attempt_at,
+            updated_at=excluded.updated_at
+    `, st.Subdomain, st.CurrentVer, st.TargetVer, st.Arch, st.Status, st.LastError, nowStr, nowStr)
+	return err
+}
+
+func (r *SQLiteRepository) GetAgentOTAStatuses() (map[string]ota.AgentOTAStatus, error) {
+	rows, err := r.db.Query(`
+        SELECT s.subdomain, COALESCE(o.current_version, s.agent_version), COALESCE(o.target_version, ''), COALESCE(o.arch, s.agent_arch), COALESCE(o.status, 'idle'), COALESCE(o.last_error, ''), COALESCE(o.updated_at, s.updated_at)
+        FROM subdomains s
+        LEFT JOIN agent_ota_status o ON s.subdomain = o.subdomain
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := make(map[string]ota.AgentOTAStatus)
+	for rows.Next() {
+		var st ota.AgentOTAStatus
+		var updatedStr string
+		if err := rows.Scan(&st.Subdomain, &st.CurrentVer, &st.TargetVer, &st.Arch, &st.Status, &st.LastError, &updatedStr); err == nil {
+			st.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+			res[st.Subdomain] = st
+		}
+	}
+	return res, nil
+}
+
+func (r *SQLiteRepository) UpdateAgentVersionAndArch(subdomain, version, arch string) error {
+	_, err := r.db.Exec(`
+        UPDATE subdomains 
+        SET agent_version = ?, agent_arch = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE subdomain = ?
+    `, version, arch, subdomain)
+	if err == nil {
+		_ = r.UpdateAgentOTAStatus(ota.AgentOTAStatus{
+			Subdomain:  subdomain,
+			CurrentVer: version,
+			Arch:       arch,
+			Status:     "updated",
+		})
+	}
+	return err
+}
+

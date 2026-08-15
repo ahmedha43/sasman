@@ -6,13 +6,16 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -274,8 +277,7 @@ func postSAS4(url string, payload string, token string) (map[string]interface{},
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := sas4HTTPClient(30 * time.Second).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -303,8 +305,7 @@ func getSAS4(url string, token string) (map[string]interface{}, error) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := sas4HTTPClient(10 * time.Second).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -320,6 +321,33 @@ func getSAS4(url string, token string) (map[string]interface{}, error) {
 	}
 
 	return result, nil
+}
+
+// sas4TLSInsecure reports whether to skip TLS certificate verification when
+// talking to the SAS4 server. SAS4 typically uses a self-signed certificate,
+// so this defaults to true. Set SAS4_INSECURE_TLS=0 to enforce verification.
+func sas4TLSInsecure() bool {
+	insecure := os.Getenv("SAS4_INSECURE_TLS") != "0"
+	if insecure {
+		sas4InsecureLogged.Do(func() {
+			fmt.Printf("[sas4] WARNING: TLS certificate verification is DISABLED for SAS4 connections (self-signed certificate). Set SAS4_INSECURE_TLS=0 to enforce verification.\n")
+		})
+	}
+	return insecure
+}
+
+// sas4HTTPTransport is shared across all SAS4 requests so TLS connections and
+// keep-alives are reused — the deep sync performs one request per subscriber.
+var sas4HTTPTransport = &http.Transport{
+	TLSClientConfig: &tls.Config{InsecureSkipVerify: sas4TLSInsecure()},
+}
+
+var sas4InsecureLogged sync.Once
+
+// sas4HTTPClient returns a client for SAS4 requests with the given timeout,
+// reusing the shared transport (and its connection pool).
+func sas4HTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout, Transport: sas4HTTPTransport}
 }
 
 func getString(m map[string]interface{}, key string) string {
@@ -476,6 +504,7 @@ func ResetDatabase(c *fiber.Ctx) error {
 		}
 	}
 
+	LogActivityFromCtx(c, "تصفير النظام", "قاعدة البيانات", "تم تصفير وإعادة ضبط مصنع كافة جداول قاعدة البيانات بالكامل")
 	return c.JSON(fiber.Map{"message": "System database has been reset successfully."})
 }
 

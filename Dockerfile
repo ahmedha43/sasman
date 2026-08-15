@@ -4,8 +4,7 @@ FROM golang:alpine AS builder
 WORKDIR /app
 
 # Install build dependencies for Go (lmdb-dev is required for CGO)
-RUN sed -i 's/https/http/g' /etc/apk/repositories && \
-    apk add --no-cache build-base lmdb-dev git ca-certificates
+RUN apk add --no-cache build-base lmdb-dev git ca-certificates
 
 # Set Go Proxy and disable SumDB for maximum resilience
 ENV GOPROXY=https://goproxy.io,https://proxy.golang.org,direct
@@ -26,8 +25,11 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
+# Set CGO compilation flags to disable robust mutexes for full MikroTik RouterOS ARM64/ARMv7 kernel compatibility
+ENV CGO_CFLAGS="-DMDB_USE_ROBUST=0"
+
 # Build the Go binary
-RUN CGO_ENABLED=1 GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
+RUN CGO_ENABLED=1 CGO_CFLAGS="-DMDB_USE_ROBUST=0" GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
     go build -ldflags="-s -w" -o main .
 
 # Stage 2: Final lightweight image
@@ -35,10 +37,8 @@ FROM alpine:3.19
 
 WORKDIR /app
 
-# Use a more stable mirror and install dependencies
 # Note: FreeRADIUS is REMOVED. LMDB/SQLite are kept for the Go drivers.
-RUN sed -i 's/https/http/g' /etc/apk/repositories && \
-    apk add --no-cache \
+RUN apk add --no-cache \
     lmdb \
     sqlite \
     supervisor \
@@ -46,16 +46,6 @@ RUN sed -i 's/https/http/g' /etc/apk/repositories && \
     curl \
     ca-certificates
 
-# Pre-install cloudflared
-RUN ARCH=$(uname -m) && \
-    case $ARCH in \
-    x86_64)  CLOUDFLARED_ARCH="amd64" ;; \
-    aarch64) CLOUDFLARED_ARCH="arm64" ;; \
-    armv7l)  CLOUDFLARED_ARCH="arm" ;; \
-    *)       CLOUDFLARED_ARCH="amd64" ;; \
-    esac && \
-    curl -sSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CLOUDFLARED_ARCH}" -o /usr/local/bin/cloudflared && \
-    chmod +x /usr/local/bin/cloudflared
 
 # Ensure data directories exist
 RUN mkdir -p /app/data /var/run/supervisord /var/log/supervisord /var/log/supervisor /etc/supervisor/conf.d \

@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 )
 
 type RemoteAccess struct {
-	CloudflareURL string `json:"cloudflare_url,omitempty"`
 	NgrokWebURL   string `json:"ngrok_web_url,omitempty"`
 	NgrokTCPURL   string `json:"ngrok_tcp_url,omitempty"`
 }
@@ -62,9 +60,6 @@ func SyncAsync(event string, remote RemoteAccess) {
 func Sync(event string, remote RemoteAccess) {
 	if !Enabled() {
 		return
-	}
-	if remote.CloudflareURL == "" {
-		remote.CloudflareURL = readCloudflareURL()
 	}
 
 	payload := buildPayload(event, remote)
@@ -268,17 +263,4 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func readCloudflareURL() string {
-	data, err := os.ReadFile("/app/data/cloudflared.log")
-	if err != nil {
-		return ""
-	}
-	urlRegex := regexp.MustCompile(`https://[a-z0-9-]+\.trycloudflare\.com`)
-	matches := urlRegex.FindAllString(string(data), -1)
-	for i := len(matches) - 1; i >= 0; i-- {
-		if !strings.Contains(matches[i], "api.trycloudflare.com") {
-			return matches[i]
-		}
-	}
-	return ""
-}
+

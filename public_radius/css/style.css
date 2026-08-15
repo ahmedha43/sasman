@@ -333,7 +333,7 @@ body {
     box-shadow: var(--shadow);
     transition: var(--transition-smooth);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .card:hover {
@@ -1346,3 +1346,34 @@ table tbody tr:hover {
     justify-content: center;
     flex-shrink: 0;
 }
+
+/* Interactive Dashboard Cards */
+.interactive-card {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    overflow: hidden;
+    transition: transform var(--transition-smooth), box-shadow var(--transition-smooth), filter 0.15s ease !important;
+}
+
+.interactive-card:active {
+    transform: scale(0.97) translateY(-2px) !important;
+    filter: brightness(0.95);
+}
+
+.interactive-card .ripple {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    animation: ripple-animation 600ms ease-out;
+    background-color: rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+}
+
+@keyframes ripple-animation {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+

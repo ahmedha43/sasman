@@ -92,7 +92,6 @@ services:
     environment:
       - PORT=80
       - GODEBUG=x509negativeserial=1
-      - CLOUDFLARE_TUNNEL_ENABLED=true
     logging:
       driver: "json-file"
       options:

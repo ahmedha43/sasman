@@ -200,6 +200,14 @@ func CreateProfile(c *fiber.Ctx) error {
 	// Trigger sync for all users in this profile
 	go SyncUsersInGroup(req.Name)
 
+	if req.OriginalName != "" && req.OriginalName != req.Name {
+		LogActivityFromCtx(c, "تعديل باقة", req.Name, fmt.Sprintf("تم تعديل اسم الباقة من %s إلى %s (السعر: %.0f, المدة: %d يوم)", req.OriginalName, req.Name, req.Price, days))
+	} else if req.OriginalName != "" {
+		LogActivityFromCtx(c, "تعديل باقة", req.Name, fmt.Sprintf("تم تعديل بيانات الباقة %s (السعر: %.0f, المدة: %d يوم)", req.Name, req.Price, days))
+	} else {
+		LogActivityFromCtx(c, "إضافة باقة", req.Name, fmt.Sprintf("تم إنشاء باقة جديدة %s (السعر: %.0f, المدة: %d يوم)", req.Name, req.Price, days))
+	}
+
 	return c.JSON(fiber.Map{"message": "تم حفظ الباقة بنجاح"})
 }
 
@@ -227,5 +235,8 @@ func DeleteProfile(c *fiber.Ctx) error {
 	DB.Exec("DELETE FROM radgroupreply WHERE groupname=?", name)
 	DB.Exec("DELETE FROM radgroupcheck WHERE groupname=?", name)
 	DB.Exec("DELETE FROM radius_profile_meta WHERE groupname=?", name)
+
+	LogActivityFromCtx(c, "حذف باقة", name, fmt.Sprintf("تم حذف الباقة %s", name))
+
 	return c.JSON(fiber.Map{"message": "تم حذف الباقة بنجاح"})
 }

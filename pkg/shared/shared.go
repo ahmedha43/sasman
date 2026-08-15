@@ -24,12 +24,17 @@ var RoutingDataState RoutingData
 
 // RouterConfig models
 type RouterConfig struct {
-	Address    string `json:"address"`
-	Username   string `json:"user"`
-	Password   string `json:"pass"`
-	License    string `json:"license"`
-	Serial     string `json:"serial"`
-	NgrokToken string `json:"ngrok_token"`
+	Address          string `json:"address"`
+	Username         string `json:"user"`
+	Password         string `json:"pass"`
+	License          string `json:"license"`
+	Serial           string `json:"serial"`
+	NgrokToken       string `json:"ngrok_token"`
+	TunnelMode       string `json:"tunnel_mode"`
+	TunnelSubdomain  string `json:"tunnel_subdomain"`
+	TunnelToken      string `json:"tunnel_token"`
+	TunnelGatewayURL string `json:"tunnel_gateway_url"`
+	CentralDomain    string `json:"central_domain"`
 }
 
 var RouterConfigState RouterConfig
@@ -99,6 +104,23 @@ func LoadConfig() {
 		return
 	}
 	json.Unmarshal(file, &RouterConfigState)
+
+	if os.Getenv("SASMAN_TUNNEL_MODE") != "" {
+		RouterConfigState.TunnelMode = os.Getenv("SASMAN_TUNNEL_MODE")
+	}
+	if os.Getenv("SASMAN_SUBDOMAIN") != "" {
+		RouterConfigState.TunnelSubdomain = os.Getenv("SASMAN_SUBDOMAIN")
+	}
+	if os.Getenv("SASMAN_TUNNEL_TOKEN") != "" {
+		RouterConfigState.TunnelToken = os.Getenv("SASMAN_TUNNEL_TOKEN")
+	}
+	if os.Getenv("SASMAN_TUNNEL_GATEWAY_URL") != "" {
+		RouterConfigState.TunnelGatewayURL = os.Getenv("SASMAN_TUNNEL_GATEWAY_URL")
+	}
+	if os.Getenv("SASMAN_CENTRAL_DOMAIN") != "" {
+		RouterConfigState.CentralDomain = os.Getenv("SASMAN_CENTRAL_DOMAIN")
+	}
+
 	log.Printf("[Config] Loaded previous session for %s\n", RouterConfigState.Address)
 }
 

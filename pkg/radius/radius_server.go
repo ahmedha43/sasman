@@ -48,13 +48,23 @@ var (
 // StartRadiusServer initializes and starts the Go RADIUS server
 func StartRadiusServer() {
 	// Initialize Logger
+	debugEnabled := os.Getenv("DEBUG_RADIUS") == "1" || os.Getenv("DEBUG_RADIUS") == "true" || os.Getenv("DEBUG") == "1"
 	logFile, err := os.OpenFile("data/radius.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err == nil {
-		// Log to both standard output (which supervisor captures) and the log file
-		radiusLogger = log.New(io.MultiWriter(os.Stdout, logFile), "", log.LstdFlags)
+		if debugEnabled {
+			// Log to both standard output (which supervisor captures) and the log file
+			radiusLogger = log.New(io.MultiWriter(os.Stdout, logFile), "", log.LstdFlags)
+		} else {
+			// Log ONLY to the log file (hides request logs from terminal/stdout)
+			radiusLogger = log.New(logFile, "", log.LstdFlags)
+		}
 	} else {
-		log.Printf("[radius] WARNING: Could not open data/radius.log, logging to stdout: %v", err)
-		radiusLogger = log.Default()
+		log.Printf("[radius] WARNING: Could not open data/radius.log: %v", err)
+		if debugEnabled {
+			radiusLogger = log.Default()
+		} else {
+			radiusLogger = log.New(io.Discard, "", log.LstdFlags)
+		}
 	}
 
 	// Load NAS secrets from DB
@@ -69,7 +79,7 @@ func StartRadiusServer() {
 		SecretSource: SecretSourceFunc(getNASSecret),
 	}
 
-	radiusLogger.Printf("[radius] Starting Go RADIUS server on :1812 (Auth) and :1813 (Acct)...")
+	log.Printf("[radius] Starting Go RADIUS server on :1812 (Auth) and :1813 (Acct)...")
 
 	// Start Auth server
 	go func() {
@@ -112,7 +122,7 @@ func UpdateNASSecrets() {
 		}
 	}
 	nasSecrets = newSecrets
-	radiusLogger.Printf("[radius] Loaded %d NAS secrets", len(nasSecrets))
+	log.Printf("[radius] Loaded %d NAS secrets", len(nasSecrets))
 }
 
 func getNASSecret(ctx context.Context, remote net.Addr) ([]byte, error) {
@@ -408,7 +418,7 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	}
 
 	if err := signMessageAuthenticator(response); err != nil {
-		radiusLogger.Printf("[radius] ❌ خطأ: فشل توقيع حزمة القبول للمشترك [%s]: %v", username, err)
+		log.Printf("[radius] ❌ خطأ: فشل توقيع حزمة القبول للمشترك [%s]: %v", username, err)
 		w.Write(r.Response(radius.CodeAccessReject))
 		return
 	}
@@ -434,12 +444,12 @@ func writeAccessReject(w radius.ResponseWriter, r *radius.Request, username, rea
 		rfc2865.ReplyMessage_AddString(response, reason)
 	}
 	if err := signMessageAuthenticator(response); err != nil {
-		radiusLogger.Printf("[radius] ❌ خطأ في توقيع الرفض للمستخدم %s: %v", username, err)
+		log.Printf("[radius] ❌ خطأ في توقيع الرفض للمستخدم %s: %v", username, err)
 	} else {
 		radiusLogger.Printf("[radius] ❌ رفض الاتصال: يوزر [%s] | السبب: %s | NAS: %v", username, translateRejectReason(reason), r.RemoteAddr)
 	}
 	if err := w.Write(response); err != nil {
-		radiusLogger.Printf("[radius] ❌ خطأ في إرسال الرفض للمستخدم %s: %v", username, err)
+		log.Printf("[radius] ❌ خطأ في إرسال الرفض للمستخدم %s: %v", username, err)
 	}
 }
 

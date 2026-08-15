@@ -1,6 +1,8 @@
 package radius
 
 import (
+	"fmt"
+
 	"mikrotik-manager/pkg/core"
 
 	"github.com/gofiber/fiber/v2"
@@ -88,6 +90,7 @@ func UpdateNAS(c *fiber.Ctx) error {
 	}
 
 	reloadFreeRADIUS()
+	LogActivityFromCtx(c, "تعديل جهاز NAS", req.Name, fmt.Sprintf("تم تعديل بيانات جهاز NAS: %s (IP: %s)", req.Name, req.IP))
 	return c.JSON(fiber.Map{"message": "تم تعديل الراوتر بنجاح"})
 }
 
@@ -137,6 +140,7 @@ func CreateNAS(c *fiber.Ctx) error {
 	}
 
 	reloadFreeRADIUS()
+	LogActivityFromCtx(c, "إضافة جهاز NAS", req.Name, fmt.Sprintf("تم إضافة جهاز NAS جديد: %s (IP: %s)", req.Name, req.IP))
 	return c.JSON(fiber.Map{"message": "تم إضافة راوتر NAS بنجاح"})
 }
 
@@ -151,6 +155,7 @@ func DeleteNAS(c *fiber.Ctx) error {
 
 	DB.Exec("DELETE FROM nas WHERE nasname=?", ip)
 	reloadFreeRADIUS()
+	LogActivityFromCtx(c, "حذف جهاز NAS", ip, fmt.Sprintf("تم حذف جهاز NAS ذو العنوان %s", ip))
 	return c.JSON(fiber.Map{"message": "تم حذف الراوتر بنجاح"})
 }
 
@@ -204,6 +209,8 @@ func QuickSetupNAS(c *fiber.Ctx) error {
 
 	// Enable incoming radius
 	core.SafeRun(client, "/radius/incoming/set", "=accept=yes", "=port=3799")
+
+	LogActivityFromCtx(c, "إعداد سريع لـ NAS", "SASMAN NAS", "تم إعداد جهاز المايكروتك NAS الافتراضي (172.17.0.1)")
 
 	return c.JSON(fiber.Map{"message": "تم إعداد الراديوس السريع في النظام والمايكروتك بنجاح"})
 }

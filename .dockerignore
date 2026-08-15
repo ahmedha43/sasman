@@ -4,7 +4,19 @@ LICENSE_GENERATOR.go
 .git
 .dockerignore
 Dockerfile
+# Flutter frontend app - not needed for the Go backend build
+sasman_radius_app/
+# freeradius config/files - not referenced by the backend
+sas4/
 **/target
 **/node_modules
+**/.dart_tool
+**/build
 *.exe
 *.log
+*.db
+*.sqlite
+*.tar
+*.tar.gz
+*.img
+main

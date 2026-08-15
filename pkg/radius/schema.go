@@ -234,6 +234,20 @@ func EnsureSchema() {
 			notes TEXT NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
+
+		`CREATE TABLE IF NOT EXISTS radius_audit_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			admin_id INTEGER DEFAULT NULL,
+			admin_username TEXT NOT NULL DEFAULT '',
+			action_type TEXT NOT NULL,
+			target TEXT NOT NULL DEFAULT '',
+			details TEXT NOT NULL DEFAULT '',
+			ip_address TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_created_at ON radius_audit_logs (created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_action_type ON radius_audit_logs (action_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_admin_id ON radius_audit_logs (admin_id)`,
 	}
 
 	for _, stmt := range tables {

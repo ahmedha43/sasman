@@ -263,27 +263,25 @@ async function loadRadiusRemoteAccess() {
     if (!card || !status || !buttons) return;
 
     card.style.display = '';
-    status.textContent = 'جاري فحص روابط Cloudflare...';
+    status.textContent = 'جاري فحص روابط الوصول عن بُعد...';
     status.style.color = 'var(--text-muted)';
     buttons.style.display = 'none';
     radiusRemoteBaseURL = "";
 
     try {
-        const res = await apiFetch('/radius/api/auth/cloudflared/url');
+        const res = await apiFetch('/radius/api/ngrok/token');
         if (!res.ok) throw new Error('تعذر جلب روابط الوصول عن بُعد');
         const data = await res.json();
-        const cloudflareURL = data.url || "";
         const ngrokURL = data.ngrok && data.ngrok.web ? data.ngrok.web : "";
-        radiusRemoteBaseURL = cloudflareURL || ngrokURL;
+        radiusRemoteBaseURL = ngrokURL;
 
         if (!radiusRemoteBaseURL) {
-            status.textContent = 'لم يتم تجهيز رابط Cloudflare بعد. اضغط تحديث بعد لحظات.';
+            status.textContent = 'لم يتم تجهيز رابط وصول بعد. اضغط تحديث بعد لحظات.';
             status.style.color = 'var(--warning-hover)';
             return;
         }
 
-        const provider = cloudflareURL ? 'Cloudflare' : 'Ngrok';
-        status.textContent = `الرابط جاهز عبر ${provider}: ${radiusRemoteBaseURL}`;
+        status.textContent = `الرابط جاهز عبر Ngrok: ${radiusRemoteBaseURL}`;
         status.style.color = 'var(--success)';
         buttons.style.display = 'flex';
     } catch (err) {
@@ -634,3 +632,145 @@ async function toggleBypass() {
         btn.disabled = false;
     }
 }
+
+// ─── AUDIT LOGS MODULE ───────────────────────────────────────────────────────
+let currentAuditPage = 1;
+
+async function loadAuditLogs(page = 1) {
+    currentAuditPage = page;
+    const tbody = document.getElementById('audit-logs-table-body');
+    const info = document.getElementById('audit-logs-info');
+    const pagination = document.getElementById('audit-logs-pagination');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">⏳ جاري تحميل سجل العمليات...</td></tr>';
+
+    const search = encodeURIComponent(document.getElementById('audit-search')?.value.trim() || '');
+    const actionType = encodeURIComponent(document.getElementById('audit-filter-type')?.value || '');
+    const startDate = encodeURIComponent(document.getElementById('audit-start-date')?.value || '');
+    const endDate = encodeURIComponent(document.getElementById('audit-end-date')?.value || '');
+
+    const url = `/radius/api/audit-logs?page=${page}&limit=50&search=${search}&action_type=${actionType}&start_date=${startDate}&end_date=${endDate}`;
+
+    try {
+        const res = await apiFetch(url);
+        if (!res.ok) throw new Error('فشل جلب سجل العمليات');
+        const data = await res.json();
+
+        const logs = data.logs || [];
+        const total = data.total || 0;
+        const totalPages = data.total_pages || 1;
+
+        if (logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">📭 لا توجد عمليات مسجلة تطابق خيارات البحث.</td></tr>';
+            if (info) info.textContent = 'عرض 0 من 0 سجل';
+            if (pagination) pagination.innerHTML = '';
+            return;
+        }
+
+        const badgeColorMap = {
+            'تجديد مشترك': 'background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;',
+            'إضافة مشترك': 'background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe;',
+            'تعديل مشترك': 'background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;',
+            'حذف مشترك': 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;',
+            'شحن رصيد وكيل': 'background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;',
+            'سحب رصيد وكيل': 'background:#fff1f2; color:#be123c; border:1px solid #fecdd3;',
+            'إضافة دين لمشترك': 'background:#fef3c7; color:#b45309; border:1px solid #fde68a;',
+            'تسديد دين مشترك': 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;',
+            'إضافة باقة': 'background:#f3e8ff; color:#7e22ce; border:1px solid #e9d5ff;',
+            'تعديل باقة': 'background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe;',
+            'حذف باقة': 'background:#fdf2f8; color:#be185d; border:1px solid #fbcfe8;',
+            'إضافة جهاز NAS': 'background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe;',
+            'حذف جهاز NAS': 'background:#ffe4e6; color:#e11d48; border:1px solid #fecdd3;',
+            'توليد كروت': 'background:#fae8ff; color:#a21caf; border:1px solid #f5d0fe;',
+            'تفعيل كارت': 'background:#dcfce7; color:#15803d; border:1px solid #bbf7d0;',
+            'تسجيل دخول': 'background:#f1f5f9; color:#334155; border:1px solid #cbd5e1;',
+            'تسجيل خروج': 'background:#f8fafc; color:#64748b; border:1px solid #e2e8f0;',
+            'نسخ احتياطي': 'background:#e0f2fe; color:#0284c7; border:1px solid #bae6fd;',
+            'استعادة نسخة احتياطية': 'background:#ffedd5; color:#c2410c; border:1px solid #fed7aa;',
+            'تصفير النظام': 'background:#fee2e2; color:#991b1b; border:1px solid #fecaca;'
+        };
+
+        tbody.innerHTML = logs.map(l => {
+            const style = badgeColorMap[l.action_type] || 'background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;';
+            const formattedDate = l.created_at ? new Date(l.created_at).toLocaleString('ar-EG', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+            }) : '---';
+
+            return `
+                <tr>
+                    <td style="font-weight:bold; color:var(--text-muted);">${l.id}</td>
+                    <td>
+                        <span style="font-weight:bold; color:var(--text-main);"><i class="fa-solid fa-user-gear" style="margin-left:4px; color:var(--primary);"></i>${escapeHtml(l.admin_username || 'النظام')}</span>
+                    </td>
+                    <td>
+                        <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:bold; ${style}">
+                            ${escapeHtml(l.action_type)}
+                        </span>
+                    </td>
+                    <td><strong style="color:var(--primary);">${escapeHtml(l.target || '---')}</strong></td>
+                    <td style="font-size:13px; color:var(--text-main); line-height:1.4;">${escapeHtml(l.details || '---')}</td>
+                    <td><code style="font-size:11px; background:var(--bg-body, #f1f5f9); padding:2px 6px; border-radius:4px;">${escapeHtml(l.ip_address || '127.0.0.1')}</code></td>
+                    <td style="font-size:12px; color:var(--text-muted); dir:ltr; text-align:right;">${formattedDate}</td>
+                </tr>
+            `;
+        }).join('');
+
+        if (info) {
+            const startItem = (page - 1) * 50 + 1;
+            const endItem = Math.min(page * 50, total);
+            info.textContent = `عرض ${startItem}-${endItem} من أصل ${total} سجل`;
+        }
+
+        // Render Pagination buttons
+        if (pagination) {
+            let btnsHTML = '';
+            if (page > 1) {
+                btnsHTML += `<button class="btn" style="padding:4px 10px; font-size:12px;" onclick="loadAuditLogs(${page - 1})">السابق ◀</button>`;
+            }
+            btnsHTML += `<span style="align-self:center; font-size:13px; font-weight:bold; padding:0 8px;">صفحة ${page} من ${totalPages}</span>`;
+            if (page < totalPages) {
+                btnsHTML += `<button class="btn" style="padding:4px 10px; font-size:12px;" onclick="loadAuditLogs(${page + 1})">التالي ▶</button>`;
+            }
+            pagination.innerHTML = btnsHTML;
+        }
+
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:20px;">❌ ${err.message}</td></tr>`;
+    }
+}
+
+function exportAuditLogsCSV() {
+    const search = encodeURIComponent(document.getElementById('audit-search')?.value.trim() || '');
+    const actionType = encodeURIComponent(document.getElementById('audit-filter-type')?.value || '');
+    window.open(`/radius/api/audit-logs/export?search=${search}&action_type=${actionType}`, '_blank');
+}
+
+async function clearAuditLogsModal() {
+    const days = prompt("⚠️ لتأكيد تصفير السجل، حدد الخيار:\n- اكتب 'all' لمسح كافة العمليات بالسجل بالكامل.\n- أو أدخل عدد الأيام لحذف العمليات الأقدم منها (مثال: 30 لحذف الأقدم من شهر):");
+    if (!days) return;
+
+    let url = '/radius/api/audit-logs';
+    if (days.trim().toLowerCase() !== 'all' && !isNaN(parseInt(days))) {
+        url += `?days=${parseInt(days)}`;
+    }
+
+    try {
+        const res = await apiFetch(url, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok) {
+            alert(data.message || 'تم تصفير السجل بنجاح');
+            loadAuditLogs(1);
+        } else {
+            alert(data.error || 'فشل تصفير السجل');
+        }
+    } catch (e) {
+        alert('حدث خطأ في الاتصال أثناء تصفير السجل');
+    }
+}
+
+// Make functions accessible globally
+window.loadAuditLogs = loadAuditLogs;
+window.exportAuditLogsCSV = exportAuditLogsCSV;
+window.clearAuditLogsModal = clearAuditLogsModal;

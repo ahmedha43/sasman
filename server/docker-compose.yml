@@ -1,0 +1,31 @@
+version: '3.8'
+
+# SASMAN Central Gateway Server
+# Run from the project ROOT directory:
+#   docker compose -f server/docker-compose.yml up -d --build
+
+services:
+  central:
+    build:
+      context: ..          # Build from project root (needed for go.mod + pkg/)
+      dockerfile: server/Dockerfile
+    container_name: sasman-central
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ADDR=:8080
+      - SASMAN_CENTRAL_DOMAIN=sas-man.net     # ← Change to your domain
+      - SASMAN_DB_PATH=/app/data/sasman-central.db
+      - SASMAN_ADMIN_USER=admin
+      - SASMAN_ADMIN_PASSWORD=Mushtaq@Sasman#9977!
+    volumes:
+      - ./data:/app/data                       # Persist SQLite DB
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes: {}

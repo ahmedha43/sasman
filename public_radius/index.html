@@ -118,10 +118,22 @@
             </li>
 
             <li class="menu-title">إعدادات النظام</li>
+            <li class="menu-item" data-superadmin-only="true">
+                <button class="menu-link tab-btn" onclick="showTab('tunnel')">
+                    <i class="fa-solid fa-tunnel"></i>
+                    <span>إعدادات التنل (Tunnel)</span>
+                </button>
+            </li>
             <li class="menu-item">
                 <button class="menu-link tab-btn" onclick="showTab('whatsapp')">
                     <i class="fa-brands fa-whatsapp"></i>
                     <span>إشعارات واتساب</span>
+                </button>
+            </li>
+            <li class="menu-item">
+                <button class="menu-link tab-btn" onclick="showTab('audit-logs')">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>سجل العمليات والنشاطات</span>
                 </button>
             </li>
             <li class="menu-item" data-superadmin-only="true">
@@ -286,7 +298,7 @@
                     <!-- Metrics grid widgets -->
                     <div class="sas-grid">
                         <!-- Card 1: Total Users -->
-                        <div class="sas-card" style="background-color: #4b6584;">
+                        <div class="sas-card interactive-card" style="background-color: #4b6584;" onclick="navigateToUsersWithFilter('all')">
                             <div>
                                 <h3>إجمالي المستخدمين</h3>
                                 <div class="sub-label">المستخدمين المسجلين</div>
@@ -296,7 +308,7 @@
                         </div>
 
                         <!-- Card 2: Active Users -->
-                        <div class="sas-card" style="background-color: #218c74;">
+                        <div class="sas-card interactive-card" style="background-color: #218c74;" onclick="navigateToUsersWithFilter('active')">
                             <div>
                                 <h3>المستخدمين النشطين</h3>
                                 <div class="sub-label">المشتركين النشطين</div>
@@ -306,7 +318,7 @@
                         </div>
 
                         <!-- Card 3: Online Users -->
-                        <div class="sas-card" style="background-color: #3498db;">
+                        <div class="sas-card interactive-card" style="background-color: #3498db;" onclick="navigateToUsersWithFilter('online')">
                             <div>
                                 <h3>المتصلين الآن</h3>
                                 <div class="sub-label">المستخدمين المتصلين</div>
@@ -316,7 +328,7 @@
                         </div>
 
                         <!-- Card 4: Expired Users -->
-                        <div class="sas-card" style="background-color: #fc5c65;">
+                        <div class="sas-card interactive-card" style="background-color: #fc5c65;" onclick="navigateToUsersWithFilter('expired')">
                             <div>
                                 <h3>المستخدمين المنتهين</h3>
                                 <div class="sub-label">الحسابات المنتهية / المتوقفة</div>
@@ -326,7 +338,7 @@
                         </div>
 
                         <!-- Card 5: About To Expire -->
-                        <div class="sas-card" style="background-color: #f1c40f;">
+                        <div class="sas-card interactive-card" style="background-color: #f1c40f;" onclick="navigateToUsersWithFilter('about-to-expire')">
                             <div>
                                 <h3>قريبين من الانتهاء</h3>
                                 <div class="sub-label">تنتهي خلال 3 أيام</div>
@@ -344,8 +356,6 @@
                             <div class="value" id="stat-balance" style="font-size: 1.6rem; word-break: break-all;">0 د.ع</div>
                             <i class="fa-solid fa-wallet watermark-icon"></i>
                         </div>
-
-
                     </div>
                 </div>
 
@@ -391,6 +401,13 @@
                         <div class="users-search-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:15px; border-bottom:1px solid var(--border); padding-bottom:15px;">
                             <h3 style="margin:0; border:none; padding:0;"><i class="fa-solid fa-users"></i> قائمة المشتركين الحاليين</h3>
                             <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; flex:1; justify-content:flex-end;">
+                                <select id="users-filter-select" onchange="filterUsers()" style="padding: 10px 16px; border-radius: var(--radius-md); border: 1px solid var(--border); background-color: var(--bg-card); color: var(--text-main); font-weight: 600; cursor: pointer; outline: none; transition: var(--transition-smooth); font-size: 0.9rem;">
+                                    <option value="all">كل المشتركين</option>
+                                    <option value="active">النشطين</option>
+                                    <option value="expired">المنتهين</option>
+                                    <option value="online">المتصلين الآن</option>
+                                    <option value="about-to-expire">قريبين من الانتهاء</option>
+                                </select>
                                 <div class="search-box-wrapper" style="margin:0; max-width: 320px; width: 100%;">
                                     <span class="search-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
                                     <input type="text" id="users-search-input" class="users-search-input" placeholder="ابحث بالاسم، اليوزر، أو الهاتف..." oninput="filterUsers()">
@@ -505,7 +522,7 @@
                                 <i class="fa-solid fa-rotate"></i> تحديث
                             </button>
                         </div>
-                        <p id="radius-remote-access-status" class="field-hint" style="margin-bottom:14px;">جاري فحص روابط Cloudflare...</p>
+                        <p id="radius-remote-access-status" class="field-hint" style="margin-bottom:14px;">جاري فحص روابط الوصول عن بُعد...</p>
                         <div id="radius-remote-access-buttons" class="action-row" style="display:none;">
                             <button class="btn btn-primary" style="width:auto; padding:10px 18px;" onclick="copyRadiusRemotePath('/radius')">
                                 <i class="fa-solid fa-copy"></i> نسخ رابط RADIUS
@@ -909,6 +926,108 @@
                     </div>
                 </div>
 
+                <!-- ================= TAB AUDIT LOGS ================= -->
+                <div id="tab-audit-logs" class="tab-content">
+                    <div class="card">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; border-bottom:1px solid var(--border); padding-bottom:15px; margin-bottom:20px;">
+                            <div>
+                                <h2 style="margin:0;"><i class="fa-solid fa-list-check" style="color:var(--primary); margin-left:8px;"></i>سجل العمليات والنشاطات (System Audit Log)</h2>
+                                <p class="field-hint" style="margin-top:4px;">يسجل هذا القسم كافة العمليات والأنشطة الإدارية، المالية، التجديدات، الحذفيات، وإعدادات النظام بالتاريخ والوقت والمنفذ.</p>
+                            </div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button class="btn btn-primary" onclick="loadAuditLogs(1)" style="width:auto; padding:8px 16px;">
+                                    <i class="fa-solid fa-rotate"></i> تحديث
+                                </button>
+                                <button class="btn btn-success" onclick="exportAuditLogsCSV()" style="width:auto; padding:8px 16px;">
+                                    <i class="fa-solid fa-file-excel"></i> تصدير Excel (CSV)
+                                </button>
+                                <button class="btn btn-danger superadmin-only" onclick="clearAuditLogsModal()" style="width:auto; padding:8px 16px;">
+                                    <i class="fa-solid fa-trash-can"></i> تصفير السجل
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Filters Bar -->
+                        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; background:var(--bg-body, #f8fafc); padding:14px; border-radius:8px; border:1px solid var(--border); margin-bottom:20px;">
+                            <div style="flex:1; min-width:200px;">
+                                <label style="font-size:12px; font-weight:bold; margin-bottom:4px; display:block;">بحث في السجل:</label>
+                                <input type="text" id="audit-search" placeholder="ابحث باسم المنفذ، المشترك، أو التفاصيل..." class="form-control" onkeyup="if(event.key==='Enter') loadAuditLogs(1)">
+                            </div>
+                            <div style="width:180px;">
+                                <label style="font-size:12px; font-weight:bold; margin-bottom:4px; display:block;">نوع العملية:</label>
+                                <select id="audit-filter-type" class="form-control" onchange="loadAuditLogs(1)">
+                                    <option value="">جميع العمليات</option>
+                                    <option value="تجديد مشترك">تجديد مشترك</option>
+                                    <option value="إضافة مشترك">إضافة مشترك</option>
+                                    <option value="تعديل مشترك">تعديل مشترك</option>
+                                    <option value="حذف مشترك">حذف مشترك</option>
+                                    <option value="شحن رصيد وكيل">شحن رصيد وكيل</option>
+                                    <option value="سحب رصيد وكيل">سحب رصيد وكيل</option>
+                                    <option value="إضافة دين لمشترك">إضافة دين لمشترك</option>
+                                    <option value="تسديد دين مشترك">تسديد دين مشترك</option>
+                                    <option value="إضافة باقة">إضافة باقة</option>
+                                    <option value="تعديل باقة">تعديل باقة</option>
+                                    <option value="حذف باقة">حذف باقة</option>
+                                    <option value="إضافة جهاز NAS">إضافة جهاز NAS</option>
+                                    <option value="حذف جهاز NAS">حذف جهاز NAS</option>
+                                    <option value="توليد كروت">توليد كروت</option>
+                                    <option value="تفعيل كارت">تفعيل كارت</option>
+                                    <option value="تسجيل دخول">تسجيل دخول</option>
+                                    <option value="تسجيل خروج">تسجيل خروج</option>
+                                    <option value="نسخ احتياطي">نسخ احتياطي</option>
+                                    <option value="استعادة نسخة احتياطية">استعادة نسخة</option>
+                                    <option value="تصفير النظام">تصفير النظام</option>
+                                </select>
+                            </div>
+                            <div style="width:140px;">
+                                <label style="font-size:12px; font-weight:bold; margin-bottom:4px; display:block;">من تاريخ:</label>
+                                <input type="date" id="audit-start-date" class="form-control" onchange="loadAuditLogs(1)">
+                            </div>
+                            <div style="width:140px;">
+                                <label style="font-size:12px; font-weight:bold; margin-bottom:4px; display:block;">إلى تاريخ:</label>
+                                <input type="date" id="audit-end-date" class="form-control" onchange="loadAuditLogs(1)">
+                            </div>
+                            <div style="margin-top:20px;">
+                                <button class="btn btn-primary" onclick="loadAuditLogs(1)" style="width:auto; padding:8px 16px;">فلترة 🔍</button>
+                            </div>
+                        </div>
+
+                        <!-- Logs Table -->
+                        <div class="table-responsive">
+                            <table class="table" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th style="width:60px;">#</th>
+                                        <th style="width:140px;">المنفذ</th>
+                                        <th style="width:150px;">نوع العملية</th>
+                                        <th style="width:160px;">الهدف / العنصر</th>
+                                        <th>تفاصيل العملية</th>
+                                        <th style="width:120px;">عنوان IP</th>
+                                        <th style="width:160px;">التاريخ والوقت</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-logs-table-body">
+                                    <tr>
+                                        <td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">
+                                            ⏳ جاري تحميل سجل العمليات...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination Footer -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px; flex-wrap:wrap; gap:10px;">
+                            <div id="audit-logs-info" style="font-size:13px; color:var(--text-muted);">
+                                عرض 0 من 0 سجل
+                            </div>
+                            <div id="audit-logs-pagination" style="display:flex; gap:6px;">
+                                <!-- Pagination buttons generated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- ================= 8. TAB STREAMS ================= -->
                 <div id="tab-streams" class="tab-content">
                     <div class="card">
@@ -941,7 +1060,59 @@
                     </div>
                 </div>
 
-                <!-- ================= 9. TAB VOUCHERS ================= -->
+                <!-- ================= 9. TAB TUNNEL ================= -->
+                <div id="tab-tunnel" class="tab-content">
+                    <div class="card">
+                        <h2><i class="fa-solid fa-tunnel"></i> إعدادات التنل (Tunnel / Agent Mode)</h2>
+                        <p class="field-hint" style="margin-bottom:20px; line-height:1.8; color:var(--text);">
+                            يمكنك من هنا ضبط إعدادات التوصيل النفقي (Tunneling) للنظام. عند تفعيل وضع <strong>Agent</strong>، يقوم هذا النظام المحلي بفتح اتصال WebSocket مع السيرفر المركزي (Gateway) مما يتيح الوصول للوحة الإدارة عبر دومين فرعي مخصص دون الحاجة لفتح منافذ في الراوتر.
+                        </p>
+                        
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+                            <div class="form-group">
+                                <label>وضع التوصيل (Tunnel Mode):</label>
+                                <select id="tunnel-mode">
+                                    <option value="">معطّل (Off)</option>
+                                    <option value="agent">وكيل (Agent) - الاتصال بالسيرفر المركزي</option>
+                                </select>
+                                <p class="field-hint">اختر <strong>Agent</strong> لربط هذا النظام بالسيرفر المركزي عبر WebSocket</p>
+                            </div>
+                            <div class="form-group">
+                                <label>الدومين الفرعي (Subdomain):</label>
+                                <input type="text" id="tunnel-subdomain" placeholder="مثال: customer-xyz">
+                                <p class="field-hint">الاسم الفريد المخصص لهذا النظام على السيرفر المركزي</p>
+                            </div>
+                            <div class="form-group">
+                                <label>توكن المصادقة (Token):</label>
+                                <input type="text" id="tunnel-token" placeholder="tok-xxxxxxxxxxxx">
+                                <p class="field-hint">التوكن الفريد المستخدم في مصادقة الاتصال</p>
+                            </div>
+                            <div class="form-group">
+                                <label>رابط بوابة السيرفر المركزي (Gateway URL):</label>
+                                <input type="text" id="tunnel-gateway-url" placeholder="ws://sas-man.net/ws">
+                                <p class="field-hint">عنوان WebSocket الخاص بالسيرفر المركزي</p>
+                            </div>
+                        </div>
+
+                        <div class="info-box-yellow" style="margin-top:15px;">
+                            <p style="margin:0; color:#854d0e; font-size:0.9rem; line-height:1.7;">
+                                <strong>💡 ملاحظات مهمة:</strong><br>
+                                • عند تفعيل وضع الوكيل (Agent)، سيقوم النظام بإعادة الاتصال بالسيرفر المركزي تلقائياً في حال انقطاع الاتصال.<br>
+                                • يجب الحصول على الدومين الفرعي والتوكن من مدير السيرفر المركزي.<br>
+                                • يمكنك ترك الدومين والتوكن فارغين ليتم توليدها تلقائياً من السيرفر المركزي.
+                            </p>
+                        </div>
+
+                        <div style="margin-top:20px;">
+                            <button class="btn btn-primary" style="width:auto; padding:10px 25px;" onclick="saveTunnelConfig()">
+                                💾 حفظ إعدادات التنل
+                            </button>
+                            <span id="tunnel-config-status" style="margin-right:15px; font-weight:600;"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 10. TAB VOUCHERS ================= -->
                 <div id="tab-vouchers" class="tab-content">
                     <div class="card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
@@ -1533,6 +1704,48 @@
             }
         }
 
+        // Navigation with Filter from Dashboard
+        async function navigateToUsersWithFilter(filterType) {
+            await showTab('users');
+            const select = document.getElementById('users-filter-select');
+            if (select) {
+                select.value = filterType;
+            }
+            const searchInput = document.getElementById('users-search-input');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            if (typeof filterUsers === 'function') {
+                filterUsers();
+            }
+        }
+
+        // Ripple Effect for Interactive Cards
+        document.addEventListener('click', function(e) {
+            const card = e.target.closest('.interactive-card');
+            if (!card) return;
+
+            // Create ripple element
+            const ripple = document.createElement('span');
+            ripple.classList.add('ripple');
+            card.appendChild(ripple);
+
+            // Position ripple
+            const rect = card.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            ripple.style.width = ripple.style.height = `${size}px`;
+
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+            ripple.style.left = `${x}px`;
+            ripple.style.top = `${y}px`;
+
+            // Remove ripple after animation ends
+            ripple.addEventListener('animationend', () => {
+                ripple.remove();
+            });
+        });
+
         // Override the original updateDashboard to populate all 7 SAS4 statistics
         const originalUpdateDashboard = window.updateDashboard;
         window.updateDashboard = async function(cachedUsers) {
@@ -1544,6 +1757,20 @@
                     users = await usersRes.json();
                 }
                 
+                // Fetch WhatsApp config to get reminder hours
+                let warningHours = 72; // Default fallback to 3 days (72 hours)
+                try {
+                    const waRes = await apiFetch('/radius/api/whatsapp/config');
+                    if (waRes.ok) {
+                        const waData = await waRes.json();
+                        if (waData && waData.reminder_hours) {
+                            warningHours = parseInt(waData.reminder_hours) || 72;
+                        }
+                    }
+                } catch (waErr) {
+                    console.warn("Failed to fetch WhatsApp config for reminder hours:", waErr);
+                }
+
                 // Total Users
                 const total = users.length || 0;
                 
@@ -1556,16 +1783,15 @@
                 // Expired Users (Expired or disabled)
                 const expired = users.filter(u => u.expired || !u.enabled).length || 0;
                 
-                // Users expiring in 3 days
+                // Users expiring in warningHours
                 const now = new Date();
-                const threeDaysFromNow = new Date();
-                threeDaysFromNow.setDate(now.getDate() + 3);
+                const warningTimeLimit = new Date(now.getTime() + (warningHours * 60 * 60 * 1000));
                 let aboutToExpireCount = 0;
                 users.forEach(u => {
                     if (u.expires_at && !u.expired && u.enabled) {
                         const expDate = new Date(u.expires_at.replace(' ', 'T'));
                         if (!isNaN(expDate.getTime())) {
-                            if (expDate > now && expDate <= threeDaysFromNow) {
+                            if (expDate > now && expDate <= warningTimeLimit) {
                                 aboutToExpireCount++;
                             }
                         }
@@ -1589,6 +1815,27 @@
                 if (elExpired) elExpired.innerText = expired;
                 if (elAboutToExpire) elAboutToExpire.innerText = aboutToExpireCount;
                 if (elBalance) elBalance.innerText = balanceVal + " د.ع";
+
+                // Dynamically update Card 5 (About to Expire) subtitle
+                const elAboutToExpireSub = elAboutToExpire ? elAboutToExpire.previousElementSibling.querySelector('.sub-label') : null;
+                if (elAboutToExpireSub) {
+                    let warningLabelText = "";
+                    if (warningHours % 24 === 0) {
+                        const days = warningHours / 24;
+                        if (days === 1) {
+                            warningLabelText = "تنتهي خلال يوم واحد";
+                        } else if (days === 2) {
+                            warningLabelText = "تنتهي خلال يومين";
+                        } else if (days >= 3 && days <= 10) {
+                            warningLabelText = `تنتهي خلال ${days} أيام`;
+                        } else {
+                            warningLabelText = `تنتهي خلال ${days} يوم`;
+                        }
+                    } else {
+                        warningLabelText = `تنتهي خلال ${warningHours} ساعة`;
+                    }
+                    elAboutToExpireSub.innerText = warningLabelText;
+                }
                 
                 // Also update the original badges if they exist
                 const statUsers = document.getElementById('stat-users');
@@ -1612,6 +1859,86 @@
                 window.updateDashboard();
             }
         }, 60000); // Every 60 seconds
+
+        // ==================== TUNNEL SETTINGS ====================
+        // Load tunnel settings when opening the tunnel tab
+        async function loadTunnelConfig() {
+            try {
+                const res = await apiFetch('/radius/api/auth/tunnel/config');
+                if (!res.ok) return;
+                const data = await res.json();
+                
+                const modeEl = document.getElementById('tunnel-mode');
+                const subdomainEl = document.getElementById('tunnel-subdomain');
+                const tokenEl = document.getElementById('tunnel-token');
+                const gatewayEl = document.getElementById('tunnel-gateway-url');
+                
+                if (modeEl) modeEl.value = data.mode || '';
+                if (subdomainEl) subdomainEl.value = data.subdomain || '';
+                if (tokenEl) tokenEl.value = data.token || '';
+                if (gatewayEl) gatewayEl.value = data.gateway_url || '';
+            } catch (e) {
+                console.error('Failed to load tunnel config:', e);
+            }
+        }
+
+        // Save tunnel settings
+        async function saveTunnelConfig() {
+            const statusEl = document.getElementById('tunnel-config-status');
+            try {
+                const payload = {
+                    mode: document.getElementById('tunnel-mode').value,
+                    subdomain: document.getElementById('tunnel-subdomain').value.trim(),
+                    token: document.getElementById('tunnel-token').value.trim(),
+                    gateway_url: document.getElementById('tunnel-gateway-url').value.trim()
+                };
+                
+                const res = await apiFetch('/radius/api/auth/tunnel/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    if (statusEl) {
+                        statusEl.style.color = 'var(--success)';
+                        statusEl.textContent = '✅ تم حفظ إعدادات التنل بنجاح!';
+                        setTimeout(() => { statusEl.textContent = ''; }, 4000);
+                    }
+                } else {
+                    const err = await res.json();
+                    if (statusEl) {
+                        statusEl.style.color = 'var(--danger)';
+                        statusEl.textContent = '❌ خطأ: ' + (err.error || 'فشل الحفظ');
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to save tunnel config:', e);
+                if (statusEl) {
+                    statusEl.style.color = 'var(--danger)';
+                    statusEl.textContent = '❌ خطأ في الاتصال بالسيرفر';
+                }
+            }
+        }
+
+        // Hook into showTab to load tunnel config when opening the tab
+        const originalShowTab = window.showTab;
+        if (typeof originalShowTab === 'function') {
+            window.showTab = async function(tabName) {
+                await originalShowTab(tabName);
+                if (tabName === 'tunnel') {
+                    loadTunnelConfig();
+                }
+            };
+        } else {
+            // Fallback: load on DOMContentLoaded for tunnel tab
+            document.addEventListener('DOMContentLoaded', function() {
+                const tunnelTab = document.getElementById('tab-tunnel');
+                if (tunnelTab && tunnelTab.classList.contains('active')) {
+                    loadTunnelConfig();
+                }
+            });
+        }
     </script>
 </body>
 </html>

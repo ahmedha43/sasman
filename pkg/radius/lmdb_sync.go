@@ -40,10 +40,21 @@ func InitLMDB() {
 		log.Fatalf("Failed to set map size: %v", err)
 	}
 
-	// Important: Use default flags for production safety unless NoLock is absolutely needed
+	// Important: Try standard flags first, fallback to lock cleanup and NoLock if kernel restricts mutexes
 	err = lmdbEnv.Open(dbDir, 0, 0644)
 	if err != nil {
-		log.Fatalf("Failed to open LMDB: %v", err)
+		log.Printf("[lmdb] Standard Open failed (%v). Attempting lock cleanup and retry...", err)
+		_ = os.Remove(dbDir + "/lock.mdb")
+		_ = os.Remove(dbDir + "/data.mdb.lock")
+
+		err = lmdbEnv.Open(dbDir, 0, 0644)
+		if err != nil {
+			log.Printf("[lmdb] Retrying with NoLock mode for single-process RouterOS/ARM64 kernel compatibility...")
+			err = lmdbEnv.Open(dbDir, lmdb.NoLock, 0644)
+			if err != nil {
+				log.Fatalf("Failed to open LMDB after all fallbacks: %v", err)
+			}
+		}
 	}
 
 	log.Printf("LMDB Engine Initialized at %s", dbDir)

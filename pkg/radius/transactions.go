@@ -118,9 +118,13 @@ func AddTransaction(c *fiber.Ctx) error {
 	}
 
 	msg := "تم إضافة الديون بنجاح"
+	actName := "إضافة دين لمشترك"
 	if req.Type == "payment" {
 		msg = "تم تسديد الديون بنجاح"
+		actName = "تسديد دين مشترك"
 	}
+
+	LogActivityFromCtx(c, actName, username, fmt.Sprintf("%s بمبلغ %.2f للمشترك %s (ملاحظات: %s)", msg, req.Amount, username, req.Notes))
 
 	_, _, balance, _, _ := loadUserExtraInfo(username)
 	templateKey := "add_debt"

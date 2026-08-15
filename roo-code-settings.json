@@ -1,0 +1,8 @@
+{
+  "apiProvider": "openai-compatible",
+  "openAiCompatible": {
+    "baseUrl": "https://apiai-production.up.railway.app/v1",
+    "apiKey": "sk-89601f01d0838678f8eb99b0dac09cc2a7d20d91e81729be",
+    "model": "z-ai/glm-5.2"
+  }
+}

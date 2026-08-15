@@ -14,9 +14,8 @@ services:
     environment:
       - PORT=80
       - GODEBUG=x509negativeserial=1
-      - CLOUDFLARE_TUNNEL_ENABLED=true
       - SASMAN_IMAGE=ahmedkin99/sasman-manager:latest
-      - DEBUG_RADIUS=true
+      - DEBUG_RADIUS=false
     logging:
       driver: "json-file"
       options:

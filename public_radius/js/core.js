@@ -53,6 +53,7 @@ async function showTab(tabId) {
     // Dispatch event for other modules
     window.dispatchEvent(new CustomEvent('tabChanged', { detail: { tab: tabId } }));
 
+    if (tabId === 'dashboard' && typeof window.updateDashboard === 'function') window.updateDashboard();
     if (tabId === 'account' && typeof window.loadAdmins === 'function') window.loadAdmins();
     if (tabId === 'account' && typeof window.loadRadiusRemoteAccess === 'function') window.loadRadiusRemoteAccess();
     if (tabId === 'account' && typeof window.loadBypassStatus === 'function') window.loadBypassStatus();
@@ -62,6 +63,7 @@ async function showTab(tabId) {
     if (tabId === 'nas' && typeof window.loadNAS === 'function') window.loadNAS();
     if (tabId === 'vouchers' && typeof window.loadVouchers === 'function') window.loadVouchers();
     if (tabId === 'users' && typeof window.loadUsers === 'function') window.loadUsers();
+    if (tabId === 'audit-logs' && typeof window.loadAuditLogs === 'function') window.loadAuditLogs(1);
     if (tabId === 'streams' && typeof window.loadStreams === 'function') window.loadStreams();
 }
 

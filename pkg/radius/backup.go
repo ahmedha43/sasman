@@ -36,7 +36,7 @@ func BackupDatabaseHandler(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"error": "غير مسجل"})
 	}
 
-	tmp, filename, err := createDatabaseBackupFile()
+	tmp, filename, err := CreateDatabaseBackupFile()
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "فشل النسخ الاحتياطي لقاعدة البيانات: " + err.Error()})
 	}
@@ -47,12 +47,13 @@ func BackupDatabaseHandler(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	LogActivityFromCtx(c, "نسخ احتياطي", "قاعدة البيانات", fmt.Sprintf("تم تحميل نسخة احتياطية من قاعدة البيانات (%s)", filename))
 	c.Set("Content-Type", "application/octet-stream")
 	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	return c.Send(data)
 }
 
-func createDatabaseBackupFile() (string, string, error) {
+func CreateDatabaseBackupFile() (string, string, error) {
 	tmp := filepath.Join(os.TempDir(), fmt.Sprintf("sasman_backup_%d.sqlite", time.Now().UnixNano()))
 	filename := fmt.Sprintf("sasman_sqlite_%s.db", time.Now().Format("2006-01-02_1504"))
 
@@ -113,6 +114,8 @@ func RestoreDatabaseHandler(c *fiber.Ctx) error {
 	if err := replaceSQLiteDatabase(dbPath, restoreDBFile); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "فشل استبدال قاعدة البيانات: " + err.Error()})
 	}
+
+	LogActivityFromCtx(c, "استعادة نسخة احتياطية", "قاعدة البيانات", fmt.Sprintf("تم استعادة قاعدة البيانات من الملف %s", fh.Filename))
 
 	log.Println("[restore] Database restore completed. Restarting service...")
 	go func() {
@@ -234,7 +237,7 @@ func sendTelegramDatabaseBackup(cfg telegramBackupConfig, caption string) error 
 	telegramBackupMu.Lock()
 	defer telegramBackupMu.Unlock()
 
-	tmp, filename, err := createDatabaseBackupFile()
+	tmp, filename, err := CreateDatabaseBackupFile()
 	if err != nil {
 		return err
 	}

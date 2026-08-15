@@ -276,6 +276,11 @@ func CreateUser(c *fiber.Ctx) error {
 	message := "تم حفظ المشترك بنجاح"
 	if usernameChanged {
 		message = "تم تحديث المشترك ونقل البيانات المالية بنجاح"
+		LogActivityFromCtx(c, "تعديل مشترك", req.User, fmt.Sprintf("تم تعديل اسم المشترك من %s إلى %s (الباقة: %s)", oldUsername, req.User, req.Profile))
+	} else if newUsernameExists {
+		LogActivityFromCtx(c, "تعديل مشترك", req.User, fmt.Sprintf("تم تعديل بيانات المشترك %s (الباقة: %s)", req.User, req.Profile))
+	} else {
+		LogActivityFromCtx(c, "إضافة مشترك", req.User, fmt.Sprintf("تم إنشاء مشترك جديد %s (الباقة: %s)", req.User, req.Profile))
 	}
 
 	return c.JSON(fiber.Map{"message": message})
@@ -410,6 +415,8 @@ func RenewUser(c *fiber.Ctx) error {
 		})
 	}
 
+	LogActivityFromCtx(c, "تجديد مشترك", username, fmt.Sprintf("تم تجديد اشتراك %s بباقة %s لمدة %d يوم (السعر: %.0f)", username, req.Profile, validityDays, profilePrice))
+
 	return c.JSON(fiber.Map{
 		"message":    "تم تجديد المشترك بنجاح",
 		"expires_at": formatUnixDateTime(newExpiration),
@@ -457,6 +464,8 @@ func DeleteUser(c *fiber.Ctx) error {
 	// Remove from LMDB
 	QueueUserSync(username)
 
+	LogActivityFromCtx(c, "حذف مشترك", username, fmt.Sprintf("تم حذف حساب المشترك %s بالكامل", username))
+
 	return c.JSON(fiber.Map{"message": "تم حذف المستخدم بنجاح"})
 }
 
@@ -493,6 +502,8 @@ func DisconnectUser(c *fiber.Ctx) error {
 	}
 
 	InvalidateSessionCache()
+	LogActivityFromCtx(c, "فصل مشترك", targetName, fmt.Sprintf("تم فصل اتصال الجلسة النشطة للمشترك %s", targetName))
+
 	return c.JSON(fiber.Map{"message": "تمت معالجة طلب الفصل"})
 }
 
@@ -572,6 +583,11 @@ func ToggleUserStatus(c *fiber.Ctx) error {
 	if newStatus == 0 {
 		msg = "تم إيقاف المستخدم وفصله"
 	}
+	statusStr := "تفعيل"
+	if newStatus == 0 {
+		statusStr = "إيقاف"
+	}
+	LogActivityFromCtx(c, "تغيير حالة مشترك", username, fmt.Sprintf("تم %s حساب المشترك %s", statusStr, username))
 	fmt.Printf("[radius] User %s status toggled to: %d\n", username, newStatus)
 	return c.JSON(fiber.Map{"message": msg, "enabled": newStatus == 1})
 }
@@ -858,6 +874,8 @@ func PortalLoginHandler(c *fiber.Ctx) error {
 	if err == sql.ErrNoRows || storedPass != req.Password {
 		return c.Status(401).JSON(fiber.Map{"error": "اسم المستخدم أو كلمة المرور غير صحيحة"})
 	}
+
+	LogActivity(nil, req.Username, "تسجيل دخول كارت/مشترك", req.Username, fmt.Sprintf("تم تسجيل دخول المشترك %s عبر بوابة المشتركين", req.Username), c.IP())
 
 	return c.JSON(fiber.Map{
 		"message":  "تم تسجيل الدخول بنجاح",

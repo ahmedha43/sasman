@@ -1,7 +1,6 @@
 package radius
 
 import (
-	"bufio"
 	"bytes"
 	"database/sql"
 	"encoding/json"
@@ -9,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -315,7 +313,7 @@ func showRemoteLinks(token string, chatID int64) {
 	if baseURL == "" {
 		sendMessage(token, chatID,
 			"⚠️ لم يتم العثور على رابط وصول عام حالياً.\n\n"+
-				"تأكد أن Cloudflare Tunnel يعمل، ثم أعد المحاولة من زر الروابط أو الأمر /links.",
+				"تأكد من إعدادات الـ Tunnel أو SASMAN_PUBLIC_URL، ثم أعد المحاولة.",
 			backBtn(), true)
 		return
 	}
@@ -336,36 +334,10 @@ func currentServerPublicURL() string {
 			return value
 		}
 	}
-	return latestCloudflaredURL()
-}
-
-func latestCloudflaredURL() string {
-	if os.Getenv("CLOUDFLARE_TUNNEL_ENABLED") == "false" {
-		return ""
-	}
-
-	paths := []string{"/app/data/cloudflared.log", "data/cloudflared.log"}
-	urlRegex := regexp.MustCompile(`https://[a-z0-9-]+\.trycloudflare\.com`)
-	for _, path := range paths {
-		file, err := os.Open(path)
-		if err != nil {
-			continue
-		}
-
-		var latest string
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			if found := urlRegex.FindString(scanner.Text()); found != "" && !strings.Contains(found, "api.trycloudflare.com") {
-				latest = found
-			}
-		}
-		_ = file.Close()
-		if latest != "" {
-			return latest
-		}
-	}
 	return ""
 }
+
+
 
 func showUsersList(token string, chatID int64, page int) {
 	if DB == nil {

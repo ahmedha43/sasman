@@ -1,0 +1,98 @@
+name: Build & Release SASMAN Multi-Architecture
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release Version (e.g. 5.1.0)'
+        required: true
+        default: '5.1.0'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    name: Build Multi-Architecture Images & Binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU for ARM / ARM64 Emulation
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create Releases Directory
+        run: mkdir -p releases
+
+      # ─── 1. Build ARMv7 (MikroTik RB4011, hAP ax2/ax3) ────────────────────────
+      - name: Build & Export linux/arm/v7 Container Image
+        run: |
+          echo "Building SASMAN for linux/arm/v7 (RB4011)..."
+          docker buildx build --platform linux/arm/v7 -t sasman:armv7 --load .
+          docker save sasman:armv7 -o releases/sasman-armv7.tar
+          
+          # Extract agent binary
+          CID=$(docker create --platform linux/arm/v7 sasman:armv7)
+          docker cp $CID:/app/main releases/sasman-agent-linux-armv7 || true
+          docker rm -f $CID
+
+      # ─── 2. Build ARM64 (MikroTik CCR2004, RB5009, L009) ───────────────────────
+      - name: Build & Export linux/arm64 Container Image
+        run: |
+          echo "Building SASMAN for linux/arm64 (CCR2004, RB5009)..."
+          docker buildx build --platform linux/arm64 -t sasman:arm64 --load .
+          docker save sasman:arm64 -o releases/sasman-arm64.tar
+          
+          # Extract agent binary
+          CID=$(docker create --platform linux/arm64 sasman:arm64)
+          docker cp $CID:/app/main releases/sasman-agent-linux-arm64 || true
+          docker rm -f $CID
+
+      # ─── 3. Build AMD64 (MikroTik CHR, x86 PC) ─────────────────────────────────
+      - name: Build & Export linux/amd64 Container Image
+        run: |
+          echo "Building SASMAN for linux/amd64 (CHR, x86_64)..."
+          docker buildx build --platform linux/amd64 -t sasman:amd64 --load .
+          docker save sasman:amd64 -o releases/sasman-amd64.tar
+          
+          # Extract agent binary
+          CID=$(docker create --platform linux/amd64 sasman:amd64)
+          docker cp $CID:/app/main releases/sasman-agent-linux-amd64 || true
+          docker rm -f $CID
+
+      # ─── 4. List Generated Artifacts & Hashes ───────────────────────────────────
+      - name: Generate Checksums
+        run: |
+          cd releases
+          sha256sum * > SHA256SUMS.txt
+          ls -lh
+
+      # ─── 5. Upload GitHub Actions Artifacts ─────────────────────────────────────
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sasman-releases
+          path: releases/*
+          retention-days: 14
+
+      # ─── 6. Create GitHub Release (on Tag or Manual Run) ─────────────────────────
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: "SASMAN Release ${{ github.event.inputs.version || github.ref_name }}"
+          draft: false
+          prerelease: false
+          files: releases/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

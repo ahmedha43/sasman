@@ -121,6 +121,8 @@ func GenerateVouchers(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	LogActivityFromCtx(c, "توليد كروت", req.ProfileName, fmt.Sprintf("تم توليد %d كرت لباقة %s (المجموعة: %s)", req.Count, req.ProfileName, batchID))
+
 	return c.JSON(fiber.Map{"message": fmt.Sprintf("تم إنشاء %d كرت بنجاح", req.Count), "vouchers": vouchers})
 }
 
@@ -279,6 +281,8 @@ func RedeemVoucher(c *fiber.Ctx) error {
 		"validity_days": fmt.Sprintf("%d", v.ValidityDays),
 	})
 
+	LogActivityFromCtx(c, "تفعيل كارت", req.Username, fmt.Sprintf("تم تفعيل كارت الكود %s للمشترك %s (باقة: %s)", req.Code, req.Username, v.ProfileName))
+
 	return c.JSON(fiber.Map{"message": "تم تفعيل الكرت بنجاح! تم تجديد اشتراكك."})
 }
 
@@ -322,6 +326,9 @@ func DeleteVoucher(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "فشل في حذف الكرت: " + err.Error()})
 	}
+
+	LogActivityFromCtx(c, "حذف كارت", id, fmt.Sprintf("تم حذف كارت رقم #%s", id))
+
 	return c.JSON(fiber.Map{"message": "تم حذف الكرت بنجاح"})
 }
 
@@ -341,9 +348,11 @@ func DeleteVoucherBatch(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "فشل في حذف المجموعة: " + err.Error()})
 	}
-	
+
 	rowsAffected, _ := res.RowsAffected()
-	return c.JSON(fiber.Map{"message": fmt.Sprintf("تم حذف %d كرت من المجموعة بنجاح", rowsAffected)})
+	LogActivityFromCtx(c, "حذف دفعة كروت", batchID, fmt.Sprintf("تم حذف %d كارت من المجموعة %s", rowsAffected, batchID))
+
+	return c.JSON(fiber.Map{"message": fmt.Sprintf("تم حذف %d كارت من المجموعة بنجاح", rowsAffected)})
 }
 
 func ClearAllVouchers(c *fiber.Ctx) error {
@@ -356,5 +365,8 @@ func ClearAllVouchers(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "فشل في مسح جميع الكروت: " + err.Error()})
 	}
+
+	LogActivityFromCtx(c, "مسح جميع الكروت", "الكروت", "تم تصفير جميع الكروت من النظام بالكامل")
+
 	return c.JSON(fiber.Map{"message": "تم حذف جميع الكروت بنجاح (ضبط المصنع للكروت)"})
 }

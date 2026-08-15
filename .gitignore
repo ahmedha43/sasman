@@ -3,9 +3,11 @@ node_modules/
 *.exe
 *.exe~
 *.tar
+*.tar.gz
 *.img
 *.img.gz
 *.log
+main
 
 extracted/
 *.npk
@@ -16,3 +18,13 @@ extracted/
 converted_sqlite.sql
 
 _data_backup/
+data/radius_db/
+data/*.db*
+data/*.json
+data_test/
+releases/
+.freebuff/
+.kilo/
+sas4_export.xlsx
+sas4_probe/
+sasman-central.tar.gz

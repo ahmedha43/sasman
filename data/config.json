@@ -1,8 +1,0 @@
-{
-  "address": "192.168.88.1:8728",
-  "user": "admin",
-  "pass": "",
-  "license": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MDg4MTY4MzQsImlhdCI6MTc3NzI4MDgzNCwic2VyaWFsIjoiQjg3MTBDODRGMzJCIn0.W6q29frbx9jVM7-dmCJZV-MlxxmKx06qmFAGqPo_NqLGxKyt-Cy107WXkn6Ln6qkh1S7XpJbi3WCD-UMmCJABQ",
-  "serial": "B8710C84F32B",
-  "ngrok_token": ""
-}

@@ -229,8 +229,8 @@ async function loadUsers() {
         } else {
             container.innerHTML = users.map(u => buildUserRow(u)).join('');
         }
-        updateSearchBadge(users.length);
         updateDashboard(users);
+        filterUsers(); // Apply active text query and quick filter dropdown
     } catch (e) {
         console.error(e);
     }
@@ -241,36 +241,72 @@ function updateSearchBadge(count) {
     if (badge) badge.textContent = count || 0;
 }
 
-function filterUsers() {
+async function filterUsers() {
     const input = document.getElementById('users-search-input');
     if (!input) return;
     const query = input.value.trim().toLowerCase();
+    
+    const filterSelect = document.getElementById('users-filter-select');
+    const filterType = filterSelect ? filterSelect.value : 'all';
+    
     const tbody = document.getElementById('users-tbody');
     if (!tbody) return;
 
     let visibleCount = 0;
-
-    if (!query) {
-        tbody.querySelectorAll('tr').forEach(row => {
-            row.style.display = '';
-            visibleCount++;
-        });
-        updateSearchBadge(visibleCount);
-        return;
+    
+    // Fetch whatsapp configuration for warning hours setting dynamically
+    let warningHours = 72; // Default 3 days
+    try {
+        const waRes = await apiFetch('/radius/api/whatsapp/config');
+        if (waRes.ok) {
+            const waData = await waRes.json();
+            if (waData && waData.reminder_hours) {
+                warningHours = parseInt(waData.reminder_hours) || 72;
+            }
+        }
+    } catch (waErr) {
+        console.warn("Failed to fetch WhatsApp config for reminder hours in filterUsers:", waErr);
     }
+
+    const now = new Date();
+    const warningTimeLimit = new Date(now.getTime() + (warningHours * 60 * 60 * 1000));
 
     tbody.querySelectorAll('tr').forEach(row => {
         const user = row.getAttribute('data-user') || '';
         const fullNameEl = row.querySelector('strong');
         const fullName = fullNameEl ? fullNameEl.textContent : '';
         const cachedUser = radiusUsersCache.find(u => u.user === user);
-        const phone = cachedUser ? (cachedUser.phone || '') : '';
+        
+        if (!cachedUser) {
+            row.style.display = 'none';
+            return;
+        }
 
-        const match = user.toLowerCase().includes(query)
+        // 1. Text Search Filter
+        const matchesQuery = !query || user.toLowerCase().includes(query)
             || fullName.toLowerCase().includes(query)
-            || phone.toLowerCase().includes(query);
+            || (cachedUser.phone || '').toLowerCase().includes(query);
 
-        if (match) {
+        // 2. Quick Filter Category
+        let matchesFilter = false;
+        if (filterType === 'all') {
+            matchesFilter = true;
+        } else if (filterType === 'active') {
+            matchesFilter = cachedUser.enabled && !cachedUser.expired;
+        } else if (filterType === 'expired') {
+            matchesFilter = cachedUser.expired || !cachedUser.enabled;
+        } else if (filterType === 'online') {
+            matchesFilter = cachedUser.session && (cachedUser.session.online || cachedUser.session.status === 'online');
+        } else if (filterType === 'about-to-expire') {
+            if (cachedUser.expires_at && !cachedUser.expired && cachedUser.enabled) {
+                const expDate = new Date(cachedUser.expires_at.replace(' ', 'T'));
+                if (!isNaN(expDate.getTime())) {
+                    matchesFilter = expDate > now && expDate <= warningTimeLimit;
+                }
+            }
+        }
+
+        if (matchesQuery && matchesFilter) {
             row.style.display = '';
             visibleCount++;
         } else {
