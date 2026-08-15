@@ -92,6 +92,9 @@ func startSasmanTunnel(port string) {
 	if gatewayURL == "" {
 		gatewayURL = strings.TrimSpace(os.Getenv("SASMAN_TUNNEL_GATEWAY_URL"))
 	}
+	if gatewayURL == "" {
+		gatewayURL = "wss://sas-man.net/ws"
+	}
 
 	client := tunnel.NewResilientAgentClient(tunnel.AgentClientConfig{
 		Subdomain:       subdomain,
@@ -1493,10 +1496,71 @@ func saveTunnelSettingsHandler(c *fiber.Ctx) error {
 
 func getCentralServerAPIURL() string {
 	srv := strings.TrimSpace(os.Getenv("SASMAN_CENTRAL_SERVER"))
-	if srv == "" {
-		srv = "http://167.86.73.203:8080"
+	if srv != "" {
+		return strings.TrimRight(srv, "/")
 	}
-	return strings.TrimRight(srv, "/")
+
+	gw := strings.TrimSpace(shared.RouterConfigState.TunnelGatewayURL)
+	if gw == "" {
+		gw = strings.TrimSpace(os.Getenv("SASMAN_TUNNEL_GATEWAY_URL"))
+	}
+	if gw != "" {
+		u, err := url.Parse(gw)
+		if err == nil && u.Host != "" {
+			scheme := "https"
+			if u.Scheme == "ws" {
+				scheme = "http"
+			}
+			return fmt.Sprintf("%s://%s", scheme, u.Host)
+		}
+	}
+
+	centralDomain := strings.TrimSpace(shared.RouterConfigState.CentralDomain)
+	if centralDomain == "" {
+		centralDomain = strings.TrimSpace(os.Getenv("SASMAN_CENTRAL_DOMAIN"))
+	}
+	if centralDomain == "" {
+		centralDomain = "sas-man.net"
+	}
+
+	return "https://" + centralDomain
+}
+
+func postToCentralServer(path string, jsonBody []byte) (*http.Response, error) {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 15 * time.Second,
+		}).DialContext,
+	}
+	client := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: tr,
+	}
+
+	baseURL := getCentralServerAPIURL()
+	candidates := []string{baseURL}
+	if strings.HasPrefix(baseURL, "https://") {
+		candidates = append(candidates, strings.Replace(baseURL, "https://", "http://", 1))
+	} else if strings.HasPrefix(baseURL, "http://") {
+		candidates = append(candidates, strings.Replace(baseURL, "http://", "https://", 1))
+	}
+	candidates = append(candidates, "https://sas-man.net", "http://sas-man.net", "http://167.86.73.203:8080")
+
+	var lastErr error
+	for _, cURL := range candidates {
+		fullURL := strings.TrimRight(cURL, "/") + path
+		resp, err := client.Post(fullURL, "application/json", bytes.NewBuffer(jsonBody))
+		if err == nil && resp.StatusCode > 0 {
+			return resp, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+	}
+
+	return nil, lastErr
 }
 
 func getSetupStatusHandler(c *fiber.Ctx) error {
@@ -1551,13 +1615,11 @@ func checkSubdomainProxyHandler(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
 	}
 
-	centralURL := getCentralServerAPIURL() + "/api/agents/check-subdomain"
 	jsonBody, _ := json.Marshal(req)
-
-	client := &http.Client{Timeout: 6 * time.Second}
-	resp, err := client.Post(centralURL, "application/json", bytes.NewBuffer(jsonBody))
+	resp, err := postToCentralServer("/api/agents/check-subdomain", jsonBody)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "تعذر الاتصال بالسيرفر المركزي لفحص النطاق"})
+		log.Printf("[Central API] check-subdomain failed: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "تعذر الاتصال بالسيرفر المركزي لفحص النطاق (" + err.Error() + ")"})
 	}
 	defer resp.Body.Close()
 
@@ -1610,12 +1672,10 @@ func selfRegisterAgentHandler(c *fiber.Ctx) error {
 		"serial":    serial,
 	}
 	jsonBody, _ := json.Marshal(centralReq)
-	centralURL := getCentralServerAPIURL() + "/api/agents/self-register"
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(centralURL, "application/json", bytes.NewBuffer(jsonBody))
+	resp, err := postToCentralServer("/api/agents/self-register", jsonBody)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "تعذر الاتصال بالسيرفر المركزي لإتمام التسجيل"})
+		log.Printf("[Central API] self-register failed: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "تعذر الاتصال بالسيرفر المركزي لإتمام التسجيل (" + err.Error() + ")"})
 	}
 	defer resp.Body.Close()
 

@@ -197,10 +197,10 @@ func createResilientDialer(targetURL string, timeout time.Duration) *websocket.D
 func (c *ResilientAgentClient) connectAndServe() error {
 	gatewayURL := strings.TrimSpace(c.cfg.GatewayURL)
 	if gatewayURL == "" {
-		gatewayURL = "ws://127.0.0.1:8080/ws"
+		gatewayURL = "wss://sas-man.net/ws"
 	}
 	if !strings.HasPrefix(gatewayURL, "ws://") && !strings.HasPrefix(gatewayURL, "wss://") {
-		gatewayURL = "ws://" + gatewayURL
+		gatewayURL = "wss://" + gatewayURL
 	}
 
 	dialer := createResilientDialer(gatewayURL, 10*time.Second)
