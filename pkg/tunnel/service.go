@@ -718,6 +718,7 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 			if boundSession != nil {
 				boundSession.writeMu.Lock()
 				boundSession.LastSeen = time.Now().UTC()
+				_ = conn.WriteJSON(TunnelMessage{Type: "pong"})
 				boundSession.writeMu.Unlock()
 			}
 		} else if msg.Type == "backup_chunk" {
