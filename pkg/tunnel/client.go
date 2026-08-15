@@ -56,11 +56,11 @@ type AgentClientConfig struct {
 
 // ResilientAgentClient manages persistent connection to SASMAN Central Gateway with exponential backoff
 type ResilientAgentClient struct {
+	lastPongAt atomic.Int64
+	running    atomic.Int32
 	cfg        AgentClientConfig
 	ctx        context.Context
 	cancel     context.CancelFunc
-	running    int32
-	lastPongAt int64
 }
 
 func NewResilientAgentClient(cfg AgentClientConfig) *ResilientAgentClient {
@@ -73,7 +73,7 @@ func NewResilientAgentClient(cfg AgentClientConfig) *ResilientAgentClient {
 }
 
 func (c *ResilientAgentClient) Start() {
-	if !atomic.CompareAndSwapInt32(&c.running, 0, 1) {
+	if !c.running.CompareAndSwap(0, 1) {
 		return
 	}
 
@@ -81,7 +81,7 @@ func (c *ResilientAgentClient) Start() {
 }
 
 func (c *ResilientAgentClient) Stop() {
-	if atomic.CompareAndSwapInt32(&c.running, 1, 0) {
+	if c.running.CompareAndSwap(1, 0) {
 		c.cancel()
 	}
 }
@@ -233,7 +233,7 @@ func (c *ResilientAgentClient) connectAndServe() error {
 	}
 
 	log.Printf("[Tunnel Client] Successfully connected and registered: %s (Subdomain: %s, Ver: %s, Arch: %s)", gatewayURL, c.cfg.Subdomain, ver, arch)
-	atomic.StoreInt64(&c.lastPongAt, time.Now().Unix())
+	c.lastPongAt.Store(time.Now().Unix())
 
 	dataDir := c.cfg.DataDir
 	if dataDir == "" {
@@ -298,7 +298,7 @@ func (c *ResilientAgentClient) connectAndServe() error {
 					return
 				}
 
-				lastPong := atomic.LoadInt64(&c.lastPongAt)
+				lastPong := c.lastPongAt.Load()
 				if time.Now().Unix()-lastPong > 25 {
 					log.Printf("[Tunnel Client] ⚠️ Heartbeat timeout: No pong/message received for 25s! Reconnecting...")
 					_ = conn.Close()
@@ -314,7 +314,7 @@ func (c *ResilientAgentClient) connectAndServe() error {
 			return err
 		}
 
-		atomic.StoreInt64(&c.lastPongAt, time.Now().Unix())
+		c.lastPongAt.Store(time.Now().Unix())
 
 		switch msg.Type {
 		case "registered":

@@ -33,13 +33,13 @@ type StreamMeta struct {
 
 // Session coordinates multiple logical streams over a single underlying net.Conn / io.ReadWriteCloser
 type Session struct {
+	nextID     atomic.Uint64
+	closed     atomic.Int32
 	conn       io.ReadWriteCloser
 	isServer   bool
 	streams    map[uint64]*Stream
 	streamMu   sync.RWMutex
 	writeMu    sync.Mutex
-	nextID     uint64
-	closed     int32
 	closeCh    chan struct{}
 	onOpenChan chan *Stream
 }
@@ -54,21 +54,21 @@ func NewSession(conn io.ReadWriteCloser, isServer bool) *Session {
 		conn:       conn,
 		isServer:   isServer,
 		streams:    make(map[uint64]*Stream),
-		nextID:     startID,
 		closeCh:    make(chan struct{}),
 		onOpenChan: make(chan *Stream, 256),
 	}
+	sess.nextID.Store(startID)
 	go sess.readLoop()
 	return sess
 }
 
 // OpenStream initiates a new sub-stream to the remote peer
 func (s *Session) OpenStream(meta StreamMeta) (*Stream, error) {
-	if atomic.LoadInt32(&s.closed) == 1 {
+	if s.closed.Load() == 1 {
 		return nil, ErrSessionClosed
 	}
 
-	streamID := atomic.AddUint64(&s.nextID, 2)
+	streamID := s.nextID.Add(2)
 	meta.StreamID = streamID
 
 	stream := newStream(streamID, s)
@@ -100,7 +100,7 @@ func (s *Session) AcceptStream() (*Stream, error) {
 }
 
 func (s *Session) Close() error {
-	if atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
+	if s.closed.CompareAndSwap(0, 1) {
 		close(s.closeCh)
 		s.streamMu.Lock()
 		for _, st := range s.streams {
@@ -120,7 +120,7 @@ func (s *Session) removeStream(id uint64) {
 }
 
 func (s *Session) writeFrame(streamID uint64, cmd byte, payload []byte) error {
-	if atomic.LoadInt32(&s.closed) == 1 {
+	if s.closed.Load() == 1 {
 		return ErrSessionClosed
 	}
 
@@ -218,11 +218,11 @@ func (s *Session) readLoop() {
 // Stream represents an isolated bidirectional channel within a multiplexed session
 type Stream struct {
 	id         uint64
+	closed     atomic.Int32
 	session    *Session
 	meta       StreamMeta
 	inBuf      chan []byte
 	currentBuf []byte
-	closed     int32
 	closeCh    chan struct{}
 }
 
@@ -240,7 +240,7 @@ func (st *Stream) Meta() StreamMeta {
 }
 
 func (st *Stream) pushData(data []byte) {
-	if atomic.LoadInt32(&st.closed) == 1 {
+	if st.closed.Load() == 1 {
 		return
 	}
 	cp := make([]byte, len(data))
@@ -300,7 +300,7 @@ func (st *Stream) Read(p []byte) (n int, err error) {
 }
 
 func (st *Stream) Write(p []byte) (n int, err error) {
-	if atomic.LoadInt32(&st.closed) == 1 {
+	if st.closed.Load() == 1 {
 		return 0, ErrStreamClosed
 	}
 	if err := st.session.writeFrame(st.id, CmdData, p); err != nil {
@@ -310,7 +310,7 @@ func (st *Stream) Write(p []byte) (n int, err error) {
 }
 
 func (st *Stream) Close() error {
-	if atomic.CompareAndSwapInt32(&st.closed, 0, 1) {
+	if st.closed.CompareAndSwap(0, 1) {
 		close(st.closeCh)
 		st.session.removeStream(st.id)
 		return st.session.writeFrame(st.id, CmdClose, nil)
@@ -319,13 +319,13 @@ func (st *Stream) Close() error {
 }
 
 func (st *Stream) closeRemote() {
-	if atomic.CompareAndSwapInt32(&st.closed, 0, 1) {
+	if st.closed.CompareAndSwap(0, 1) {
 		close(st.closeCh)
 	}
 }
 
 func (st *Stream) closeLocal() {
-	if atomic.CompareAndSwapInt32(&st.closed, 0, 1) {
+	if st.closed.CompareAndSwap(0, 1) {
 		close(st.closeCh)
 	}
 }

@@ -12,13 +12,13 @@ import (
 
 // RouterEngine calculates optimal egress paths and manages automatic failover
 type RouterEngine struct {
+	version   atomic.Int64
+	running   atomic.Int32
 	catalog   *CatalogManager
 	telemetry *TelemetryHub
 	mu        sync.RWMutex
 	lastTable relay.AgentRoutingTable
-	version   int64
 	onUpdate  func(table relay.AgentRoutingTable)
-	running   int32
 	stopCh    chan struct{}
 }
 
@@ -32,7 +32,7 @@ func NewRouterEngine(catalog *CatalogManager, telemetry *TelemetryHub, onUpdate 
 }
 
 func (re *RouterEngine) Start() {
-	if !atomic.CompareAndSwapInt32(&re.running, 0, 1) {
+	if !re.running.CompareAndSwap(0, 1) {
 		return
 	}
 
@@ -40,7 +40,7 @@ func (re *RouterEngine) Start() {
 }
 
 func (re *RouterEngine) Stop() {
-	if atomic.CompareAndSwapInt32(&re.running, 1, 0) {
+	if re.running.CompareAndSwap(1, 0) {
 		close(re.stopCh)
 	}
 }
@@ -148,7 +148,7 @@ func (re *RouterEngine) ComputeGlobalRoutingTable() relay.AgentRoutingTable {
 		}
 	}
 
-	newVersion := atomic.AddInt64(&re.version, 1)
+	newVersion := re.version.Add(1)
 	return relay.AgentRoutingTable{
 		Version:   newVersion,
 		Timestamp: time.Now().UTC(),

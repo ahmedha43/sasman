@@ -290,20 +290,21 @@ func main() {
 /ppp aaa set use-radius=yes accounting=yes interim-update=1m
 :put "[+] Enabled RADIUS Accounting & Authentication for PPP/PPPoE"
 
-# 8. Download Image Directly from Private Central Server (No Docker Hub Needed!)
-:local fetchUrl ("https://%s/download/" . $imageName)
-:local localTarPath ($targetDisk . "/" . $imageName)
-:local rootDirPath ($targetDisk . "/sasman-data")
+# 8. Configure Docker Hub Registry and Pull Latest Multi-Arch Image
+:local pullDir ($targetDisk . "/pull")
+:local rootDir ($targetDisk . "/sasman-data")
 
-:put ("[*] Downloading container image directly from: " . $fetchUrl)
-/tool fetch url=$fetchUrl dst-path=$localTarPath
+/container config set registry-url=https://registry-1.docker.io tmpdir=$pullDir
+:put "[*] Configured Docker Hub Registry: https://registry-1.docker.io"
 
-:put "[*] Importing and installing container into MikroTik..."
+:put "[*] Pulling latest multi-arch SASMAN image from Docker Hub (ahmedkin99/sasman-manager:latest)..."
 :if ([:len [/container find comment="SASMAN Manager"]] = 0) do={
-    /container add file=$localTarPath interface=veth-sasman root-dir=$rootDirPath start-on-boot=yes logging=yes comment="SASMAN Manager"
+    /container add remote-image="ahmedkin99/sasman-manager:latest" interface=veth-sasman root-dir=$rootDir start-on-boot=yes logging=yes comment="SASMAN Manager"
 }
 
-:delay 15s
+:put "[*] Waiting for download and container initialization..."
+:delay 35s
+
 :local cId [/container find comment="SASMAN Manager"]
 :if ([:len $cId] > 0) do={
     /container start $cId
@@ -311,15 +312,10 @@ func main() {
     :put " [✔] SASMAN Container successfully installed and started!"
     :put "     Open http://[Router-IP]:88 in your browser to access web panel."
     :put "================================================================="
+} else={
+    :put "[!] Container is initializing in background. Run '/container print' to check status."
 }
-
-# 9. Clean temporary TAR file to save storage
-:delay 10s
-:if ([:len [/file find where name=$localTarPath]] > 0) do={
-    /file remove [find where name=$localTarPath]
-    :put "[+] Removed temporary TAR archive to save storage space."
-}
-`, targetDisk, host)
+`, targetDisk)
 	}
 
 	// 1. Script for Internal Disk Installation (disk1)

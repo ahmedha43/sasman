@@ -32,13 +32,13 @@ type StreamDialer interface {
 
 // InterceptorListener listens for redirected traffic from MikroTik (port 18443 / 18080)
 type InterceptorListener struct {
+	activeConns  atomic.Int64
+	bytesRelayed atomic.Int64
+	running      atomic.Int32
 	addr         string
 	listener     net.Listener
 	resolver     RouteResolver
 	dialer       StreamDialer
-	running      int32
-	activeConns  int64
-	bytesRelayed int64
 	mu           sync.Mutex
 	stopCh       chan struct{}
 }
@@ -59,7 +59,7 @@ func (l *InterceptorListener) Start() error {
 	}
 
 	l.listener = ln
-	atomic.StoreInt32(&l.running, 1)
+	l.running.Store(1)
 
 	log.Printf("[Relay Interceptor] Listening on %s", l.addr)
 
@@ -68,7 +68,7 @@ func (l *InterceptorListener) Start() error {
 }
 
 func (l *InterceptorListener) Stop() {
-	if atomic.CompareAndSwapInt32(&l.running, 1, 0) {
+	if l.running.CompareAndSwap(1, 0) {
 		close(l.stopCh)
 		if l.listener != nil {
 			_ = l.listener.Close()
@@ -77,11 +77,11 @@ func (l *InterceptorListener) Stop() {
 }
 
 func (l *InterceptorListener) ActiveConnections() int {
-	return int(atomic.LoadInt64(&l.activeConns))
+	return int(l.activeConns.Load())
 }
 
 func (l *InterceptorListener) TotalBytesRelayed() int64 {
-	return atomic.LoadInt64(&l.bytesRelayed)
+	return l.bytesRelayed.Load()
 }
 
 func (l *InterceptorListener) acceptLoop() {
@@ -98,7 +98,7 @@ func (l *InterceptorListener) acceptLoop() {
 			}
 		}
 
-		atomic.AddInt64(&l.activeConns, 1)
+		l.activeConns.Add(1)
 		go l.handleClientConn(conn)
 	}
 }
@@ -106,7 +106,7 @@ func (l *InterceptorListener) acceptLoop() {
 func (l *InterceptorListener) handleClientConn(clientConn net.Conn) {
 	defer func() {
 		clientConn.Close()
-		atomic.AddInt64(&l.activeConns, -1)
+		l.activeConns.Add(-1)
 	}()
 
 	_ = clientConn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -146,7 +146,7 @@ func (l *InterceptorListener) handleClientConn(clientConn net.Conn) {
 		bufPtr := bufPool.Get().(*[]byte)
 		defer bufPool.Put(bufPtr)
 		n, _ := io.CopyBuffer(egressStream, clientConn, *bufPtr)
-		atomic.AddInt64(&l.bytesRelayed, n)
+		l.bytesRelayed.Add(n)
 	}()
 
 	go func() {
@@ -154,7 +154,7 @@ func (l *InterceptorListener) handleClientConn(clientConn net.Conn) {
 		bufPtr := bufPool.Get().(*[]byte)
 		defer bufPool.Put(bufPtr)
 		n, _ := io.CopyBuffer(clientConn, egressStream, *bufPtr)
-		atomic.AddInt64(&l.bytesRelayed, n)
+		l.bytesRelayed.Add(n)
 	}()
 
 	wg.Wait()
