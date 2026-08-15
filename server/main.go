@@ -294,16 +294,17 @@ func main() {
 # 8. Download Image Directly from Private Central Server (No Docker Hub Needed!)
 :local fetchUrl ("https://%s/download/" . $imageName)
 :local localTarPath ($targetDisk . "/" . $imageName)
+:local rootDirPath ($targetDisk . "/sasman-data")
 
 :put ("[*] Downloading container image directly from: " . $fetchUrl)
 /tool fetch url=$fetchUrl dst-path=$localTarPath
 
 :put "[*] Importing and installing container into MikroTik..."
 :if ([:len [/container find comment="SASMAN Manager"]] = 0) do={
-    /container add file=$localTarPath interface=veth-sasman root-dir=($targetDisk . "/sasman-data") mounts="" workdir="/app" start-on-boot=yes logging=yes comment="SASMAN Manager"
+    /container add file=$localTarPath interface=veth-sasman root-dir=$rootDirPath start-on-boot=yes logging=yes comment="SASMAN Manager"
 }
 
-:delay 10s
+:delay 15s
 :local cId [/container find comment="SASMAN Manager"]
 :if ([:len $cId] > 0) do={
     /container start $cId
@@ -314,12 +315,12 @@ func main() {
 }
 
 # 9. Clean temporary TAR file to save storage
-:delay 5s
-:if ([:len [/file find name=$localTarPath]] > 0) do={
-    /file remove [find name=$localTarPath]
+:delay 10s
+:if ([:len [/file find where name=$localTarPath]] > 0) do={
+    /file remove [find where name=$localTarPath]
     :put "[+] Removed temporary TAR archive to save storage space."
 }
-`, targetDisk, targetDisk, host)
+`, targetDisk, host)
 	}
 
 	// 1. Script for Internal Disk Installation (disk1)
