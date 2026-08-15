@@ -30,10 +30,37 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # ─── 0. Log in to Docker Hub (if secrets provided) ─────────────────────────
+      - name: Log in to Docker Hub
+        if: env.DOCKER_USER != '' && env.DOCKER_PASS != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ─── 1. Build and Push Unified Multi-Arch Image to Docker Hub ──────────────
+      - name: Build & Push Multi-Arch Docker Image
+        if: env.DOCKER_USER != '' && env.DOCKER_PASS != ''
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/arm/v7,linux/arm64,linux/amd64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:v5
+            ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:${{ github.event.inputs.version || '5.1.0' }}
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Create Releases Directory
         run: mkdir -p releases
 
-      # ─── 1. Build ARMv7 (MikroTik RB4011, hAP ax2/ax3) ────────────────────────
+      # ─── 2. Build ARMv7 (MikroTik RB4011, hAP ax2/ax3) ────────────────────────
       - name: Build & Export linux/arm/v7 Container Image
         run: |
           echo "Building SASMAN for linux/arm/v7 (RB4011)..."
@@ -45,7 +72,7 @@ jobs:
           docker cp $CID:/app/main releases/sasman-agent-linux-armv7 || true
           docker rm -f $CID
 
-      # ─── 2. Build ARM64 (MikroTik CCR2004, RB5009, L009) ───────────────────────
+      # ─── 3. Build ARM64 (MikroTik CCR2004, RB5009, L009) ───────────────────────
       - name: Build & Export linux/arm64 Container Image
         run: |
           echo "Building SASMAN for linux/arm64 (CCR2004, RB5009)..."
@@ -57,7 +84,7 @@ jobs:
           docker cp $CID:/app/main releases/sasman-agent-linux-arm64 || true
           docker rm -f $CID
 
-      # ─── 3. Build AMD64 (MikroTik CHR, x86 PC) ─────────────────────────────────
+      # ─── 4. Build AMD64 (MikroTik CHR, x86 PC) ─────────────────────────────────
       - name: Build & Export linux/amd64 Container Image
         run: |
           echo "Building SASMAN for linux/amd64 (CHR, x86_64)..."
@@ -69,14 +96,14 @@ jobs:
           docker cp $CID:/app/main releases/sasman-agent-linux-amd64 || true
           docker rm -f $CID
 
-      # ─── 4. List Generated Artifacts & Hashes ───────────────────────────────────
+      # ─── 5. List Generated Artifacts & Hashes ───────────────────────────────────
       - name: Generate Checksums
         run: |
           cd releases
           sha256sum * > SHA256SUMS.txt
           ls -lh
 
-      # ─── 5. Upload GitHub Actions Artifacts ─────────────────────────────────────
+      # ─── 6. Upload GitHub Actions Artifacts ─────────────────────────────────────
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -84,7 +111,7 @@ jobs:
           path: releases/*
           retention-days: 14
 
-      # ─── 6. Create GitHub Release (on Tag or Manual Run) ─────────────────────────
+      # ─── 7. Create GitHub Release (on Tag or Manual Run) ─────────────────────────
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
