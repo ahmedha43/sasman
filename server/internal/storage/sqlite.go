@@ -341,6 +341,34 @@ func (r *SQLiteRepository) UpdateSubdomainGroup(subdomain, groupName string) err
 	return err
 }
 
+func (r *SQLiteRepository) GetSubdomainOwners() (map[string]Customer, error) {
+	rows, err := r.db.Query(`
+        SELECT s.subdomain, c.id, c.name, c.phone, c.email, c.company_name
+        FROM subdomains s
+        LEFT JOIN customers c ON s.customer_id = c.id
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	owners := make(map[string]Customer)
+	for rows.Next() {
+		var sub string
+		var c Customer
+		var id, name, phone, email, comp sql.NullString
+		if err := rows.Scan(&sub, &id, &name, &phone, &email, &comp); err == nil {
+			c.ID = id.String
+			c.Name = name.String
+			c.Phone = phone.String
+			c.Email = email.String
+			c.CompanyName = comp.String
+			owners[strings.ToLower(strings.TrimSpace(sub))] = c
+		}
+	}
+	return owners, nil
+}
+
 func (r *SQLiteRepository) GetSubdomainGroup(subdomain string) string {
 	var group string
 	err := r.db.QueryRow("SELECT group_name FROM subdomains WHERE subdomain = ?", subdomain).Scan(&group)

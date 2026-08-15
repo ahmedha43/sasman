@@ -1,0 +1,1177 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SASMAN Cloud Admin - لوحة الإدارة المركزية</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --primary: #0ea5e9;
+      --primary-hover: #0284c7;
+      --success: #22c55e;
+      --success-dark: #16a34a;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --danger-dark: #dc2626;
+      --bg-dark: #090d16;
+      --card-bg: rgba(15, 23, 42, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --table-border: #1e293b;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --transition: all 0.2s ease;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at top, #0f172a 0%, #020617 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 0 0 40px 0;
+      position: relative;
+    }
+
+    /* Top Navbar */
+    .navbar {
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-logo {
+      font-size: 24px;
+      color: var(--primary);
+    }
+    .brand-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1560px;
+      margin: 24px auto 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Stat Cards Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    .stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+    .stat-info h4 {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .stat-info .stat-value {
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    /* Tab Navigation */
+    .tabs-nav {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 24px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .tab-btn {
+      padding: 12px 20px;
+      border-radius: 12px 12px 0 0;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: var(--transition);
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+    }
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      background: rgba(14, 165, 233, 0.08);
+    }
+
+    .tab-pane {
+      display: none;
+    }
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* Card Component */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      margin-bottom: 24px;
+      backdrop-filter: blur(12px);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Inputs & Buttons */
+    input, select, textarea {
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid #334155;
+      background: #0b1329;
+      color: #f8fafc;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      transition: var(--transition);
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+    }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: var(--transition);
+      color: white;
+      text-decoration: none;
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .btn-primary { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+    .btn-success { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .btn-warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .btn-dark { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
+    .btn-dark:hover { background: #334155; color: #fff; }
+    .btn-xs { padding: 4px 8px; font-size: 11px; border-radius: 6px; }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--table-border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: right;
+    }
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--table-border);
+      font-size: 13px;
+      vertical-align: middle;
+    }
+    th {
+      background: rgba(15, 23, 42, 0.95);
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    tbody tr:hover {
+      background: rgba(51, 65, 85, 0.3);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .badge-online { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .badge-offline { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-group { background: rgba(14, 165, 233, 0.15); color: #38bdf8; border: 1px dashed rgba(14, 165, 233, 0.4); cursor: pointer; }
+
+    /* WhatsApp & Contact Buttons */
+    .btn-wa {
+      background: #25D366;
+      color: white;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: bold;
+    }
+    .btn-wa:hover {
+      background: #1ebc59;
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    /* Quick Links */
+    .web-link {
+      color: #38bdf8;
+      text-decoration: none;
+      font-family: monospace;
+      font-weight: bold;
+    }
+    .web-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <header class="navbar">
+    <div class="brand-section">
+      <i class="fa-solid fa-cloud-bolt brand-logo"></i>
+      <div>
+        <div class="brand-title">SASMAN Cloud Admin</div>
+        <div style="font-size:11px; color:var(--text-muted);">السيرفر السحابي المركزي • v5.0</div>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn btn-dark" onclick="openPasswordModal()">
+        <i class="fa-solid fa-key"></i> كلمة المرور
+      </button>
+      <button class="btn btn-danger" onclick="logout()">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i> تسجيل خروج
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Metrics Summary Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(34, 197, 94, 0.15); color:#22c55e;">
+          <i class="fa-solid fa-wifi"></i>
+        </div>
+        <div class="stat-info">
+          <h4>الوكلاء المتصلين الآن</h4>
+          <div class="stat-value" id="stat-online" style="color:#22c55e;">0</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(14, 165, 233, 0.15); color:#0ea5e9;">
+          <i class="fa-solid fa-server"></i>
+        </div>
+        <div class="stat-info">
+          <h4>إجمالي الوكلاء المسجلين</h4>
+          <div class="stat-value" id="stat-total" style="color:#0ea5e9;">0</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(245, 158, 11, 0.15); color:#f59e0b;">
+          <i class="fa-solid fa-bullhorn"></i>
+        </div>
+        <div class="stat-info">
+          <h4>الحملات الإعلانية النشطة</h4>
+          <div class="stat-value" id="stat-broadcasts" style="color:#f59e0b;">0</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(139, 92, 246, 0.15); color:#8b5cf6;">
+          <i class="fa-solid fa-database"></i>
+        </div>
+        <div class="stat-info">
+          <h4>النسخ الاحتياطية المتاحة</h4>
+          <div class="stat-value" id="stat-backups" style="color:#8b5cf6;">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="switchTab('agents', this)">
+        <i class="fa-solid fa-network-wired"></i> الوكلاء والراوترات
+      </button>
+      <button class="tab-btn" onclick="switchTab('broadcasts', this)">
+        <i class="fa-solid fa-bullhorn"></i> الإعلانات والإشعارات الذكية
+      </button>
+      <button class="tab-btn" onclick="switchTab('ota', this)">
+        <i class="fa-solid fa-cloud-arrow-up"></i> التحديثات السحابية (OTA)
+      </button>
+      <button class="tab-btn" onclick="switchTab('backup', this)">
+        <i class="fa-solid fa-hard-drive"></i> النسخ الاحتياطي المركزي
+      </button>
+    </div>
+
+    <!-- ================= TAB 1: AGENTS ================= -->
+    <div id="tab-agents" class="tab-pane active">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-users-gear" style="color:var(--primary);"></i>
+            <span>قائمة الوكلاء والراوترات المسجلة بالسيرفر</span>
+          </div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="agent-search" placeholder="🔍 بحث بالنطاق أو اسم الوكيل..." oninput="filterAgents()" style="width:240px;">
+            <select id="group-filter" onchange="filterAgents()">
+              <option value="">كل المجموعات</option>
+            </select>
+            <button class="btn btn-primary" onclick="openRegisterAgentModal()">
+              <i class="fa-solid fa-plus"></i> تسجيل وكيل يدوي
+            </button>
+            <button class="btn btn-dark" onclick="loadAgents()">
+              <i class="fa-solid fa-rotate"></i> تحديث
+            </button>
+          </div>
+        </div>
+
+        <div id="agents-table-container">
+          <p class="text-muted" style="text-align:center; padding:20px;">جاري تحميل قائمة الوكلاء...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 2: SMART BROADCAST ================= -->
+    <div id="tab-broadcasts" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-tower-broadcast" style="color:var(--warning);"></i>
+            <span>نظام الإعلانات والإشعارات الذكي (Smart Broadcast & Ad-Engine)</span>
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-warning" onclick="openBroadcastModal()">
+              <i class="fa-solid fa-bullhorn"></i> إنشاء حملة جديدة
+            </button>
+            <button class="btn btn-dark" onclick="loadBroadcasts()">
+              <i class="fa-solid fa-rotate"></i> تحديث
+            </button>
+          </div>
+        </div>
+
+        <div id="broadcasts-table-container">
+          <p class="text-muted" style="text-align:center; padding:20px;">جاري تحميل الحملات الإعلانية...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 3: OTA UPDATES ================= -->
+    <div id="tab-ota" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-cloud-arrow-up" style="color:var(--primary);"></i>
+            <span>إدارة وتوزيع التحديثات التلقائية (OTA Updates)</span>
+          </div>
+        </div>
+
+        <!-- OTA Upload Form -->
+        <div style="background:#0b1329; border:1px solid #334155; border-radius:12px; padding:20px; margin-bottom:24px;">
+          <h4 style="margin-bottom:12px; color:#38bdf8;"><i class="fa-solid fa-upload"></i> رفع إصدار جديد (Publish Release)</h4>
+          <form onsubmit="handleOTAUpload(event)" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; align-items:end;">
+            <div>
+              <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:4px;">رقم الإصدار (Version):</label>
+              <input type="text" id="ota-version" placeholder="v5.1.0" required style="width:100%;">
+            </div>
+            <div>
+              <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:4px;">المعمارية (Target Arch):</label>
+              <select id="ota-arch" required style="width:100%;">
+                <option value="linux_arm">ARMv7 (32-bit RouterBOARD)</option>
+                <option value="linux_arm64">ARM64 (CCR2004, RB5009, etc.)</option>
+                <option value="linux_amd64">AMD64 / x86_64 (CHR, PC)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:4px;">ملف التحديث الثنائي (Binary):</label>
+              <input type="file" id="ota-file" required style="width:100%;">
+            </div>
+            <div>
+              <button type="submit" id="btn-ota-upload" class="btn btn-primary" style="width:100%; padding:10px;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> نشر الإصدار
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div id="ota-releases-container">
+          <p class="text-muted" style="text-align:center; padding:20px;">جاري تحميل الإصدارات المنشورة...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 4: CENTRAL BACKUP ================= -->
+    <div id="tab-backup" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-hard-drive" style="color:var(--success);"></i>
+            <span>النسخ الاحتياطي واستعادة قاعدة بيانات السيرفر المركزي</span>
+          </div>
+        </div>
+
+        <div class="grid" style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+          <div style="background:#0b1329; border:1px solid #334155; border-radius:12px; padding:20px;">
+            <h4 style="color:#22c55e; margin-bottom:8px;"><i class="fa-solid fa-download"></i> تحميل نسخة احتياطية فورية</h4>
+            <p style="font-size:13px; color:#94a3b8; margin-bottom:16px;">تحميل ملف قاعدة البيانات الكاملة SQLite لكافة الوكلاء والاشتراكات والحملات الإعلانية.</p>
+            <a href="/api/admin/backup/download" class="btn btn-success" style="padding:12px 24px;">
+              <i class="fa-solid fa-file-arrow-down"></i> تحميل النسخة الآن
+            </a>
+          </div>
+
+          <div style="background:#0b1329; border:1px solid #334155; border-radius:12px; padding:20px;">
+            <h4 style="color:#f59e0b; margin-bottom:8px;"><i class="fa-solid fa-upload"></i> استعادة قاعدة البيانات</h4>
+            <p style="font-size:13px; color:#94a3b8; margin-bottom:16px;">رفع واستبدال قاعدة البيانات بملف نسخة سابقة.</p>
+            <form onsubmit="handleCentralRestore(event)">
+              <input type="file" id="restore-file" required style="margin-bottom:12px; width:100%;">
+              <button type="submit" class="btn btn-warning" style="padding:10px 20px;">
+                <i class="fa-solid fa-rotate-left"></i> بدء الاستعادة
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Register Agent Modal -->
+  <div id="register-agent-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0;"><i class="fa-solid fa-plus" style="color:var(--primary);"></i> تسجيل وكيل يدوي جديد</h3>
+        <button class="btn btn-dark btn-xs" onclick="closeRegisterAgentModal()">✕</button>
+      </div>
+      <form onsubmit="handleRegisterAgent(event)">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">اسم الوكيل / المشترك:</label>
+          <input type="text" id="reg-name" placeholder="مثال: أحمد علي" style="width:100%;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">رقم الهاتف (واتساب):</label>
+          <input type="tel" id="reg-phone" placeholder="مثال: 07701234567" style="width:100%;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">اسم النطاق الفرعي (Subdomain) *:</label>
+          <input type="text" id="reg-subdomain" placeholder="ahmed" required style="width:100%; font-family:monospace;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">المجموعة (Group Name):</label>
+          <input type="text" id="reg-group" placeholder="default" value="default" style="width:100%;">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-dark" onclick="closeRegisterAgentModal()">إلغاء</button>
+          <button type="submit" class="btn btn-primary">تسجيل وحجز النطاق</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Broadcast Create/Edit Modal -->
+  <div id="broadcast-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:700px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 id="bc-modal-title" style="margin:0;"><i class="fa-solid fa-bullhorn" style="color:var(--warning);"></i> إنشاء إشعار / حملة إعلانية</h3>
+        <button class="btn btn-dark btn-xs" onclick="closeBroadcastModal()">✕</button>
+      </div>
+
+      <form onsubmit="handleSaveBroadcast(event)">
+        <input type="hidden" id="bc-id">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">عنوان الإشعار / الإعلان *:</label>
+          <input type="text" id="bc-title" placeholder="تنويه هام: صيانة مجدولة لشبكة الإنترنت" required style="width:100%;" oninput="updateBroadcastPreview()">
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">نص الرسالة *:</label>
+          <textarea id="bc-message" rows="3" placeholder="نود إعلامكم بوجود تحديث على الخوادم اليوم الساعة 2 صباحاً..." required style="width:100%;" oninput="updateBroadcastPreview()"></textarea>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">نوع العرض (Display Type):</label>
+            <select id="bc-display-type" style="width:100%;" onchange="updateBroadcastPreview()">
+              <option value="banner">🪧 شريط علوي (Top Banner)</option>
+              <option value="modal">🪟 نافذة منبثقة إجبارية (Popup Modal)</option>
+              <option value="splash">🌐 إعلان برودباند مشتركين (PPPoE Splash Intercept)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">الفئة المستهدفة (Target):</label>
+            <select id="bc-target-type" style="width:100%;">
+              <option value="agents">لوحات الوكلاء فقط (Agent Dashboard)</option>
+              <option value="broadband">مشتركو البرودباند المنزلي (PPPoE Users)</option>
+              <option value="all">الجميع (وكلاء + مشتركين)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">رابط الزر (Action URL - اختياري):</label>
+            <input type="url" id="bc-action-url" placeholder="https://..." style="width:100%;" oninput="updateBroadcastPreview()">
+          </div>
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">نص الزر (Action Text - اختياري):</label>
+            <input type="text" id="bc-action-text" placeholder="اضغط هنا للمزيد" style="width:100%;" oninput="updateBroadcastPreview()">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">رابط صورة الإعلان (Image URL - اختياري):</label>
+            <input type="url" id="bc-image-url" placeholder="https://..." style="width:100%;" oninput="updateBroadcastPreview()">
+          </div>
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">تكرار الظهور (Frequency):</label>
+            <select id="bc-frequency" style="width:100%;">
+              <option value="once">مرة واحدة لكل مستخدم (Once)</option>
+              <option value="daily">مرة واحدة يومياً (Daily)</option>
+              <option value="always">دائماً مع كل فتح للوحة (Always)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Live Preview Box -->
+        <div style="background:#020617; border:1px dashed #334155; border-radius:10px; padding:14px; margin-bottom:16px;">
+          <div style="font-size:11px; color:#94a3b8; font-weight:bold; margin-bottom:6px;">👁️ معاينة حية لشكل الإشعار:</div>
+          <div id="bc-preview-box" style="background:#1e293b; border-radius:8px; padding:12px; font-size:13px;">
+            <div id="prev-title" style="font-weight:bold; color:#38bdf8;">عنوان الإشعار</div>
+            <div id="prev-msg" style="color:#cbd5e1; margin:4px 0;">نص الرسالة سيظهر هنا...</div>
+            <button id="prev-btn" type="button" class="btn btn-primary btn-xs" style="margin-top:6px; display:none;">زر الإجراء</button>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-dark" onclick="closeBroadcastModal()">إلغاء</button>
+          <button type="submit" class="btn btn-warning">💾 حفظ وبث الحملة</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div id="password-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:440px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0;"><i class="fa-solid fa-key" style="color:var(--primary);"></i> تغيير كلمة مرور الإدارة</h3>
+        <button class="btn btn-dark btn-xs" onclick="closePasswordModal()">✕</button>
+      </div>
+      <form onsubmit="handleChangePassword(event)">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">كلمة المرور الحالية:</label>
+          <input type="password" id="pwd-old" required style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">كلمة المرور الجديدة:</label>
+          <input type="password" id="pwd-new" required minlength="6" style="width:100%;">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-dark" onclick="closePasswordModal()">إلغاء</button>
+          <button type="submit" class="btn btn-primary">تحديث كلمة المرور</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let allAgentsCache = [];
+    let allBroadcastsCache = [];
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      const pane = document.getElementById('tab-' + tabId);
+      if (pane) pane.classList.add('active');
+
+      if (tabId === 'agents') loadAgents();
+      if (tabId === 'broadcasts') loadBroadcasts();
+      if (tabId === 'ota') loadOTAReleases();
+    }
+
+    // ─── AGENTS MANAGEMENT ──────────────────────────────────────────────────
+
+    async function loadAgents() {
+      try {
+        const res = await fetch('/api/agents');
+        if (!res.ok) throw new Error('فشل جلب قائمة الوكلاء');
+        const data = await res.json();
+        allAgentsCache = data || [];
+        
+        // Update Stats
+        const onlineCount = allAgentsCache.filter(a => a.connected).length;
+        document.getElementById('stat-online').textContent = onlineCount;
+        document.getElementById('stat-total').textContent = allAgentsCache.length;
+
+        // Populate Groups Dropdown
+        const groups = Array.from(new Set(allAgentsCache.map(a => a.group_name || 'default')));
+        const grpSelect = document.getElementById('group-filter');
+        const curVal = grpSelect.value;
+        grpSelect.innerHTML = '<option value="">كل المجموعات</option>' + groups.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+        grpSelect.value = curVal;
+
+        renderAgentsTable(allAgentsCache);
+      } catch (err) {
+        document.getElementById('agents-table-container').innerHTML = `<p style="color:var(--danger); text-align:center; padding:20px;">❌ ${err.message}</p>`;
+      }
+    }
+
+    function filterAgents() {
+      const q = (document.getElementById('agent-search').value || '').trim().toLowerCase();
+      const grp = document.getElementById('group-filter').value;
+      const filtered = allAgentsCache.filter(a => {
+        const matchQ = !q || (a.subdomain && a.subdomain.toLowerCase().includes(q)) || (a.owner_name && a.owner_name.toLowerCase().includes(q)) || (a.owner_phone && a.owner_phone.includes(q));
+        const matchGrp = !grp || (a.group_name || 'default') === grp;
+        return matchQ && matchGrp;
+      });
+      renderAgentsTable(filtered);
+    }
+
+    function renderAgentsTable(agents) {
+      const container = document.getElementById('agents-table-container');
+      if (!agents || !agents.length) {
+        container.innerHTML = '<p class="text-muted" style="text-align:center; padding:30px; font-size:14px;">لا يوجد وكلاء مطابقين للبحث.</p>';
+        return;
+      }
+
+      agents.sort((a, b) => (a.subdomain || '').localeCompare(b.subdomain || ''));
+
+      let html = '<div class="table-wrap"><table><thead><tr>' +
+        '<th>👤 بيانات الوكيل</th>' +
+        '<th>🌐 النطاق واللوحة</th>' +
+        '<th>الحالة</th>' +
+        '<th>المجموعة</th>' +
+        '<th>⚡ منفذ Winbox</th>' +
+        '<th>🖥️ اتصال المايكروتك</th>' +
+        '<th>النسخة</th>' +
+        '<th>آخر اتصال</th>' +
+        '<th>إجراءات</th>' +
+        '</tr></thead><tbody>';
+
+      agents.forEach(a => {
+        const host = window.location.hostname;
+        const proto = window.location.protocol;
+        const baseDomain = host.includes('.') ? host.split('.').slice(-2).join('.') : host;
+        const webUrl = `${proto}//${a.subdomain}.${baseDomain}`;
+        const winboxAddr = a.winbox_port ? `${a.subdomain}.${baseDomain}:${a.winbox_port}` : '-';
+        const timeStr = a.last_seen ? a.last_seen.replace('T', ' ').substring(0, 19) : '-';
+
+        // Owner Info Column
+        let ownerHTML = '<div style="font-weight:bold; color:#f8fafc;">' + (a.owner_name ? escapeHtml(a.owner_name) : '<span style="color:#64748b;">غير مسجل</span>') + '</div>';
+        if (a.owner_phone) {
+          const cleanPhone = a.owner_phone.replace(/[^0-9]/g, '');
+          const waLink = cleanPhone.startsWith('0') ? '964' + cleanPhone.substring(1) : cleanPhone;
+          ownerHTML += `<div style="font-size:12px; color:#94a3b8; display:flex; align-items:center; gap:6px; margin-top:3px;">
+            <span>📱 ${escapeHtml(a.owner_phone)}</span>
+            <a href="https://wa.me/${waLink}" target="_blank" class="btn-wa" title="محادثة واتساب">💬 واتساب</a>
+          </div>`;
+        }
+
+        // Router sync info
+        let routerInfo = '-';
+        if (a.sync_data && a.sync_data.mikrotik) {
+          routerInfo = `<div style="font-size:11px; font-family:monospace;">${escapeHtml(a.sync_data.mikrotik.address || a.sync_data.mikrotik.host || '-')}</div>`;
+          if (a.sync_data.mikrotik.username) {
+            routerInfo += `<div style="font-size:11px; color:#94a3b8;">👤 ${escapeHtml(a.sync_data.mikrotik.username)}</div>`;
+          }
+        }
+
+        html += `<tr>
+          <td>${ownerHTML}</td>
+          <td>
+            <div style="font-weight:bold; font-family:monospace; color:#38bdf8;">${escapeHtml(a.subdomain)}</div>
+            <div style="display:flex; gap:4px; margin-top:4px;">
+              <a href="${escapeHtml(webUrl)}" target="_blank" class="web-link" style="font-size:12px;">🔗 فتح اللوحة</a>
+              <button class="btn btn-dark btn-xs" onclick="navigator.clipboard.writeText('${escapeHtml(webUrl)}').then(()=>alert('تم نسخ رابط اللوحة'))">📋</button>
+            </div>
+          </td>
+          <td>
+            <span class="badge ${a.connected ? 'badge-online' : 'badge-offline'}">
+              ${a.connected ? '🟢 متصل' : '🔴 غير متصل'}
+            </span>
+          </td>
+          <td>
+            <span class="badge badge-group" onclick="editAgentGroup('${escapeHtml(a.subdomain)}', '${escapeHtml(a.group_name || 'default')}')">
+              🏷️ ${escapeHtml(a.group_name || 'default')}
+            </span>
+          </td>
+          <td>
+            <div style="font-family:monospace; font-weight:bold; color:#22c55e;">${escapeHtml(winboxAddr)}</div>
+            ${a.winbox_port ? `<button class="btn btn-dark btn-xs" style="margin-top:2px;" onclick="navigator.clipboard.writeText('${escapeHtml(winboxAddr)}').then(()=>alert('تم نسخ عنوان Winbox'))">📋 نسخ</button>` : ''}
+          </td>
+          <td>${routerInfo}</td>
+          <td style="font-size:12px; font-family:monospace;">${escapeHtml(a.agent_version || 'v5.0.0')}</td>
+          <td style="font-size:11px; color:#94a3b8;">${timeStr}</td>
+          <td>
+            <div style="display:flex; gap:4px; flex-wrap:wrap;">
+              <button class="btn btn-dark btn-xs" title="تحميل النسخة الاحتياطية" onclick="window.location.href='/api/agents/${encodeURIComponent(a.subdomain)}/backup/latest/download'">💾</button>
+              <button class="btn btn-warning btn-xs" title="أخذ نسخة احتياطية فوراً" onclick="triggerAgentBackup('${escapeHtml(a.subdomain)}')">🔄</button>
+              <button class="btn btn-danger btn-xs" title="حذف الوكيل" onclick="deleteAgent('${escapeHtml(a.subdomain)}')">🗑️</button>
+            </div>
+          </td>
+        </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    async function triggerAgentBackup(subdomain) {
+      if (!confirm(`هل تريد أخذ نسخة احتياطية فورية للوكيل "${subdomain}"؟`)) return;
+      try {
+        const res = await fetch(`/api/agents/${encodeURIComponent(subdomain)}/backup/trigger`, { method: 'POST' });
+        const data = await res.json();
+        alert(res.ok ? (data.message || 'تم بدء عملية النسخ بنجاح') : (data.error || 'فشل'));
+        loadAgents();
+      } catch (e) { alert('خطأ في الاتصال'); }
+    }
+
+    async function deleteAgent(subdomain) {
+      if (!confirm(`⚠️ تحذير: هل أنت متأكد من رغبتك في حذف الوكيل "${subdomain}" بالكامل من السيرفر؟`)) return;
+      try {
+        const res = await fetch(`/api/agents/${encodeURIComponent(subdomain)}/delete`, { method: 'POST' });
+        const data = await res.json();
+        alert(res.ok ? (data.message || 'تم حذف الوكيل بنجاح') : (data.error || 'فشل'));
+        loadAgents();
+      } catch (e) { alert('خطأ في الاتصال'); }
+    }
+
+    async function editAgentGroup(subdomain, currentGroup) {
+      const newGroup = prompt(`تعديل مجموعة الوكيل "${subdomain}":`, currentGroup);
+      if (!newGroup || newGroup.trim() === currentGroup) return;
+      try {
+        const res = await fetch(`/api/agents/${encodeURIComponent(subdomain)}/group`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ group_name: newGroup.trim() })
+        });
+        if (res.ok) loadAgents();
+        else { const d = await res.json(); alert(d.error || 'فشل تعديل المجموعة'); }
+      } catch (e) { alert('خطأ في الاتصال'); }
+    }
+
+    function openRegisterAgentModal() {
+      document.getElementById('register-agent-modal').classList.add('active');
+    }
+    function closeRegisterAgentModal() {
+      document.getElementById('register-agent-modal').classList.remove('active');
+    }
+
+    async function handleRegisterAgent(e) {
+      e.preventDefault();
+      const name = document.getElementById('reg-name').value.trim();
+      const phone = document.getElementById('reg-phone').value.trim();
+      const subdomain = document.getElementById('reg-subdomain').value.trim().toLowerCase();
+      const groupName = document.getElementById('reg-group').value.trim() || 'default';
+
+      try {
+        const res = await fetch('/api/agents/register-from-ui', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone, subdomain, group_name: groupName })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ تم تسجيل الوكيل وحجز النطاق بنجاح!');
+          closeRegisterAgentModal();
+          loadAgents();
+        } else {
+          alert('❌ ' + (data.error || 'فشل التسجيل'));
+        }
+      } catch (err) { alert('خطأ في الاتصال'); }
+    }
+
+    // ─── SMART BROADCASTS ───────────────────────────────────────────────────
+
+    async function loadBroadcasts() {
+      try {
+        const res = await fetch('/api/broadcasts');
+        if (!res.ok) throw new Error('فشل جلب الحملات الإعلانية');
+        const data = await res.json();
+        allBroadcastsCache = data || [];
+        document.getElementById('stat-broadcasts').textContent = allBroadcastsCache.filter(b => b.status === 'active').length;
+        renderBroadcastsTable(allBroadcastsCache);
+      } catch (err) {
+        document.getElementById('broadcasts-table-container').innerHTML = `<p style="color:var(--danger); text-align:center; padding:20px;">❌ ${err.message}</p>`;
+      }
+    }
+
+    function renderBroadcastsTable(broadcasts) {
+      const container = document.getElementById('broadcasts-table-container');
+      if (!broadcasts || !broadcasts.length) {
+        container.innerHTML = '<p class="text-muted" style="text-align:center; padding:30px;">لا توجد حملات إعلانية نشطة أو مسجلة حالياً.</p>';
+        return;
+      }
+
+      let html = '<div class="table-wrap"><table><thead><tr>' +
+        '<th>عنوان الحملة</th>' +
+        '<th>نوع العرض</th>' +
+        '<th>الفئة المستهدفة</th>' +
+        '<th>تكرار الظهور</th>' +
+        '<th>الإحصائيات (👁️ / 🖱️)</th>' +
+        '<th>الحالة</th>' +
+        '<th>إجراءات</th>' +
+        '</tr></thead><tbody>';
+
+      broadcasts.forEach(b => {
+        const displayTypeName = b.display_type === 'banner' ? '🪧 شريط علوي' : (b.display_type === 'modal' ? '🪟 نافذة منبثقة' : '🌐 إعلان برودباند');
+        const statusBadge = b.status === 'active' ? '<span class="badge badge-online">🟢 نشط ومفعل</span>' : '<span class="badge badge-offline">⏸️ متوقف</span>';
+
+        html += `<tr>
+          <td style="font-weight:bold; color:#f8fafc;">${escapeHtml(b.title)}</td>
+          <td>${displayTypeName}</td>
+          <td><span style="font-size:12px; color:#94a3b8;">${escapeHtml(b.target_type)}</span></td>
+          <td>${escapeHtml(b.frequency)}</td>
+          <td>
+            <span style="color:#38bdf8; font-weight:bold;">👁️ ${b.views_count || 0}</span>
+            <span style="color:#22c55e; font-weight:bold; margin-right:8px;">🖱️ ${b.clicks_count || 0}</span>
+          </td>
+          <td>${statusBadge}</td>
+          <td>
+            <div style="display:flex; gap:4px;">
+              <button class="btn btn-primary btn-xs" title="بث فوري الآن لجميع الوكلاء" onclick="triggerBroadcastPush('${escapeHtml(b.id)}')">🚀 بث</button>
+              <button class="btn btn-dark btn-xs" title="إيقاف / تفعيل" onclick="toggleBroadcastStatus('${escapeHtml(b.id)}')">${b.status === 'active' ? '⏸️' : '▶️'}</button>
+              <button class="btn btn-danger btn-xs" title="حذف الحملة" onclick="deleteBroadcast('${escapeHtml(b.id)}')">🗑️</button>
+            </div>
+          </td>
+        </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    function openBroadcastModal() {
+      document.getElementById('bc-id').value = '';
+      document.getElementById('bc-title').value = '';
+      document.getElementById('bc-message').value = '';
+      document.getElementById('bc-action-url').value = '';
+      document.getElementById('bc-action-text').value = '';
+      document.getElementById('bc-image-url').value = '';
+      updateBroadcastPreview();
+      document.getElementById('broadcast-modal').classList.add('active');
+    }
+    function closeBroadcastModal() {
+      document.getElementById('broadcast-modal').classList.remove('active');
+    }
+
+    function updateBroadcastPreview() {
+      const title = document.getElementById('bc-title').value || 'عنوان الإشعار';
+      const msg = document.getElementById('bc-message').value || 'نص الرسالة سيظهر هنا...';
+      const actionText = document.getElementById('bc-action-text').value;
+      const btnEl = document.getElementById('prev-btn');
+
+      document.getElementById('prev-title').textContent = title;
+      document.getElementById('prev-msg').textContent = msg;
+      if (actionText) {
+        btnEl.textContent = actionText;
+        btnEl.style.display = 'inline-flex';
+      } else {
+        btnEl.style.display = 'none';
+      }
+    }
+
+    async function handleSaveBroadcast(e) {
+      e.preventDefault();
+      const payload = {
+        title: document.getElementById('bc-title').value.trim(),
+        message: document.getElementById('bc-message').value.trim(),
+        display_type: document.getElementById('bc-display-type').value,
+        target_type: document.getElementById('bc-target-type').value,
+        action_url: document.getElementById('bc-action-url').value.trim(),
+        action_text: document.getElementById('bc-action-text').value.trim(),
+        image_url: document.getElementById('bc-image-url').value.trim(),
+        frequency: document.getElementById('bc-frequency').value
+      };
+
+      try {
+        const res = await fetch('/api/broadcasts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ تم حفظ وبث الحملة بنجاح!');
+          closeBroadcastModal();
+          loadBroadcasts();
+        } else {
+          alert('❌ ' + (data.error || 'فشل الحفظ'));
+        }
+      } catch (err) { alert('خطأ في الاتصال'); }
+    }
+
+    async function triggerBroadcastPush(id) {
+      if (!confirm('هل تريد إرسال وبث هذا الإشعار لحظياً لجميع الوكلاء المتصلين الآن؟')) return;
+      try {
+        const res = await fetch(`/api/broadcasts/${encodeURIComponent(id)}/send`, { method: 'POST' });
+        const data = await res.json();
+        alert(res.ok ? (data.message || 'تم البث بنجاح') : (data.error || 'فشل'));
+        loadBroadcasts();
+      } catch (e) { alert('خطأ في الاتصال'); }
+    }
+
+    async function toggleBroadcastStatus(id) {
+      try {
+        const res = await fetch(`/api/broadcasts/${encodeURIComponent(id)}/toggle`, { method: 'POST' });
+        loadBroadcasts();
+      } catch (e) { alert('خطأ في الاتصال'); }
+    }
+
+    async function deleteBroadcast(id) {
+      if (!confirm('هل تريد حذف هذه الحملة الإعلانية؟')) return;
+      try {
+        const res = await fetch(`/api/broadcasts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        loadBroadcasts();
+      } catch (e) { alert('خطأ في الاتصال'); }
+    }
+
+    // ─── OTA UPDATES ────────────────────────────────────────────────────────
+
+    async function loadOTAReleases() {
+      try {
+        const res = await fetch('/api/ota/releases');
+        if (!res.ok) throw new Error('فشل جلب قائمة الإصدارات');
+        const data = await res.json();
+        const releases = data.releases || [];
+
+        const container = document.getElementById('ota-releases-container');
+        if (!releases.length) {
+          container.innerHTML = '<p class="text-muted" style="text-align:center; padding:20px;">لا توجد إصدارات منشورة بعد.</p>';
+          return;
+        }
+
+        let html = '<div class="table-wrap"><table><thead><tr>' +
+          '<th>الإصدار</th><th>المعمارية</th><th>تاريخ النشر</th><th>تحميل</th>' +
+          '</tr></thead><tbody>';
+
+        releases.forEach(r => {
+          html += `<tr>
+            <td style="font-weight:bold; font-family:monospace; color:#38bdf8;">${escapeHtml(r.version)}</td>
+            <td><code>${escapeHtml(r.target_arch)}</code></td>
+            <td style="font-size:12px; color:#94a3b8;">${escapeHtml(r.created_at || '-')}</td>
+            <td><a href="/api/ota/releases/${encodeURIComponent(r.version)}/${encodeURIComponent(r.target_arch)}/download" class="btn btn-dark btn-xs">📥 تحميل</a></td>
+          </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+      } catch (err) {
+        document.getElementById('ota-releases-container').innerHTML = `<p style="color:var(--danger); text-align:center;">❌ ${err.message}</p>`;
+      }
+    }
+
+    async function handleOTAUpload(e) {
+      e.preventDefault();
+      const version = document.getElementById('ota-version').value.trim();
+      const arch = document.getElementById('ota-arch').value;
+      const fileInput = document.getElementById('ota-file');
+      const btn = document.getElementById('btn-ota-upload');
+
+      if (!fileInput.files || !fileInput.files[0]) return;
+
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري النشر...';
+
+      try {
+        const res = await fetch(`/api/ota/releases/${encodeURIComponent(version)}/${encodeURIComponent(arch)}/upload`, {
+          method: 'POST',
+          body: fd
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ تم نشر الإصدار بنجاح!');
+          loadOTAReleases();
+        } else {
+          alert('❌ ' + (data.error || 'فشل النشر'));
+        }
+      } catch (err) { alert('خطأ في الاتصال'); }
+      finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> نشر الإصدار';
+      }
+    }
+
+    // ─── CENTRAL RESTORE ────────────────────────────────────────────────────
+
+    async function handleCentralRestore(e) {
+      e.preventDefault();
+      const fileInput = document.getElementById('restore-file');
+      if (!fileInput.files || !fileInput.files[0]) return;
+      if (!confirm(`⚠️ تحذير شديد: سيتم استبدال قاعدة بيانات السيرفر المركزي الحالية بالكامل بملف النسخة "${fileInput.files[0].name}". هل أنت متأكد؟`)) return;
+
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+
+      try {
+        const res = await fetch('/api/admin/backup/restore', { method: 'POST', body: fd });
+        const data = await res.json();
+        alert(res.ok ? (data.message || 'تمت الاستعادة بنجاح. سيتم تحديث الصفحة.') : (data.error || 'فشل'));
+        if (res.ok) window.location.reload();
+      } catch (err) { alert('خطأ في الاتصال'); }
+    }
+
+    // ─── AUTH & PASSWORD ────────────────────────────────────────────────────
+
+    function openPasswordModal() { document.getElementById('password-modal').classList.add('active'); }
+    function closePasswordModal() { document.getElementById('password-modal').classList.remove('active'); }
+
+    async function handleChangePassword(e) {
+      e.preventDefault();
+      const oldPassword = document.getElementById('pwd-old').value;
+      const newPassword = document.getElementById('pwd-new').value;
+
+      try {
+        const res = await fetch('/api/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ تم تحديث كلمة المرور بنجاح!');
+          closePasswordModal();
+        } else {
+          alert('❌ ' + (data.error || 'فشل'));
+        }
+      } catch (err) { alert('خطأ في الاتصال'); }
+    }
+
+    async function logout() {
+      if (!confirm('هل تريد تسجيل الخروج؟')) return;
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    // Initial Load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAgents();
+    });
+  </script>
+</body>
+</html>

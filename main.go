@@ -115,7 +115,7 @@ func startSasmanTunnel(port string) {
 		},
 		OnBroadcast: func(bc broadcast.BroadcastMessage) {
 			broadcast.StoreActiveBroadcast(bc)
-			if (bc.DisplayType == "splash" || bc.TargetType == "users" || bc.TargetType == "both") && activeSplashMgr != nil {
+			if (bc.DisplayType == "splash" || bc.TargetType == "users" || bc.TargetType == "both" || bc.TargetType == "broadband" || bc.TargetType == "all") && activeSplashMgr != nil {
 				go func() {
 					_ = activeSplashMgr.ApplySplashCampaign(bc)
 				}()

@@ -288,6 +288,23 @@ window.showToast = showToast;
 // SASMAN Smart Broadcast & Notification Client Engine (Agent Panel)
 // ==========================================================================
 (function() {
+    // Inject animation styles
+    if (!document.getElementById('sas-bc-styles')) {
+        const style = document.createElement('style');
+        style.id = 'sas-bc-styles';
+        style.textContent = `
+            @keyframes sasSlideDown {
+                from { transform: translate(-50%, -100%); opacity: 0; }
+                to { transform: translate(-50%, 0); opacity: 1; }
+            }
+            @keyframes sasFadeIn {
+                from { opacity: 0; transform: scale(0.95); }
+                to { opacity: 1; transform: scale(1); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     async function checkAgentBroadcasts() {
         try {
             const res = await fetch('/radius/api/broadcasts/active');
@@ -297,21 +314,26 @@ window.showToast = showToast;
 
             broadcasts.forEach(b => {
                 if (!b || !b.id) return;
-                // Only process agent-targeted broadcasts here
-                if (b.target_type === 'users') return;
+                
+                // Only process agent-targeted broadcasts here (skip PPPoE-only broadcasts)
+                const isForAgent = (!b.target_type || b.target_type === 'agents' || b.target_type === 'all' || b.target_type === 'both');
+                if (!isForAgent) return;
 
                 const seenKey = `sasman_bc_seen_${b.id}`;
-                const lastSeen = localStorage.getItem(seenKey);
+                const lastSeenStr = localStorage.getItem(seenKey);
 
-                if (b.frequency === 'once' && lastSeen) return;
-                if (b.frequency === 'daily' && lastSeen) {
-                    const diffHours = (Date.now() - parseInt(lastSeen, 10)) / (1000 * 60 * 60);
-                    if (diffHours < 24) return;
+                if (b.frequency !== 'always' && lastSeenStr) {
+                    const lastSeenTime = parseInt(lastSeenStr, 10);
+                    if (b.frequency === 'once') return;
+                    if (b.frequency === 'daily') {
+                        const diffHours = (Date.now() - lastSeenTime) / (1000 * 60 * 60);
+                        if (diffHours < 24) return;
+                    }
                 }
 
                 if (b.display_type === 'modal') {
                     renderBroadcastModal(b);
-                } else {
+                } else if (b.display_type === 'banner' || !b.display_type) {
                     renderBroadcastBanner(b);
                 }
             });
@@ -327,29 +349,29 @@ window.showToast = showToast;
         if (!container) {
             container = document.createElement('div');
             container.id = 'sas-broadcast-banner-container';
-            container.style.cssText = 'position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:99999; width:92%; max-width:900px; display:flex; flex-direction:column; gap:8px; pointer-events:none;';
+            container.style.cssText = 'position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:999999; width:92%; max-width:960px; display:flex; flex-direction:column; gap:10px; pointer-events:none;';
             document.body.appendChild(container);
         }
 
         const banner = document.createElement('div');
         banner.id = `sas-bc-banner-${b.id}`;
-        banner.style.cssText = 'pointer-events:auto; background:linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.96)); border:1px solid #06b6d4; border-radius:12px; padding:12px 18px; box-shadow:0 8px 30px rgba(0,0,0,0.5); backdrop-filter:blur(10px); display:flex; justify-content:space-between; align-items:center; gap:12px; animation:slideDown 0.3s ease; color:#e2e8f0; font-family:inherit;';
+        banner.style.cssText = 'pointer-events:auto; background:linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98)); border:1.5px solid #0ea5e9; border-radius:14px; padding:14px 20px; box-shadow:0 12px 35px rgba(0,0,0,0.6); backdrop-filter:blur(14px); display:flex; justify-content:space-between; align-items:center; gap:14px; animation:sasSlideDown 0.35s ease; color:#e2e8f0; font-family:inherit; direction:rtl;';
 
         const actionBtn = (b.action_url && b.action_text) 
-            ? `<a href="${b.action_url}" target="_blank" onclick="logBroadcastClick('${b.id}')" style="display:inline-block; background:linear-gradient(135deg, #06b6d4, #0284c7); color:#fff; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:bold; text-decoration:none; white-space:nowrap;">${escapeBcHtml(b.action_text)}</a>` 
+            ? `<a href="${b.action_url}" target="_blank" onclick="logBroadcastClick('${b.id}')" style="display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:bold; text-decoration:none; white-space:nowrap; box-shadow:0 2px 10px rgba(14,165,233,0.3);">${escapeBcHtml(b.action_text)}</a>` 
             : '';
 
         banner.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px; flex:1;">
-                <span style="font-size:18px;">📢</span>
+            <div style="display:flex; align-items:center; gap:12px; flex:1;">
+                <span style="font-size:22px; filter:drop-shadow(0 0 8px rgba(14,165,233,0.5));">📢</span>
                 <div>
-                    <strong style="color:#22d3ee; font-size:13px; display:block;">${escapeBcHtml(b.title)}</strong>
-                    <span style="font-size:12px; color:#cbd5e1;">${escapeBcHtml(b.message)}</span>
+                    <strong style="color:#38bdf8; font-size:14px; display:block; margin-bottom:2px;">${escapeBcHtml(b.title)}</strong>
+                    <span style="font-size:13px; color:#cbd5e1; line-height:1.4;">${escapeBcHtml(b.message)}</span>
                 </div>
             </div>
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:10px;">
                 ${actionBtn}
-                <button onclick="dismissAgentBroadcast('${b.id}', 'banner')" style="background:transparent; border:none; color:#94a3b8; font-size:16px; cursor:pointer; padding:4px 8px;" title="إغلاق">✕</button>
+                <button onclick="dismissAgentBroadcast('${b.id}', 'banner')" style="background:rgba(255,255,255,0.08); border:none; color:#94a3b8; font-size:16px; cursor:pointer; padding:6px 10px; border-radius:8px; transition:all 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.color='#94a3b8'; this.style.background='rgba(255,255,255,0.08)'" title="إغلاق">✕</button>
             </div>
         `;
 
@@ -362,25 +384,25 @@ window.showToast = showToast;
 
         const overlay = document.createElement('div');
         overlay.id = `sas-bc-modal-${b.id}`;
-        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:999999; display:flex; justify-content:center; align-items:center; padding:20px; backdrop-filter:blur(5px); animation:fadeIn 0.3s ease;';
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999999; display:flex; justify-content:center; align-items:center; padding:20px; backdrop-filter:blur(8px); direction:rtl;';
 
         const imgHtml = b.image_url 
-            ? `<div style="margin-bottom:12px; text-align:center;"><img src="${b.image_url}" style="max-width:100%; max-height:180px; border-radius:10px; border:1px solid #334155;"></div>` 
+            ? `<div style="margin-bottom:14px; text-align:center;"><img src="${b.image_url}" style="max-width:100%; max-height:200px; border-radius:12px; border:1px solid #334155;"></div>` 
             : '';
 
         const actionBtn = (b.action_url && b.action_text) 
-            ? `<a href="${b.action_url}" target="_blank" onclick="logBroadcastClick('${b.id}')" style="display:inline-block; background:linear-gradient(135deg, #06b6d4, #0284c7); color:#fff; padding:10px 20px; border-radius:10px; font-size:14px; font-weight:bold; text-decoration:none;">${escapeBcHtml(b.action_text)}</a>` 
+            ? `<a href="${b.action_url}" target="_blank" onclick="logBroadcastClick('${b.id}')" style="display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; padding:12px 24px; border-radius:10px; font-size:14px; font-weight:bold; text-decoration:none; box-shadow:0 4px 15px rgba(14,165,233,0.4);">${escapeBcHtml(b.action_text)}</a>` 
             : '';
 
         overlay.innerHTML = `
-            <div style="background:#1e293b; border:1px solid #06b6d4; border-radius:16px; padding:24px; width:100%; max-width:520px; box-shadow:0 20px 50px rgba(0,0,0,0.7); text-align:center; color:#e2e8f0; font-family:inherit;">
-                <div style="font-size:32px; margin-bottom:8px;">📢</div>
-                <h3 style="color:#22d3ee; font-size:18px; margin-bottom:10px;">${escapeBcHtml(b.title)}</h3>
+            <div style="background:#0f172a; border:2px solid #0ea5e9; border-radius:20px; padding:28px; width:100%; max-width:540px; box-shadow:0 25px 60px rgba(0,0,0,0.8); text-align:center; color:#e2e8f0; font-family:inherit; animation:sasFadeIn 0.35s ease;">
+                <div style="font-size:38px; margin-bottom:8px; filter:drop-shadow(0 0 10px rgba(14,165,233,0.5));">📢</div>
+                <h3 style="color:#38bdf8; font-size:19px; font-weight:bold; margin-bottom:12px;">${escapeBcHtml(b.title)}</h3>
                 ${imgHtml}
-                <p style="font-size:14px; color:#cbd5e1; line-height:1.6; margin-bottom:20px; white-space:pre-wrap;">${escapeBcHtml(b.message)}</p>
+                <p style="font-size:14px; color:#cbd5e1; line-height:1.7; margin-bottom:24px; white-space:pre-wrap; text-align:right; background:rgba(30,41,59,0.5); padding:14px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">${escapeBcHtml(b.message)}</p>
                 <div style="display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
                     ${actionBtn}
-                    <button onclick="dismissAgentBroadcast('${b.id}', 'modal')" style="background:#334155; color:#fff; padding:10px 20px; border-radius:10px; font-size:14px; font-weight:bold; border:none; cursor:pointer;">تمت القراءة والمتابعة ✓</button>
+                    <button onclick="dismissAgentBroadcast('${b.id}', 'modal')" style="background:#334155; color:#fff; padding:12px 24px; border-radius:10px; font-size:14px; font-weight:bold; border:1px solid #475569; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#334155'">تمت القراءة والمتابعة ✓</button>
                 </div>
             </div>
         `;
@@ -421,7 +443,8 @@ window.showToast = showToast;
         return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // Run on startup and poll every 30s
-    setTimeout(checkAgentBroadcasts, 1500);
-    setInterval(checkAgentBroadcasts, 30000);
+    // Run on startup, on window focus, and poll every 4s
+    setTimeout(checkAgentBroadcasts, 800);
+    setInterval(checkAgentBroadcasts, 4000);
+    window.addEventListener('focus', checkAgentBroadcasts);
 })();
