@@ -1,12 +1,14 @@
-package shared
-
 import (
+	_ "embed"
 	"encoding/json"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 )
+
+//go:embed default_routing_data.json
+var defaultRoutingDataBytes []byte
 
 // RoutingData models
 type GameConfig struct {
@@ -77,7 +79,14 @@ func LoadData() {
 
 	file, err := ioutil.ReadFile("data/routing_data.json")
 	if err != nil {
-		log.Printf("[Init] Warning: routing_data.json not found, starting fresh.\n")
+		log.Printf("[Init] routing_data.json not found on disk, seeding from embedded defaults.\n")
+		_ = os.MkdirAll("data", 0755)
+		if len(defaultRoutingDataBytes) > 0 {
+			_ = ioutil.WriteFile("data/routing_data.json", defaultRoutingDataBytes, 0644)
+			json.Unmarshal(defaultRoutingDataBytes, &RoutingDataState)
+			log.Printf("[Init] Successfully seeded and loaded default app groups and ip groups\n")
+			return
+		}
 		RoutingDataState.Apps = make(map[string][]string)
 		RoutingDataState.Ips = make(map[string][]string)
 		RoutingDataState.Games = make(map[string]GameConfig)
