@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"mikrotik-manager/pkg/broadcast"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
 )
@@ -137,12 +139,14 @@ type SyncConfigPayload struct {
 }
 
 type Service struct {
-	mu              sync.RWMutex
-	sessions        map[string]*AgentSession
-	pendingRequests map[string]chan *HttpResponsePayload
-	pendingBackups  map[string]chan *BackupChunkMsg
-	db              *sql.DB
-	OnRelayMessage  func(session *AgentSession, msg TunnelMessage)
+	mu                sync.RWMutex
+	sessions          map[string]*AgentSession
+	pendingRequests   map[string]chan *HttpResponsePayload
+	pendingBackups    map[string]chan *BackupChunkMsg
+	db                *sql.DB
+	OnRelayMessage    func(session *AgentSession, msg TunnelMessage)
+	OnBroadcastLog    func(log broadcast.BroadcastLogPayload)
+	OnAgentRegistered func(subdomain string)
 }
 
 func NewService(db *sql.DB) *Service {
@@ -677,6 +681,10 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 				}
 				_ = session.WriteJSON(resp)
 
+				if s.OnAgentRegistered != nil {
+					go s.OnAgentRegistered(session.Subdomain)
+				}
+
 			} else if msg.Type == "http_response" {
 				var respPayload HttpResponsePayload
 				if err := json.Unmarshal(msg.Payload, &respPayload); err == nil {
@@ -775,6 +783,14 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 					"remote_access":   syncPayload.RemoteAccess,
 				}
 				boundSession.writeMu.Unlock()
+			}
+		} else if msg.Type == "broadcast_log" {
+			var bLog broadcast.BroadcastLogPayload
+			if err := json.Unmarshal(msg.Payload, &bLog); err == nil && s.OnBroadcastLog != nil {
+				if bLog.AgentID == "" && boundSession != nil {
+					bLog.AgentID = boundSession.Subdomain
+				}
+				go s.OnBroadcastLog(bLog)
 			}
 		} else if strings.HasPrefix(msg.Type, "relay_") || msg.Type == "telemetry_push" || msg.Type == "p2p_offer" || msg.Type == "p2p_answer" || msg.Type == "p2p_candidate" {
 			if s.OnRelayMessage != nil && boundSession != nil {

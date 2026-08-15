@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	"mikrotik-manager/pkg/broadcast"
 	"mikrotik-manager/pkg/relay"
 	"mikrotik-manager/pkg/tunnel"
 	"mikrotik-manager/server/internal/api"
@@ -40,6 +41,41 @@ func main() {
 
 	svc := tunnel.NewService(repo.GetDB())
 	svc.RestoreSessions()
+
+	// Handle broadcast view/click logs from agents
+	svc.OnBroadcastLog = func(bLog broadcast.BroadcastLogPayload) {
+		_ = repo.LogBroadcastView(storage.BroadcastLog{
+			BroadcastID:    bLog.BroadcastID,
+			AgentID:        bLog.AgentID,
+			UserIdentifier: bLog.UserIdentifier,
+			ViewedAt:       bLog.ViewedAt,
+			Clicked:        bLog.Clicked,
+		})
+	}
+
+	// Auto-push active broadcasts to newly registered/connected agents
+	svc.OnAgentRegistered = func(subdomain string) {
+		activeBroadcasts, err := repo.GetActiveBroadcastsForAgent(subdomain)
+		if err == nil {
+			for _, b := range activeBroadcasts {
+				msg := broadcast.BroadcastMessage{
+					ID:                b.ID,
+					Title:             b.Title,
+					Message:           b.Message,
+					ImageURL:          b.ImageURL,
+					ActionURL:         b.ActionURL,
+					ActionText:        b.ActionText,
+					DisplayType:       b.DisplayType,
+					TargetType:        b.TargetType,
+					TargetProfiles:    b.TargetProfiles,
+					Frequency:         b.Frequency,
+					SplashDurationSec: b.SplashDurationSec,
+					CreatedAt:         b.CreatedAt.Format(time.RFC3339),
+				}
+				_ = svc.SendTunnelMessage(subdomain, "broadcast_push", msg)
+			}
+		}
+	}
 
 	// Initialize SASMAN Service Relay Control Plane
 	relayCatalog, err := relayinternal.NewCatalogManager(repo.GetDB())
@@ -847,6 +883,137 @@ func main() {
       <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
         <button onclick="closeCanaryModal()" style="background:#334155;">إلغاء</button>
         <button class="btn-warning" onclick="submitCanaryRollout()">🚀 إطلاق حملة التحديث</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Smart Broadcast & Ad-Engine Card -->
+  <div class="card" style="border: 1px solid #06b6d4; background: rgba(15, 23, 42, 0.95); box-shadow: 0 0 25px rgba(6, 182, 212, 0.15);">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+      <div>
+        <h3 style="color:#22d3ee; margin:0; border:none; padding:0;">📡 نظام الإعلانات والإشعارات الذكي (Smart Broadcast & Ad-Engine)</h3>
+        <p class="muted" style="margin:4px 0 0 0; font-size:13px;">بث إشعارات فورية للوكلاء عبر السحابة، وإطلاق حملات إعلانية تفاعلية لمستخدمي البرودباند (PPPoE).</p>
+      </div>
+      <button class="btn-primary" style="background:linear-gradient(135deg, #06b6d4, #0284c7);" onclick="openBroadcastModal()">➕ إنشاء حملة / إشعار جديد</button>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table id="broadcasts-table">
+        <thead>
+          <tr>
+            <th>العنوان</th>
+            <th>نوع العرض</th>
+            <th>الفئة المستهدفة</th>
+            <th>المشاهدات / النقرات</th>
+            <th>الحالة</th>
+            <th>تاريخ الإنشاء</th>
+            <th>الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody id="broadcasts-tbody">
+          <tr><td colspan="7" style="text-align:center; color:#64748b; padding:24px;">جاري تحميل الحملات...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Create/Edit Broadcast Modal -->
+  <div id="broadcast-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; justify-content:center; align-items:center; overflow-y:auto; padding:20px;">
+    <div style="background:#1e293b; padding:24px; border-radius:16px; border:1px solid #06b6d4; width:100%; max-width:680px; box-shadow:0 10px 40px rgba(0,0,0,0.6); max-height:90vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 id="modal-broadcast-heading" style="color:#22d3ee; margin:0; border:none; padding:0;">📢 إنشاء إشعار / حملة إعلانية جديدة</h3>
+        <button onclick="closeBroadcastModal()" style="background:transparent; border:none; color:#94a3b8; font-size:20px; cursor:pointer;">✕</button>
+      </div>
+
+      <input type="hidden" id="bc-id">
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">عنوان الإشعار / الحملة *:</label>
+          <input type="text" id="bc-title" placeholder="مثال: تنبيه صيانة مجدولة، أو عرض باقة VIP" style="width:100%; max-width:100%;" oninput="updateBcPreview()">
+        </div>
+
+        <div>
+          <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">نص الإشعار / الرسالة *:</label>
+          <textarea id="bc-message" rows="3" placeholder="اكتب تفاصيل الإشعار أو الإعلان هنا..." style="width:100%; background:#0f172a; color:#e2e8f0; border:1px solid #475569; border-radius:10px; padding:10px; font-family:inherit; font-size:14px; box-sizing:border-box;" oninput="updateBcPreview()"></textarea>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">نوع العرض (Display Type):</label>
+            <select id="bc-display-type" style="width:100%; background:#0f172a; color:#fff; padding:10px; border-radius:8px; border:1px solid #334155;" onchange="updateBcPreview()">
+              <option value="banner">🪧 شريط علوي في لوحة الوكيل (Top Banner)</option>
+              <option value="modal">🪟 نافذة منبثقة إجبارية (Popup Modal)</option>
+              <option value="splash">🌊 إعلان تحويلي لمستخدمي البرودباند (PPPoE Splash)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">الفئة المستهدفة (Target):</label>
+            <select id="bc-target-type" style="width:100%; background:#0f172a; color:#fff; padding:10px; border-radius:8px; border:1px solid #334155;">
+              <option value="agents">👥 لوحات الوكلاء فقط (Agent Panels)</option>
+              <option value="users">🌐 مستخدمو البرودباند فقط (Broadband Users)</option>
+              <option value="both">⚡ كلاهما (Both)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">الوكلاء المستهدفون (Agents):</label>
+            <input type="text" id="bc-target-agents" value="ALL" placeholder="ALL أو sub1,sub2" style="width:100%; max-width:100%;">
+          </div>
+          <div>
+            <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">باقات البرودباند المستهدفة (Profiles):</label>
+            <input type="text" id="bc-target-profiles" value="ALL" placeholder="ALL أو باقة 10M,باقة 20M" style="width:100%; max-width:100%;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">تكرار الظهور (Frequency):</label>
+            <select id="bc-frequency" style="width:100%; background:#0f172a; color:#fff; padding:10px; border-radius:8px; border:1px solid #334155;">
+              <option value="once">مرة واحدة لكل مستخدم (Once)</option>
+              <option value="daily">مرة واحدة يومياً (Daily)</option>
+              <option value="always">دائماً مع كل جلسة (Always)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">مدة العداد التنازلي لإعلان البرودباند (ثواني):</label>
+            <input type="number" id="bc-splash-duration" value="10" min="3" max="120" style="width:100%; max-width:100%;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">رابط الصورة / البنر (اختياري):</label>
+            <input type="text" id="bc-image-url" placeholder="https://example.com/banner.png" style="width:100%; max-width:100%;" oninput="updateBcPreview()">
+          </div>
+          <div>
+            <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">رابط زر الإجراء (Action URL):</label>
+            <input type="text" id="bc-action-url" placeholder="https://example.com/offer" style="width:100%; max-width:100%;" oninput="updateBcPreview()">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">نص زر الإجراء (Action Text):</label>
+          <input type="text" id="bc-action-text" placeholder="مثال: تجديد الاشتراك الآن، أو معرفة التفاصيل" style="width:100%; max-width:100%;" oninput="updateBcPreview()">
+        </div>
+
+        <!-- Live Preview -->
+        <div style="margin-top:8px; background:#0f172a; border:1px dashed #06b6d4; border-radius:10px; padding:14px;">
+          <div style="font-size:11px; color:#06b6d4; font-weight:bold; margin-bottom:8px;">👁️ معاينة حية لشكل الإشعار (Live Preview):</div>
+          <div id="bc-preview-box" style="background:#1e293b; border-radius:8px; padding:12px; border:1px solid #334155;">
+            <div id="prev-title" style="font-weight:bold; color:#22d3ee; margin-bottom:4px;">عنوان الإشعار</div>
+            <div id="prev-msg" style="font-size:13px; color:#cbd5e1; margin-bottom:8px;">نص الرسالة سيظهر هنا...</div>
+            <div id="prev-img-wrap" style="display:none; margin-bottom:8px;"><img id="prev-img" src="" style="max-width:100%; max-height:120px; border-radius:6px;"></div>
+            <div id="prev-btn-wrap" style="display:none;"><button id="prev-btn" class="small-btn btn-primary" style="background:#0284c7;">معرفة المزيد</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button onclick="closeBroadcastModal()" style="background:#334155;">إلغاء</button>
+        <button class="btn-primary" style="background:linear-gradient(135deg, #06b6d4, #0284c7);" onclick="saveBroadcast()">💾 حفظ الحملة</button>
       </div>
     </div>
   </div>
@@ -1815,13 +1982,228 @@ func main() {
       }
     }
 
+    // ─── Broadcast & Ad-Engine Management ─────────────────────────────────────
+
+    let cachedBroadcasts = [];
+
+    async function loadBroadcasts() {
+      try {
+        const res = await fetch('/api/broadcasts');
+        if (!res.ok) return;
+        const list = await res.json();
+        cachedBroadcasts = list || [];
+        renderBroadcastsTable(cachedBroadcasts);
+      } catch (e) {
+        console.error('Failed to load broadcasts:', e);
+      }
+    }
+
+    function renderBroadcastsTable(list) {
+      const tbody = document.getElementById('broadcasts-tbody');
+      if (!list || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b; padding:24px;">لا توجد حملات إعلانية أو إشعارات حتى الآن. اضغط "إنشاء حملة جديدة" للبدء.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = list.map(b => {
+        let displayBadge = '<span class="badge" style="background:#1e293b; color:#94a3b8;">شريط</span>';
+        if (b.display_type === 'modal') {
+          displayBadge = '<span class="badge" style="background:#3b0764; color:#d8b4fe;">🪟 نافذة منبثقة</span>';
+        } else if (b.display_type === 'splash') {
+          displayBadge = '<span class="badge" style="background:#083344; color:#67e8f9;">🌊 إعلان برودباند</span>';
+        }
+
+        let targetText = '👥 كل الوكلاء';
+        if (b.target_type === 'users') targetText = '🌐 المشتركون (' + (b.target_profiles || 'ALL') + ')';
+        else if (b.target_type === 'both') targetText = '⚡ الوكلاء + المشتركون';
+        else if (b.target_agents !== 'ALL') targetText = '👥 وكلاء محددون (' + b.target_agents + ')';
+
+        const statusBadge = b.status === 'active' 
+          ? '<span class="badge online">🟢 نشط</span>' 
+          : '<span class="badge offline">⏸️ متوقف</span>';
+
+        const imp = b.impressions || 0;
+        const clk = b.clicks || 0;
+        const statsHtml = '<span style="color:#22d3ee; font-weight:bold;">👁️ ' + imp + '</span> <span style="color:#64748b; margin:0 4px;">|</span> <span style="color:#4ade80; font-weight:bold;">🖱️ ' + clk + '</span>';
+
+        const dateStr = b.created_at ? new Date(b.created_at).toLocaleString('ar-EG') : '-';
+
+        return '<tr>' +
+          '<td>' +
+            '<div style="font-weight:bold; color:#f8fafc;">' + escapeHtml(b.title) + '</div>' +
+            '<div style="font-size:12px; color:#94a3b8; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(b.message) + '</div>' +
+          '</td>' +
+          '<td>' + displayBadge + '</td>' +
+          '<td><span style="font-size:12px; color:#cbd5e1;">' + escapeHtml(targetText) + '</span></td>' +
+          '<td>' + statsHtml + '</td>' +
+          '<td>' + statusBadge + '</td>' +
+          '<td><span style="font-size:11px; color:#64748b;">' + dateStr + '</span></td>' +
+          '<td>' +
+            '<div style="display:flex; gap:4px; flex-wrap:wrap;">' +
+              '<button class="small-btn btn-primary" style="background:#0284c7;" onclick="sendBroadcastNow(\'' + b.id + '\')" title="إرسال فوري الآن">🚀 بث الآن</button>' +
+              '<button class="small-btn" style="background:#334155;" onclick="toggleBroadcast(\'' + b.id + '\')" title="تغيير الحالة">' + (b.status === 'active' ? '⏸️ إيقاف' : '▶️ تفعيل') + '</button>' +
+              '<button class="small-btn" style="background:#1e293b;" onclick="editBroadcast(\'' + b.id + '\')" title="تعديل">✏️</button>' +
+              '<button class="small-btn btn-danger" onclick="deleteBroadcast(\'' + b.id + '\')" title="حذف">🗑️</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function openBroadcastModal(data = null) {
+      document.getElementById('bc-id').value = data ? data.id : '';
+      document.getElementById('bc-title').value = data ? data.title : '';
+      document.getElementById('bc-message').value = data ? data.message : '';
+      document.getElementById('bc-display-type').value = data ? data.display_type : 'banner';
+      document.getElementById('bc-target-type').value = data ? data.target_type : 'agents';
+      document.getElementById('bc-target-agents').value = data ? (data.target_agents || 'ALL') : 'ALL';
+      document.getElementById('bc-target-profiles').value = data ? (data.target_profiles || 'ALL') : 'ALL';
+      document.getElementById('bc-frequency').value = data ? (data.frequency || 'once') : 'once';
+      document.getElementById('bc-splash-duration').value = data ? (data.splash_duration_sec || 10) : 10;
+      document.getElementById('bc-image-url').value = data ? (data.image_url || '') : '';
+      document.getElementById('bc-action-url').value = data ? (data.action_url || '') : '';
+      document.getElementById('bc-action-text').value = data ? (data.action_text || '') : '';
+
+      document.getElementById('modal-broadcast-heading').innerText = data ? '✏️ تعديل الحملة / الإشعار' : '📢 إنشاء إشعار / حملة إعلانية جديدة';
+      document.getElementById('broadcast-modal').style.display = 'flex';
+      updateBcPreview();
+    }
+
+    function closeBroadcastModal() {
+      document.getElementById('broadcast-modal').style.display = 'none';
+    }
+
+    function editBroadcast(id) {
+      const item = cachedBroadcasts.find(b => b.id === id);
+      if (item) openBroadcastModal(item);
+    }
+
+    function updateBcPreview() {
+      const title = document.getElementById('bc-title').value || 'عنوان الإشعار';
+      const msg = document.getElementById('bc-message').value || 'نص الرسالة سيظهر هنا...';
+      const img = document.getElementById('bc-image-url').value;
+      const actText = document.getElementById('bc-action-text').value;
+
+      document.getElementById('prev-title').innerText = title;
+      document.getElementById('prev-msg').innerText = msg;
+
+      const imgWrap = document.getElementById('prev-img-wrap');
+      const prevImg = document.getElementById('prev-img');
+      if (img && img.trim() !== '') {
+        prevImg.src = img;
+        imgWrap.style.display = 'block';
+      } else {
+        imgWrap.style.display = 'none';
+      }
+
+      const btnWrap = document.getElementById('prev-btn-wrap');
+      const prevBtn = document.getElementById('prev-btn');
+      if (actText && actText.trim() !== '') {
+        prevBtn.innerText = actText;
+        btnWrap.style.display = 'block';
+      } else {
+        btnWrap.style.display = 'none';
+      }
+    }
+
+    async function saveBroadcast() {
+      const id = document.getElementById('bc-id').value;
+      const title = document.getElementById('bc-title').value.trim();
+      const message = document.getElementById('bc-message').value.trim();
+      if (!title || !message) {
+        alert('يرجى كتابة العنوان ونص الرسالة');
+        return;
+      }
+
+      const payload = {
+        id: id,
+        title: title,
+        message: message,
+        display_type: document.getElementById('bc-display-type').value,
+        target_type: document.getElementById('bc-target-type').value,
+        target_agents: document.getElementById('bc-target-agents').value.trim() || 'ALL',
+        target_profiles: document.getElementById('bc-target-profiles').value.trim() || 'ALL',
+        frequency: document.getElementById('bc-frequency').value,
+        splash_duration_sec: parseInt(document.getElementById('bc-splash-duration').value) || 10,
+        image_url: document.getElementById('bc-image-url').value.trim(),
+        action_url: document.getElementById('bc-action-url').value.trim(),
+        action_text: document.getElementById('bc-action-text').value.trim(),
+        status: 'active'
+      };
+
+      try {
+        const res = await fetch('/api/broadcasts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          closeBroadcastModal();
+          loadBroadcasts();
+          alert('✅ تم حفظ الحملة بنجاح!');
+        } else {
+          alert('❌ فشل الحفظ: ' + (data.error || 'خطأ غير معروف'));
+        }
+      } catch (e) {
+        alert('❌ خطأ في الاتصال: ' + e.message);
+      }
+    }
+
+    async function sendBroadcastNow(id) {
+      if (!confirm('هل تريد بث هذا الإشعار / الإعلان فوراً إلى جميع الوكلاء المستهدفين المتصلين حالياً؟')) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/broadcasts/' + encodeURIComponent(id) + '/send', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('🚀 تم بث الإشعار بنجاح! تم استلامه من قبل ' + data.sent_count + ' وكيل متصل.');
+        } else {
+          alert('❌ فشل البث: ' + (data.error || 'خطأ غير معروف'));
+        }
+      } catch (e) {
+        alert('❌ خطأ في الاتصال: ' + e.message);
+      }
+    }
+
+    async function toggleBroadcast(id) {
+      try {
+        const res = await fetch('/api/broadcasts/' + encodeURIComponent(id) + '/toggle', { method: 'POST' });
+        if (res.ok) {
+          loadBroadcasts();
+        }
+      } catch (e) {
+        console.error('toggleBroadcast error:', e);
+      }
+    }
+
+    async function deleteBroadcast(id) {
+      if (!confirm('هل أنت متأكد من حذف هذا الإشعار / الحملة وسجلاتها؟')) return;
+      try {
+        const res = await fetch('/api/broadcasts/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (res.ok) {
+          loadBroadcasts();
+        }
+      } catch (e) {
+        console.error('deleteBroadcast error:', e);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     loadAgents();
     loadRelayDashboard();
     loadOTADashboard();
+    loadBroadcasts();
     setInterval(() => {
       loadAgents();
       loadRelayDashboard();
       loadOTADashboard();
+      loadBroadcasts();
     }, 5000);
   </script>
 </body>
@@ -2033,6 +2415,202 @@ func main() {
 			"tunnel_mode":      "agent",
 			"setup_instructions": fmt.Sprintf("الإعداد على النظام المحلي:\n1. وضع التوصيل: Agent\n2. الدومين الفرعي: %s\n3. رابط اللوحة الكامل: %s\n4. رقم منفذ Winbox: %d\n5. عنوان Winbox المباشر: %s\n6. التوكن: %s\n7. بوابة السيرفر: %s", agent.Subdomain, webURL, agent.WinboxPort, winboxAddress, agent.Token, gatewayURL),
 		})
+	})
+
+	// ─── Broadcast & Ad Campaigns REST APIs ──────────────────────────────────────
+
+	app.Get("/api/broadcasts", func(c *fiber.Ctx) error {
+		list, err := repo.ListBroadcasts()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		type broadcastWithStats struct {
+			storage.Broadcast
+			Impressions int `json:"impressions"`
+			Clicks      int `json:"clicks"`
+		}
+		var res []broadcastWithStats
+		for _, b := range list {
+			imp, clk, _ := repo.GetBroadcastStats(b.ID)
+			res = append(res, broadcastWithStats{
+				Broadcast:   b,
+				Impressions: imp,
+				Clicks:      clk,
+			})
+		}
+		return c.JSON(res)
+	})
+
+	app.Post("/api/broadcasts", func(c *fiber.Ctx) error {
+		var req struct {
+			ID                string `json:"id"`
+			Title             string `json:"title"`
+			Message           string `json:"message"`
+			ImageURL          string `json:"image_url"`
+			ActionURL         string `json:"action_url"`
+			ActionText        string `json:"action_text"`
+			DisplayType       string `json:"display_type"`
+			TargetType        string `json:"target_type"`
+			TargetAgents      string `json:"target_agents"`
+			TargetProfiles    string `json:"target_profiles"`
+			Frequency         string `json:"frequency"`
+			SplashDurationSec int    `json:"splash_duration_sec"`
+			Status            string `json:"status"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		if req.Title == "" || req.Message == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Title and Message are required"})
+		}
+
+		if req.ID == "" {
+			req.ID = fmt.Sprintf("bc-%d", time.Now().UnixNano())
+		}
+		if req.Status == "" {
+			req.Status = "active"
+		}
+		if req.DisplayType == "" {
+			req.DisplayType = "banner"
+		}
+		if req.TargetType == "" {
+			req.TargetType = "agents"
+		}
+		if req.TargetAgents == "" {
+			req.TargetAgents = "ALL"
+		}
+		if req.Frequency == "" {
+			req.Frequency = "once"
+		}
+		if req.SplashDurationSec <= 0 {
+			req.SplashDurationSec = 10
+		}
+
+		b := storage.Broadcast{
+			ID:                req.ID,
+			Title:             req.Title,
+			Message:           req.Message,
+			ImageURL:          req.ImageURL,
+			ActionURL:         req.ActionURL,
+			ActionText:        req.ActionText,
+			DisplayType:       req.DisplayType,
+			TargetType:        req.TargetType,
+			TargetAgents:      req.TargetAgents,
+			TargetProfiles:    req.TargetProfiles,
+			Frequency:         req.Frequency,
+			SplashDurationSec: req.SplashDurationSec,
+			Status:            req.Status,
+			CreatedBy:         "admin",
+		}
+
+		if err := repo.SaveBroadcast(b); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		return c.JSON(fiber.Map{"success": true, "broadcast": b})
+	})
+
+	app.Delete("/api/broadcasts/:id", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		if err := repo.DeleteBroadcast(id); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"success": true, "id": id})
+	})
+
+	app.Post("/api/broadcasts/:id/toggle", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		b, err := repo.GetBroadcast(id)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
+		}
+		newStatus := "active"
+		if b.Status == "active" {
+			newStatus = "paused"
+		}
+		if err := repo.UpdateBroadcastStatus(id, newStatus); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"success": true, "id": id, "status": newStatus})
+	})
+
+	app.Post("/api/broadcasts/:id/send", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		b, err := repo.GetBroadcast(id)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "broadcast not found"})
+		}
+
+		msg := broadcast.BroadcastMessage{
+			ID:                b.ID,
+			Title:             b.Title,
+			Message:           b.Message,
+			ImageURL:          b.ImageURL,
+			ActionURL:         b.ActionURL,
+			ActionText:        b.ActionText,
+			DisplayType:       b.DisplayType,
+			TargetType:        b.TargetType,
+			TargetProfiles:    b.TargetProfiles,
+			Frequency:         b.Frequency,
+			SplashDurationSec: b.SplashDurationSec,
+			CreatedAt:         b.CreatedAt.Format(time.RFC3339),
+		}
+
+		sentCount := 0
+		if b.TargetAgents == "ALL" || b.TargetAgents == "" {
+			rawJSON, _ := json.Marshal(msg)
+			svc.BroadcastToAgents(tunnel.TunnelMessage{
+				Type:    "broadcast_push",
+				Payload: rawJSON,
+			})
+			for _, a := range svc.ListAgents() {
+				if conn, ok := a["connected"].(bool); ok && conn {
+					sentCount++
+				}
+			}
+		} else {
+			targets := strings.Split(b.TargetAgents, ",")
+			for _, t := range targets {
+				sub := strings.TrimSpace(t)
+				if sub != "" {
+					if err := svc.SendTunnelMessage(sub, "broadcast_push", msg); err == nil {
+						sentCount++
+					}
+				}
+			}
+		}
+
+		return c.JSON(fiber.Map{"success": true, "sent_count": sentCount})
+	})
+
+	app.Get("/api/broadcasts/:id/stats", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		imp, clk, err := repo.GetBroadcastStats(id)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"impressions": imp, "clicks": clk})
+	})
+
+	app.Post("/api/broadcasts/log", func(c *fiber.Ctx) error {
+		var payload struct {
+			BroadcastID    string `json:"broadcast_id"`
+			AgentID        string `json:"agent_id"`
+			UserIdentifier string `json:"user_identifier"`
+			Clicked        int    `json:"clicked"`
+		}
+		if err := c.BodyParser(&payload); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		_ = repo.LogBroadcastView(storage.BroadcastLog{
+			BroadcastID:    payload.BroadcastID,
+			AgentID:        payload.AgentID,
+			UserIdentifier: payload.UserIdentifier,
+			ViewedAt:       time.Now(),
+			Clicked:        payload.Clicked,
+		})
+		return c.JSON(fiber.Map{"success": true})
 	})
 
 	app.Get("/api/tunnel/route/:subdomain", func(c *fiber.Ctx) error {

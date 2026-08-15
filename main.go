@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"mikrotik-manager/pkg/broadcast"
 	"mikrotik-manager/pkg/core"
 	"mikrotik-manager/pkg/firebase"
 	"mikrotik-manager/pkg/lan"
@@ -55,6 +56,7 @@ var ngrokTCPURL string
 // Global control for SASMAN agent tunnel
 var activeTunnelClient *tunnel.ResilientAgentClient
 var sasmanTunnelMu sync.Mutex
+var activeSplashMgr *broadcast.SplashManager
 
 var (
 	deviceProxyCookieMu   sync.Mutex
@@ -109,6 +111,14 @@ func startSasmanTunnel(port string) {
 			if err == nil && rClient != nil {
 				defer rClient.Close()
 				_ = relay.SyncMikroTikRelayRules(rClient, services, 18443)
+			}
+		},
+		OnBroadcast: func(bc broadcast.BroadcastMessage) {
+			broadcast.StoreActiveBroadcast(bc)
+			if (bc.DisplayType == "splash" || bc.TargetType == "users" || bc.TargetType == "both") && activeSplashMgr != nil {
+				go func() {
+					_ = activeSplashMgr.ApplySplashCampaign(bc)
+				}()
 			}
 		},
 	})
@@ -182,6 +192,14 @@ func main() {
 	// Start scheduled internet shutdown monitor
 	radius.StartShutdownMonitor()
 
+	// Initialize Smart Broadcast & Ad-Engine Local Store
+	broadcast.InitStore(os.Getenv("SASMAN_DATA_DIR"))
+
+	// Initialize PPPoE Broadband Splash Interceptor Manager
+	activeSplashMgr = broadcast.InitSplashManager(core.Connect, func(bLog broadcast.BroadcastLogPayload) {
+		// Log views and clicks
+	})
+
 	// Set up memory limit to ~150MB to prevent the app from consuming too much RAM over time
 	// Adjust as necessary depending on your deployment environment
 	// runtime/debug is imported, we need to add it to imports
@@ -195,6 +213,11 @@ func main() {
 	app.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
 	}))
+
+	// Register Broadcast endpoints
+	broadcast.RegisterRoutes(app, func(bLog broadcast.BroadcastLogPayload) {
+		// Log will be automatically handled locally and synchronized
+	})
 
 	app.Use(func(c *fiber.Ctx) error {
 		path := c.Path()

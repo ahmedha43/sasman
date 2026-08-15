@@ -54,6 +54,35 @@ type Subdomain struct {
 	UpdatedAt  time.Time
 }
 
+type Broadcast struct {
+	ID                string     `json:"id"`
+	Title             string     `json:"title"`
+	Message           string     `json:"message"`
+	ImageURL          string     `json:"image_url"`
+	ActionURL         string     `json:"action_url"`
+	ActionText        string     `json:"action_text"`
+	DisplayType       string     `json:"display_type"`       // 'banner' | 'modal' | 'splash'
+	TargetType        string     `json:"target_type"`        // 'agents' | 'users' | 'both'
+	TargetAgents      string     `json:"target_agents"`      // 'ALL' or comma/JSON array
+	TargetProfiles    string     `json:"target_profiles"`    // 'ALL' or comma/JSON array
+	Frequency         string     `json:"frequency"`          // 'once' | 'daily' | 'always'
+	SplashDurationSec int        `json:"splash_duration_sec"`// seconds for broadband countdown
+	StartAt           *time.Time `json:"start_at"`
+	EndAt             *time.Time `json:"end_at"`
+	Status            string     `json:"status"`             // 'active' | 'paused' | 'expired'
+	CreatedBy         string     `json:"created_by"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
+type BroadcastLog struct {
+	BroadcastID    string    `json:"broadcast_id"`
+	AgentID        string    `json:"agent_id"`
+	UserIdentifier string    `json:"user_identifier"` // IP, PPPoE username, or 'panel'
+	ViewedAt       time.Time `json:"viewed_at"`
+	Clicked        int       `json:"clicked"`
+}
+
 type SQLiteRepository struct {
 	db *sql.DB
 }
@@ -143,6 +172,36 @@ func (r *SQLiteRepository) CreateSchema() error {
             last_attempt_at TEXT,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );`,
+		`CREATE TABLE IF NOT EXISTS broadcasts (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            image_url TEXT NOT NULL DEFAULT '',
+            action_url TEXT NOT NULL DEFAULT '',
+            action_text TEXT NOT NULL DEFAULT '',
+            display_type TEXT NOT NULL DEFAULT 'banner',
+            target_type TEXT NOT NULL DEFAULT 'agents',
+            target_agents TEXT NOT NULL DEFAULT 'ALL',
+            target_profiles TEXT NOT NULL DEFAULT 'ALL',
+            frequency TEXT NOT NULL DEFAULT 'once',
+            splash_duration_sec INTEGER NOT NULL DEFAULT 10,
+            start_at TEXT,
+            end_at TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_by TEXT NOT NULL DEFAULT 'admin',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+		`CREATE INDEX IF NOT EXISTS idx_broadcasts_status ON broadcasts(status);`,
+		`CREATE TABLE IF NOT EXISTS broadcast_logs (
+            broadcast_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            user_identifier TEXT NOT NULL,
+            viewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            clicked INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (broadcast_id, agent_id, user_identifier)
+        );`,
+		`CREATE INDEX IF NOT EXISTS idx_broadcast_logs_bid ON broadcast_logs(broadcast_id);`,
 	}
 
 	for _, q := range queries {
@@ -466,5 +525,210 @@ func (r *SQLiteRepository) UpdateAgentVersionAndArch(subdomain, version, arch st
 		})
 	}
 	return err
+}
+
+// ─── Broadcasts & Ads Storage ────────────────────────────────────────────────
+
+func (r *SQLiteRepository) SaveBroadcast(b Broadcast) error {
+	var startAt, endAt interface{}
+	if b.StartAt != nil {
+		startAt = b.StartAt.UTC().Format(time.RFC3339)
+	}
+	if b.EndAt != nil {
+		endAt = b.EndAt.UTC().Format(time.RFC3339)
+	}
+
+	if b.Status == "" {
+		b.Status = "active"
+	}
+	if b.DisplayType == "" {
+		b.DisplayType = "banner"
+	}
+	if b.TargetType == "" {
+		b.TargetType = "agents"
+	}
+	if b.TargetAgents == "" {
+		b.TargetAgents = "ALL"
+	}
+	if b.TargetProfiles == "" {
+		b.TargetProfiles = "ALL"
+	}
+	if b.Frequency == "" {
+		b.Frequency = "once"
+	}
+	if b.SplashDurationSec <= 0 {
+		b.SplashDurationSec = 10
+	}
+
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := r.db.Exec(`
+        INSERT INTO broadcasts (
+            id, title, message, image_url, action_url, action_text,
+            display_type, target_type, target_agents, target_profiles,
+            frequency, splash_duration_sec, start_at, end_at, status,
+            created_by, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title=excluded.title,
+            message=excluded.message,
+            image_url=excluded.image_url,
+            action_url=excluded.action_url,
+            action_text=excluded.action_text,
+            display_type=excluded.display_type,
+            target_type=excluded.target_type,
+            target_agents=excluded.target_agents,
+            target_profiles=excluded.target_profiles,
+            frequency=excluded.frequency,
+            splash_duration_sec=excluded.splash_duration_sec,
+            start_at=excluded.start_at,
+            end_at=excluded.end_at,
+            status=excluded.status,
+            updated_at=excluded.updated_at
+    `, b.ID, b.Title, b.Message, b.ImageURL, b.ActionURL, b.ActionText,
+		b.DisplayType, b.TargetType, b.TargetAgents, b.TargetProfiles,
+		b.Frequency, b.SplashDurationSec, startAt, endAt, b.Status,
+		b.CreatedBy, nowStr, nowStr)
+	return err
+}
+
+func (r *SQLiteRepository) GetBroadcast(id string) (*Broadcast, error) {
+	row := r.db.QueryRow(`
+        SELECT id, title, message, image_url, action_url, action_text,
+               display_type, target_type, target_agents, target_profiles,
+               frequency, splash_duration_sec, start_at, end_at, status,
+               created_by, created_at, updated_at
+        FROM broadcasts WHERE id = ?
+    `, id)
+
+	var b Broadcast
+	var startStr, endStr sql.NullString
+	var createdStr, updatedStr string
+	err := row.Scan(&b.ID, &b.Title, &b.Message, &b.ImageURL, &b.ActionURL, &b.ActionText,
+		&b.DisplayType, &b.TargetType, &b.TargetAgents, &b.TargetProfiles,
+		&b.Frequency, &b.SplashDurationSec, &startStr, &endStr, &b.Status,
+		&b.CreatedBy, &createdStr, &updatedStr)
+	if err != nil {
+		return nil, err
+	}
+
+	b.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+	b.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+	if startStr.Valid && startStr.String != "" {
+		t, _ := time.Parse(time.RFC3339, startStr.String)
+		b.StartAt = &t
+	}
+	if endStr.Valid && endStr.String != "" {
+		t, _ := time.Parse(time.RFC3339, endStr.String)
+		b.EndAt = &t
+	}
+	return &b, nil
+}
+
+func (r *SQLiteRepository) ListBroadcasts() ([]Broadcast, error) {
+	rows, err := r.db.Query(`
+        SELECT id, title, message, image_url, action_url, action_text,
+               display_type, target_type, target_agents, target_profiles,
+               frequency, splash_duration_sec, start_at, end_at, status,
+               created_by, created_at, updated_at
+        FROM broadcasts ORDER BY created_at DESC
+    `)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []Broadcast
+	for rows.Next() {
+		var b Broadcast
+		var startStr, endStr sql.NullString
+		var createdStr, updatedStr string
+		if err := rows.Scan(&b.ID, &b.Title, &b.Message, &b.ImageURL, &b.ActionURL, &b.ActionText,
+			&b.DisplayType, &b.TargetType, &b.TargetAgents, &b.TargetProfiles,
+			&b.Frequency, &b.SplashDurationSec, &startStr, &endStr, &b.Status,
+			&b.CreatedBy, &createdStr, &updatedStr); err == nil {
+			b.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+			b.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+			if startStr.Valid && startStr.String != "" {
+				t, _ := time.Parse(time.RFC3339, startStr.String)
+				b.StartAt = &t
+			}
+			if endStr.Valid && endStr.String != "" {
+				t, _ := time.Parse(time.RFC3339, endStr.String)
+				b.EndAt = &t
+			}
+			list = append(list, b)
+		}
+	}
+	return list, nil
+}
+
+func (r *SQLiteRepository) DeleteBroadcast(id string) error {
+	_, err := r.db.Exec(`DELETE FROM broadcasts WHERE id = ?`, id)
+	if err == nil {
+		_, _ = r.db.Exec(`DELETE FROM broadcast_logs WHERE broadcast_id = ?`, id)
+	}
+	return err
+}
+
+func (r *SQLiteRepository) UpdateBroadcastStatus(id, status string) error {
+	_, err := r.db.Exec(`
+        UPDATE broadcasts SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `, status, id)
+	return err
+}
+
+func (r *SQLiteRepository) LogBroadcastView(log BroadcastLog) error {
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.Exec(`
+        INSERT INTO broadcast_logs (broadcast_id, agent_id, user_identifier, viewed_at, clicked)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(broadcast_id, agent_id, user_identifier) DO UPDATE SET
+            viewed_at=excluded.viewed_at,
+            clicked=CASE WHEN excluded.clicked > 0 THEN excluded.clicked ELSE broadcast_logs.clicked END
+    `, log.BroadcastID, log.AgentID, log.UserIdentifier, nowStr, log.Clicked)
+	return err
+}
+
+func (r *SQLiteRepository) GetBroadcastStats(broadcastID string) (impressions int, clicks int, err error) {
+	err = r.db.QueryRow(`
+        SELECT COUNT(*), COALESCE(SUM(clicked), 0)
+        FROM broadcast_logs WHERE broadcast_id = ?
+    `, broadcastID).Scan(&impressions, &clicks)
+	return
+}
+
+func (r *SQLiteRepository) GetActiveBroadcastsForAgent(subdomain string) ([]Broadcast, error) {
+	all, err := r.ListBroadcasts()
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	var matched []Broadcast
+	for _, b := range all {
+		if b.Status != "active" {
+			continue
+		}
+		if b.StartAt != nil && now.Before(*b.StartAt) {
+			continue
+		}
+		if b.EndAt != nil && now.After(*b.EndAt) {
+			continue
+		}
+		if b.TargetAgents == "ALL" || b.TargetAgents == "" {
+			matched = append(matched, b)
+			continue
+		}
+		// Check if subdomain is in comma-separated list
+		parts := strings.Split(b.TargetAgents, ",")
+		for _, p := range parts {
+			if strings.TrimSpace(p) == subdomain {
+				matched = append(matched, b)
+				break
+			}
+		}
+	}
+	return matched, nil
 }
 

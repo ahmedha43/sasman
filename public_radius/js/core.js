@@ -281,3 +281,145 @@ window.alert = function (message) {
 };
 
 window.showToast = showToast;
+
+// ==========================================================================
+// SASMAN Smart Broadcast & Notification Client Engine (Agent Panel)
+// ==========================================================================
+(function() {
+    async function checkAgentBroadcasts() {
+        try {
+            const res = await fetch('/radius/api/broadcasts/active');
+            if (!res.ok) return;
+            const broadcasts = await res.json();
+            if (!Array.isArray(broadcasts) || broadcasts.length === 0) return;
+
+            broadcasts.forEach(b => {
+                if (!b || !b.id) return;
+                // Only process agent-targeted broadcasts here
+                if (b.target_type === 'users') return;
+
+                const seenKey = `sasman_bc_seen_${b.id}`;
+                const lastSeen = localStorage.getItem(seenKey);
+
+                if (b.frequency === 'once' && lastSeen) return;
+                if (b.frequency === 'daily' && lastSeen) {
+                    const diffHours = (Date.now() - parseInt(lastSeen, 10)) / (1000 * 60 * 60);
+                    if (diffHours < 24) return;
+                }
+
+                if (b.display_type === 'modal') {
+                    renderBroadcastModal(b);
+                } else {
+                    renderBroadcastBanner(b);
+                }
+            });
+        } catch (e) {
+            console.debug('Broadcast check:', e);
+        }
+    }
+
+    function renderBroadcastBanner(b) {
+        if (document.getElementById(`sas-bc-banner-${b.id}`)) return;
+
+        let container = document.getElementById('sas-broadcast-banner-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'sas-broadcast-banner-container';
+            container.style.cssText = 'position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:99999; width:92%; max-width:900px; display:flex; flex-direction:column; gap:8px; pointer-events:none;';
+            document.body.appendChild(container);
+        }
+
+        const banner = document.createElement('div');
+        banner.id = `sas-bc-banner-${b.id}`;
+        banner.style.cssText = 'pointer-events:auto; background:linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.96)); border:1px solid #06b6d4; border-radius:12px; padding:12px 18px; box-shadow:0 8px 30px rgba(0,0,0,0.5); backdrop-filter:blur(10px); display:flex; justify-content:space-between; align-items:center; gap:12px; animation:slideDown 0.3s ease; color:#e2e8f0; font-family:inherit;';
+
+        const actionBtn = (b.action_url && b.action_text) 
+            ? `<a href="${b.action_url}" target="_blank" onclick="logBroadcastClick('${b.id}')" style="display:inline-block; background:linear-gradient(135deg, #06b6d4, #0284c7); color:#fff; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:bold; text-decoration:none; white-space:nowrap;">${escapeBcHtml(b.action_text)}</a>` 
+            : '';
+
+        banner.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px; flex:1;">
+                <span style="font-size:18px;">📢</span>
+                <div>
+                    <strong style="color:#22d3ee; font-size:13px; display:block;">${escapeBcHtml(b.title)}</strong>
+                    <span style="font-size:12px; color:#cbd5e1;">${escapeBcHtml(b.message)}</span>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                ${actionBtn}
+                <button onclick="dismissAgentBroadcast('${b.id}', 'banner')" style="background:transparent; border:none; color:#94a3b8; font-size:16px; cursor:pointer; padding:4px 8px;" title="إغلاق">✕</button>
+            </div>
+        `;
+
+        container.appendChild(banner);
+        logBroadcastView(b.id);
+    }
+
+    function renderBroadcastModal(b) {
+        if (document.getElementById(`sas-bc-modal-${b.id}`)) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = `sas-bc-modal-${b.id}`;
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:999999; display:flex; justify-content:center; align-items:center; padding:20px; backdrop-filter:blur(5px); animation:fadeIn 0.3s ease;';
+
+        const imgHtml = b.image_url 
+            ? `<div style="margin-bottom:12px; text-align:center;"><img src="${b.image_url}" style="max-width:100%; max-height:180px; border-radius:10px; border:1px solid #334155;"></div>` 
+            : '';
+
+        const actionBtn = (b.action_url && b.action_text) 
+            ? `<a href="${b.action_url}" target="_blank" onclick="logBroadcastClick('${b.id}')" style="display:inline-block; background:linear-gradient(135deg, #06b6d4, #0284c7); color:#fff; padding:10px 20px; border-radius:10px; font-size:14px; font-weight:bold; text-decoration:none;">${escapeBcHtml(b.action_text)}</a>` 
+            : '';
+
+        overlay.innerHTML = `
+            <div style="background:#1e293b; border:1px solid #06b6d4; border-radius:16px; padding:24px; width:100%; max-width:520px; box-shadow:0 20px 50px rgba(0,0,0,0.7); text-align:center; color:#e2e8f0; font-family:inherit;">
+                <div style="font-size:32px; margin-bottom:8px;">📢</div>
+                <h3 style="color:#22d3ee; font-size:18px; margin-bottom:10px;">${escapeBcHtml(b.title)}</h3>
+                ${imgHtml}
+                <p style="font-size:14px; color:#cbd5e1; line-height:1.6; margin-bottom:20px; white-space:pre-wrap;">${escapeBcHtml(b.message)}</p>
+                <div style="display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
+                    ${actionBtn}
+                    <button onclick="dismissAgentBroadcast('${b.id}', 'modal')" style="background:#334155; color:#fff; padding:10px 20px; border-radius:10px; font-size:14px; font-weight:bold; border:none; cursor:pointer;">تمت القراءة والمتابعة ✓</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        logBroadcastView(b.id);
+    }
+
+    window.dismissAgentBroadcast = function(id, type) {
+        localStorage.setItem(`sasman_bc_seen_${id}`, Date.now().toString());
+        if (type === 'modal') {
+            const el = document.getElementById(`sas-bc-modal-${id}`);
+            if (el) el.remove();
+        } else {
+            const el = document.getElementById(`sas-bc-banner-${id}`);
+            if (el) el.remove();
+        }
+    };
+
+    window.logBroadcastClick = function(id) {
+        fetch('/radius/api/broadcasts/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ broadcast_id: id, user_identifier: 'panel', clicked: 1 })
+        }).catch(() => {});
+    };
+
+    function logBroadcastView(id) {
+        fetch('/radius/api/broadcasts/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ broadcast_id: id, user_identifier: 'panel', clicked: 0 })
+        }).catch(() => {});
+    }
+
+    function escapeBcHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Run on startup and poll every 30s
+    setTimeout(checkAgentBroadcasts, 1500);
+    setInterval(checkAgentBroadcasts, 30000);
+})();

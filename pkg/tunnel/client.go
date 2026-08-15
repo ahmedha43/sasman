@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"mikrotik-manager/pkg/broadcast"
 	"mikrotik-manager/pkg/relay"
 	relayagent "mikrotik-manager/pkg/relay/agent"
 
@@ -51,6 +52,7 @@ type AgentClientConfig struct {
 	OnBackupRequest  func(conn *websocket.Conn, msg TunnelMessage, writeMu *sync.Mutex)
 	OnLocalHTTP      func(req HttpRequestPayload, localPort string) HttpResponsePayload
 	OnMikroTikSync   func(services []relay.ServiceDefinition)
+	OnBroadcast      func(bc broadcast.BroadcastMessage)
 	RouterAddress    string
 }
 
@@ -361,6 +363,15 @@ func (c *ResilientAgentClient) connectAndServe() error {
 		case "backup_request":
 			if c.cfg.OnBackupRequest != nil {
 				go c.cfg.OnBackupRequest(conn, msg, &writeMu)
+			}
+
+		case "broadcast_push":
+			var bc broadcast.BroadcastMessage
+			if err := json.Unmarshal(msg.Payload, &bc); err == nil {
+				log.Printf("[Tunnel Client] 📢 Received broadcast message: %s (%s)", bc.Title, bc.DisplayType)
+				if c.cfg.OnBroadcast != nil {
+					go c.cfg.OnBroadcast(bc)
+				}
 			}
 		}
 	}
