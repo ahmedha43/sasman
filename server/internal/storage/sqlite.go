@@ -15,6 +15,7 @@ import (
 type Customer struct {
 	ID          string
 	Name        string
+	Phone       string
 	Email       string
 	CompanyName string
 	Status      string
@@ -211,6 +212,7 @@ func (r *SQLiteRepository) CreateSchema() error {
 	}
 
 	// Column migration for existing db
+	_, _ = r.db.Exec("ALTER TABLE customers ADD COLUMN phone TEXT NOT NULL DEFAULT ''")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN token TEXT NOT NULL DEFAULT ''")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN winbox_port INTEGER NOT NULL DEFAULT 0")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN group_name TEXT NOT NULL DEFAULT 'default'")
@@ -223,17 +225,31 @@ func (r *SQLiteRepository) CreateSchema() error {
 	return nil
 }
 
+func (r *SQLiteRepository) IsSubdomainAvailable(subdomain string) (bool, error) {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	if subdomain == "" {
+		return false, fmt.Errorf("empty subdomain")
+	}
+	var count int
+	err := r.db.QueryRow("SELECT COUNT(*) FROM subdomains WHERE LOWER(subdomain) = ?", subdomain).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
+}
+
 func (r *SQLiteRepository) SaveCustomer(c Customer) error {
 	_, err := r.db.Exec(`
-        INSERT INTO customers (id, name, email, company_name, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO customers (id, name, phone, email, company_name, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             name=excluded.name,
+            phone=excluded.phone,
             email=excluded.email,
             company_name=excluded.company_name,
             status=excluded.status,
             updated_at=excluded.updated_at
-    `, c.ID, c.Name, c.Email, c.CompanyName, c.Status, c.CreatedAt.UTC().Format(time.RFC3339), c.UpdatedAt.UTC().Format(time.RFC3339))
+    `, c.ID, c.Name, c.Phone, c.Email, c.CompanyName, c.Status, c.CreatedAt.UTC().Format(time.RFC3339), c.UpdatedAt.UTC().Format(time.RFC3339))
 	return err
 }
 

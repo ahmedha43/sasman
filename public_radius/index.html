@@ -192,6 +192,70 @@
         <!-- ------------------ CONTENT BODY AREA ------------------ -->
         <div class="content-body">
             
+            <!-- First-Time Onboarding Wizard Gate -->
+            <div id="onboarding-gate" class="card" style="display:none; border:2px solid #0ea5e9; box-shadow:0 10px 35px rgba(14,165,233,0.2); background:#ffffff; border-radius:16px; padding:28px;">
+                <div style="text-align:center; margin-bottom:24px;">
+                    <div style="font-size:42px; margin-bottom:8px;">🚀</div>
+                    <h2 style="color:#0369a1; margin:0 0 6px 0; font-size:1.6rem;">مرحباً بك في SASMAN — الإعداد السريع لأول مرة</h2>
+                    <p style="color:#64748b; font-size:14px; margin:0;">يرجى ملء البيانات التالية لإنشاء وحجز نطاقك السحابي الخاص والربط مع السيرفر تلقائياً.</p>
+                </div>
+
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin-bottom:20px;">
+                    <h3 style="color:#0f172a; margin:0 0 16px 0; font-size:1.1rem; border-bottom:1px solid #cbd5e1; padding-bottom:8px;">
+                        <i class="fa-solid fa-user-shield" style="color:#0ea5e9;"></i> 1. بيانات الوكيل والنطاق المطلوب
+                    </h3>
+                    
+                    <div class="grid" style="grid-template-columns:1fr 1fr; gap:16px;">
+                        <div class="form-group">
+                            <label style="font-weight:bold; color:#334155;">الاسم الكامل *</label>
+                            <input type="text" id="ob-name" placeholder="مثال: أحمد علي" required style="border-radius:8px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight:bold; color:#334155;">رقم الهاتف (واتساب) *</label>
+                            <input type="tel" id="ob-phone" placeholder="مثال: 07701234567" required style="border-radius:8px;">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top:12px;">
+                        <label style="font-weight:bold; color:#334155;">اسم النطاق الفرعي المطلوب (Subdomain) *</label>
+                        <div style="display:flex; align-items:stretch; direction:ltr; margin-top:4px;">
+                            <input type="text" id="ob-subdomain" placeholder="ahmed" oninput="handleSubdomainLiveCheck(this.value)" style="border-radius:8px 0 0 8px; border-right:none; font-family:monospace; font-weight:bold; font-size:15px; text-align:left;" required>
+                            <span style="display:flex; align-items:center; background:#e2e8f0; color:#334155; font-weight:bold; padding:0 16px; border:1px solid #cbd5e1; border-radius:0 8px 8px 0; font-family:monospace; font-size:14px; user-select:none;">.sas-man.net</span>
+                        </div>
+                        <div id="ob-subdomain-status" style="margin-top:6px; font-size:13px; min-height:20px;"></div>
+                    </div>
+                </div>
+
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin-bottom:24px;">
+                    <h3 style="color:#0f172a; margin:0 0 16px 0; font-size:1.1rem; border-bottom:1px solid #cbd5e1; padding-bottom:8px;">
+                        <i class="fa-solid fa-network-wired" style="color:#0ea5e9;"></i> 2. بيانات الاتصال براوتر المايكروتك (MikroTik API)
+                    </h3>
+                    <p style="font-size:13px; color:#64748b; margin-bottom:14px;">يتم استخدامها لجلب السيريال الخاص بالراوتر وربط خدمة الـ RADIUS تلقائياً.</p>
+                    
+                    <div class="grid" style="grid-template-columns:1fr 1fr 1fr; gap:14px;">
+                        <div class="form-group">
+                            <label style="font-weight:600; color:#334155;">عنوان الراوتر API</label>
+                            <input type="text" id="ob-router-address" value="192.168.88.1:8728" placeholder="192.168.88.1:8728" style="border-radius:8px; font-family:monospace;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight:600; color:#334155;">اسم المستخدم</label>
+                            <input type="text" id="ob-router-user" value="admin" placeholder="admin" style="border-radius:8px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight:600; color:#334155;">كلمة المرور</label>
+                            <input type="password" id="ob-router-pass" placeholder="كلمة مرور المايكروتك" style="border-radius:8px;">
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align:center;">
+                    <button id="btn-ob-submit" class="btn btn-primary" style="width:100%; max-width:420px; padding:14px 28px; font-size:16px; font-weight:bold; border-radius:10px; background:linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow:0 4px 15px rgba(14,165,233,0.4);" onclick="submitOnboarding(event)">
+                        <span>🚀 إكمال الإعداد وتفعيل النطاق السحابي</span>
+                    </button>
+                    <div id="ob-error-msg" style="color:var(--danger); font-weight:bold; margin-top:12px; display:none;"></div>
+                </div>
+            </div>
+
             <!-- License Gate Alert -->
             <div id="license-gate" class="card" style="display:none; border-right:4px solid var(--danger);">
                 <h2 style="color:var(--danger); margin-top:0;"><i class="fa-solid fa-lock"></i> النظام غير مُفعَّل</h2>
@@ -531,6 +595,73 @@
                                 <i class="fa-solid fa-copy"></i> نسخ رابط MikroTik
                             </button>
                         </div>
+                    </div>
+
+                    <!-- SASMAN Cloud Tunnel & Direct Access Card -->
+                    <div id="radius-tunnel-card" class="card" style="margin-top:25px; border:1px solid #0ea5e9; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border-radius:12px; box-shadow:0 4px 20px rgba(14,165,233,0.1);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:16px;">
+                            <div>
+                                <h3 style="margin:0; border:none; padding:0; color:#0369a1; font-size:1.15rem;">
+                                    <i class="fa-solid fa-cloud-bolt" style="color:#0ea5e9;"></i> النطاق والاتصال السحابي (Cloud Tunnel & Direct Access)
+                                </h3>
+                                <p style="margin:4px 0 0 0; font-size:13px; color:#64748b;">معلومات النطاق المحجوز والوصول المباشر للوحة ولوحة المايكروتك وتطبيق Winbox من أي مكان.</p>
+                            </div>
+                            <button class="btn" style="width:auto; padding:8px 16px; background:#0ea5e9; color:white; border:none;" onclick="loadTunnelCardInfo()">
+                                <i class="fa-solid fa-rotate"></i> تحديث الحالة
+                            </button>
+                        </div>
+
+                        <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; margin-bottom:16px;">
+                            <!-- Domain Box -->
+                            <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
+                                <div style="font-size:12px; color:#64748b; font-weight:bold; margin-bottom:4px;">🌐 اسم النطاق الخاص بك (Web Dashboard):</div>
+                                <div id="tunnel-card-domain" style="font-family:monospace; font-weight:bold; font-size:15px; color:#0369a1; word-break:break-all;">-</div>
+                                <div style="display:flex; gap:6px; margin-top:10px;">
+                                    <button class="btn" style="padding:6px 12px; font-size:12px; width:auto; background:#f1f5f9; color:#334155; border:1px solid #cbd5e1;" onclick="copyTunnelDomain()">📋 نسخ الرابط</button>
+                                    <a id="tunnel-card-link" href="#" target="_blank" class="btn btn-primary" style="padding:6px 12px; font-size:12px; width:auto; text-decoration:none; display:inline-block;">🚀 فتح اللوحة</a>
+                                </div>
+                            </div>
+
+                            <!-- Winbox Box -->
+                            <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
+                                <div style="font-size:12px; color:#64748b; font-weight:bold; margin-bottom:4px;">⚡ عنوان Winbox المباشر (Direct Winbox):</div>
+                                <div id="tunnel-card-winbox" style="font-family:monospace; font-weight:bold; font-size:15px; color:#16a34a; word-break:break-all;">-</div>
+                                <div style="display:flex; gap:6px; margin-top:10px;">
+                                    <button class="btn" style="padding:6px 12px; font-size:12px; width:auto; background:#f1f5f9; color:#334155; border:1px solid #cbd5e1;" onclick="copyTunnelWinbox()">📋 نسخ العنوان</button>
+                                </div>
+                            </div>
+
+                            <!-- Status Box -->
+                            <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
+                                <div style="font-size:12px; color:#64748b; font-weight:bold; margin-bottom:4px;">📡 حالة النفق السحابي:</div>
+                                <div id="tunnel-card-status" style="font-weight:bold; font-size:14px; color:#16a34a; margin-top:2px;">جاري الفحص...</div>
+                                <div id="tunnel-card-owner" style="font-size:12px; color:#64748b; margin-top:8px;">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Settings Collapsible -->
+                        <details style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px;">
+                            <summary style="cursor:pointer; font-weight:bold; color:#475569; font-size:13px;">⚙️ الإعدادات المتقدمة للنفق السحابي (Advanced Settings)</summary>
+                            <form onsubmit="handleTunnelSave(event)" style="margin-top:12px;">
+                                <div class="grid" style="grid-template-columns:1fr 1fr; gap:12px;">
+                                    <div class="form-group">
+                                        <label style="font-size:12px;">الدومين الفرعي (Subdomain)</label>
+                                        <input type="text" id="adv-tunnel-subdomain" style="font-family:monospace;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-size:12px;">التوكن السري (Tunnel Token)</label>
+                                        <input type="text" id="adv-tunnel-token" style="font-family:monospace;">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size:12px;">عنوان البوابة السحابية (Gateway URL)</label>
+                                    <input type="text" id="adv-tunnel-gateway" placeholder="wss://sas-man.net/ws" style="font-family:monospace;">
+                                </div>
+                                <div style="display:flex; gap:10px; justify-content:flex-end;">
+                                    <button class="btn btn-primary" type="submit" style="width:auto; padding:8px 20px;">💾 حفظ وإعادة تشغيل النفق</button>
+                                </div>
+                            </form>
+                        </details>
                     </div>
 
                     <!-- Admins table -->

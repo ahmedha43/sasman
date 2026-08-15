@@ -55,6 +55,7 @@ async function showTab(tabId) {
 
     if (tabId === 'dashboard' && typeof window.updateDashboard === 'function') window.updateDashboard();
     if (tabId === 'account' && typeof window.loadAdmins === 'function') window.loadAdmins();
+    if (tabId === 'account' && typeof window.loadTunnelCardInfo === 'function') window.loadTunnelCardInfo();
     if (tabId === 'account' && typeof window.loadRadiusRemoteAccess === 'function') window.loadRadiusRemoteAccess();
     if (tabId === 'account' && typeof window.loadBypassStatus === 'function') window.loadBypassStatus();
     if (tabId === 'account' && typeof window.loadTelegramBackupConfig === 'function') window.loadTelegramBackupConfig();
@@ -144,6 +145,7 @@ async function preloadAllData() {
 
         // جلب جميع البيانات بدون استثناء بالخلفية
         if (typeof window.loadAdmins === 'function') window.loadAdmins();
+        if (typeof window.loadTunnelCardInfo === 'function') window.loadTunnelCardInfo();
         if (typeof window.loadRadiusRemoteAccess === 'function') window.loadRadiusRemoteAccess();
         if (typeof window.loadBypassStatus === 'function') window.loadBypassStatus();
         if (typeof window.loadTelegramBackupConfig === 'function') window.loadTelegramBackupConfig();

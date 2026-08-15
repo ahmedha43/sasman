@@ -436,6 +436,11 @@ func main() {
 	radiusAPI.Post("/router/connect", radius.RouterConnectHandler)
 	radiusAPI.Post("/vouchers/redeem", radius.RedeemVoucher)
 
+	// First-Time Setup & Subdomain Self-Registration
+	radiusAPI.Get("/setup/status", getSetupStatusHandler)
+	radiusAPI.Post("/setup/check-subdomain", checkSubdomainProxyHandler)
+	radiusAPI.Post("/setup/self-register", selfRegisterAgentHandler)
+
 	// User Portal (Public login for subscribers)
 	radiusAPI.Post("/portal/login", radius.PortalLoginHandler)
 	radiusAPI.Get("/portal/status", radius.PortalStatusHandler)
@@ -1464,6 +1469,191 @@ func saveTunnelSettingsHandler(c *fiber.Ctx) error {
 		message = "تم إيقاف تشغيل التنل وحفظ الإعدادات"
 	}
 	return c.JSON(fiber.Map{"message": message})
+}
+
+func getCentralServerAPIURL() string {
+	srv := strings.TrimSpace(os.Getenv("SASMAN_CENTRAL_SERVER"))
+	if srv == "" {
+		srv = "http://167.86.73.203:8080"
+	}
+	return strings.TrimRight(srv, "/")
+}
+
+func getSetupStatusHandler(c *fiber.Ctx) error {
+	subdomain := strings.TrimSpace(shared.RouterConfigState.TunnelSubdomain)
+	if subdomain == "" {
+		subdomain = strings.TrimSpace(os.Getenv("SASMAN_SUBDOMAIN"))
+	}
+	isFreshInstall := (subdomain == "")
+
+	centralDomain := shared.RouterConfigState.CentralDomain
+	if centralDomain == "" {
+		centralDomain = "sas-man.net"
+	}
+
+	fullDomain := ""
+	if subdomain != "" {
+		fullDomain = fmt.Sprintf("%s.%s", subdomain, centralDomain)
+	}
+
+	sasmanTunnelMu.Lock()
+	tunnelConnected := (activeTunnelClient != nil)
+	sasmanTunnelMu.Unlock()
+
+	validLicense, _, _ := core.VerifyLicense(shared.RouterConfigState.License, shared.RouterConfigState.Serial)
+
+	winboxAddr := ""
+	if subdomain != "" && shared.RouterConfigState.WinboxPort > 0 {
+		winboxAddr = fmt.Sprintf("%s.%s:%d", subdomain, centralDomain, shared.RouterConfigState.WinboxPort)
+	}
+
+	return c.JSON(fiber.Map{
+		"is_fresh_install": isFreshInstall,
+		"subdomain":        subdomain,
+		"full_domain":      fullDomain,
+		"owner_name":       shared.RouterConfigState.OwnerName,
+		"owner_phone":      shared.RouterConfigState.OwnerPhone,
+		"winbox_port":      shared.RouterConfigState.WinboxPort,
+		"winbox_address":   winboxAddr,
+		"token":            shared.RouterConfigState.TunnelToken,
+		"tunnel_connected": tunnelConnected,
+		"router_connected": (shared.RouterConfigState.Address != "" && shared.RouterConfigState.Serial != ""),
+		"license_valid":    validLicense,
+		"serial":           shared.RouterConfigState.Serial,
+	})
+}
+
+func checkSubdomainProxyHandler(c *fiber.Ctx) error {
+	var req struct {
+		Subdomain string `json:"subdomain"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+	}
+
+	centralURL := getCentralServerAPIURL() + "/api/agents/check-subdomain"
+	jsonBody, _ := json.Marshal(req)
+
+	client := &http.Client{Timeout: 6 * time.Second}
+	resp, err := client.Post(centralURL, "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "تعذر الاتصال بالسيرفر المركزي لفحص النطاق"})
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	c.Set("Content-Type", "application/json")
+	return c.Status(resp.StatusCode).Send(body)
+}
+
+func selfRegisterAgentHandler(c *fiber.Ctx) error {
+	var req struct {
+		Name          string `json:"name"`
+		Phone         string `json:"phone"`
+		Subdomain     string `json:"subdomain"`
+		RouterAddress string `json:"router_address"`
+		RouterUser    string `json:"router_user"`
+		RouterPass    string `json:"router_pass"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+	}
+
+	name := strings.TrimSpace(req.Name)
+	phone := strings.TrimSpace(req.Phone)
+	subdomain := strings.ToLower(strings.TrimSpace(req.Subdomain))
+
+	if name == "" || phone == "" || subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "الاسم الكامل، رقم الهاتف، واسم النطاق هي حقول مطلوبة"})
+	}
+
+	// 1. If router info provided, attempt to connect to MikroTik to fetch serial
+	serial := ""
+	if req.RouterAddress != "" {
+		shared.RouterConfigState.Address = strings.TrimSpace(req.RouterAddress)
+		shared.RouterConfigState.Username = strings.TrimSpace(req.RouterUser)
+		shared.RouterConfigState.Password = req.RouterPass
+
+		rClient, err := core.Connect()
+		if err == nil && rClient != nil {
+			serial, _ = core.GetRouterSerial(rClient)
+			shared.RouterConfigState.Serial = serial
+			rClient.Close()
+		}
+	}
+
+	// 2. Call Central Server self-register
+	centralReq := map[string]string{
+		"name":      name,
+		"phone":     phone,
+		"subdomain": subdomain,
+		"serial":    serial,
+	}
+	jsonBody, _ := json.Marshal(centralReq)
+	centralURL := getCentralServerAPIURL() + "/api/agents/self-register"
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(centralURL, "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "تعذر الاتصال بالسيرفر المركزي لإتمام التسجيل"})
+	}
+	defer resp.Body.Close()
+
+	var centralResp struct {
+		Success       bool   `json:"success"`
+		Subdomain     string `json:"subdomain"`
+		Token         string `json:"token"`
+		WinboxPort    int    `json:"winbox_port"`
+		WinboxAddress string `json:"winbox_address"`
+		WebURL        string `json:"web_url"`
+		GatewayURL    string `json:"gateway_url"`
+		CentralDomain string `json:"central_domain"`
+		FullDomain    string `json:"full_domain"`
+		Error         string `json:"error"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&centralResp); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "استجابة غير صالحة من السيرفر المركزي"})
+	}
+
+	if !centralResp.Success || resp.StatusCode != 200 {
+		errMsg := centralResp.Error
+		if errMsg == "" {
+			errMsg = "فشل التسجيل بالسيرفر المركزي"
+		}
+		return c.Status(resp.StatusCode).JSON(fiber.Map{"error": errMsg})
+	}
+
+	// 3. Save to local config
+	shared.RouterConfigState.OwnerName = name
+	shared.RouterConfigState.OwnerPhone = phone
+	shared.RouterConfigState.TunnelMode = "agent"
+	shared.RouterConfigState.TunnelSubdomain = centralResp.Subdomain
+	shared.RouterConfigState.TunnelToken = centralResp.Token
+	shared.RouterConfigState.WinboxPort = centralResp.WinboxPort
+	shared.RouterConfigState.CentralDomain = centralResp.CentralDomain
+	if centralResp.GatewayURL != "" {
+		shared.RouterConfigState.TunnelGatewayURL = centralResp.GatewayURL
+	}
+	shared.SaveConfig()
+
+	// 4. Start the tunnel immediately
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
+	}
+	go startSasmanTunnel(port)
+
+	return c.JSON(fiber.Map{
+		"success":        true,
+		"subdomain":      centralResp.Subdomain,
+		"full_domain":    centralResp.FullDomain,
+		"token":          centralResp.Token,
+		"winbox_port":    centralResp.WinboxPort,
+		"winbox_address": centralResp.WinboxAddress,
+		"web_url":        centralResp.WebURL,
+		"message":        "تم إعداد النطاق وبدء الاتصال السحابي بنجاح!",
+	})
 }
 
 // Global cancellation for Ngrok

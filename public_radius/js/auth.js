@@ -74,17 +74,50 @@ async function loadCurrentAdmin() {
     } catch (e) { return null; }
 }
 
+let isFreshInstall = false;
+let setupStateCache = null;
+
+async function checkFreshInstallStatus() {
+    try {
+        const res = await apiFetch('/radius/api/setup/status');
+        if (!res.ok) return false;
+        const data = await res.json();
+        setupStateCache = data;
+        isFreshInstall = !!data.is_fresh_install;
+
+        const obGate = document.getElementById('onboarding-gate');
+        const licGate = document.getElementById('license-gate');
+        const mainArea = document.getElementById('main-area');
+
+        if (isFreshInstall) {
+            if (obGate) obGate.style.display = 'block';
+            if (licGate) licGate.style.display = 'none';
+            if (mainArea) mainArea.style.display = 'none';
+            return true;
+        } else {
+            if (obGate) obGate.style.display = 'none';
+            return false;
+        }
+    } catch (e) {
+        return false;
+    }
+}
+
 async function loadLicenseStatus() {
     try {
+        const isFresh = await checkFreshInstallStatus();
         const res = await apiFetch('/radius/api/license/status');
         const data = await res.json();
         licenseState = data;
-        renderLicenseGate(data);
+        if (!isFresh) {
+            renderLicenseGate(data);
+        }
         return data;
     } catch (e) { return null; }
 }
 
 function renderLicenseGate(data) {
+    if (isFreshInstall) return; // Don't show license gate while in onboarding
     const gate = document.getElementById('license-gate');
     const main = document.getElementById('main-area');
     const routerBox = document.getElementById('router-setup-box');
@@ -770,7 +803,221 @@ async function clearAuditLogsModal() {
     }
 }
 
+// ─── First-Time Onboarding & Cloud Tunnel Management ─────────────────────────
+
+let liveCheckTimer = null;
+async function handleSubdomainLiveCheck(subdomain) {
+    clearTimeout(liveCheckTimer);
+    const statusEl = document.getElementById('ob-subdomain-status');
+    if (!statusEl) return;
+
+    subdomain = (subdomain || '').trim().toLowerCase();
+    if (!subdomain) {
+        statusEl.innerHTML = '';
+        return;
+    }
+    if (subdomain.length < 3) {
+        statusEl.innerHTML = '<span style="color:#f59e0b;">⚠️ يجب أن يكون طول النطاق 3 أحرف على الأقل</span>';
+        return;
+    }
+
+    statusEl.innerHTML = '<span style="color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحقق من توفر النطاق...</span>';
+
+    liveCheckTimer = setTimeout(async () => {
+        try {
+            const res = await apiFetch('/radius/api/setup/check-subdomain', {
+                method: 'POST',
+                body: JSON.stringify({ subdomain })
+            });
+            const data = await res.json();
+            if (data.available) {
+                statusEl.innerHTML = `<span style="color:#16a34a; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> النطاق <code>${data.full_domain}</code> متاح وجاهز للاستخدام!</span>`;
+            } else {
+                statusEl.innerHTML = `<span style="color:#dc2626; font-weight:bold;"><i class="fa-solid fa-circle-xmark"></i> ${data.error || 'هذا النطاق مستخدم بالفعل، يرجى اختيار اسم آخر'}</span>`;
+            }
+        } catch (e) {
+            statusEl.innerHTML = '<span style="color:#f59e0b;">تعذر التحقق الآن، سيتم التحقق عند الإرسال</span>';
+        }
+    }, 350);
+}
+
+async function submitOnboarding(e) {
+    if (e) e.preventDefault();
+    const name = document.getElementById('ob-name')?.value.trim();
+    const phone = document.getElementById('ob-phone')?.value.trim();
+    const subdomain = document.getElementById('ob-subdomain')?.value.trim().toLowerCase();
+    const routerAddress = document.getElementById('ob-router-address')?.value.trim();
+    const routerUser = document.getElementById('ob-router-user')?.value.trim();
+    const routerPass = document.getElementById('ob-router-pass')?.value || '';
+    const btn = document.getElementById('btn-ob-submit');
+    const errBox = document.getElementById('ob-error-msg');
+
+    if (errBox) errBox.style.display = 'none';
+
+    if (!name || !phone || !subdomain) {
+        if (errBox) {
+            errBox.textContent = 'يرجى إدخال الاسم الكامل، رقم الهاتف، واسم النطاق المطلوب.';
+            errBox.style.display = 'block';
+        }
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري حجز النطاق والربط بالسيرفر...';
+    }
+
+    try {
+        const res = await apiFetch('/radius/api/setup/self-register', {
+            method: 'POST',
+            body: JSON.stringify({
+                name,
+                phone,
+                subdomain,
+                router_address: routerAddress,
+                router_user: routerUser,
+                router_pass: routerPass
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || 'فشل إكمال الإعداد');
+        }
+
+        alert(`✅ تم إعداد النطاق بنجاح!\nنطاقك الخاص هو: ${data.full_domain}\nسيتم الآن نقلك إلى خطوة الترخيص.`);
+        
+        isFreshInstall = false;
+        const obGate = document.getElementById('onboarding-gate');
+        if (obGate) obGate.style.display = 'none';
+
+        await loadLicenseStatus();
+        loadTunnelCardInfo();
+    } catch (err) {
+        if (errBox) {
+            errBox.textContent = err.message || 'حدث خطأ أثناء الإعداد';
+            errBox.style.display = 'block';
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>🚀 إكمال الإعداد وتفعيل النطاق السحابي</span>';
+        }
+    }
+}
+
+let currentTunnelFullDomain = "";
+let currentTunnelWinboxAddr = "";
+
+async function loadTunnelCardInfo() {
+    try {
+        const res = await apiFetch('/radius/api/setup/status');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const domainEl = document.getElementById('tunnel-card-domain');
+        const linkEl = document.getElementById('tunnel-card-link');
+        const winboxEl = document.getElementById('tunnel-card-winbox');
+        const statusEl = document.getElementById('tunnel-card-status');
+        const ownerEl = document.getElementById('tunnel-card-owner');
+
+        const advSubdomain = document.getElementById('adv-tunnel-subdomain');
+        const advToken = document.getElementById('adv-tunnel-token');
+
+        if (data.full_domain) {
+            currentTunnelFullDomain = `http://${data.full_domain}`;
+            if (domainEl) domainEl.textContent = data.full_domain;
+            if (linkEl) {
+                linkEl.href = `http://${data.full_domain}`;
+                linkEl.style.display = 'inline-block';
+            }
+        } else {
+            if (domainEl) domainEl.textContent = 'لم يتم تعيين نطاق بعد';
+            if (linkEl) linkEl.style.display = 'none';
+        }
+
+        if (data.winbox_address) {
+            currentTunnelWinboxAddr = data.winbox_address;
+            if (winboxEl) winboxEl.textContent = data.winbox_address;
+        } else if (data.winbox_port > 0 && data.subdomain) {
+            currentTunnelWinboxAddr = `${data.full_domain}:${data.winbox_port}`;
+            if (winboxEl) winboxEl.textContent = currentTunnelWinboxAddr;
+        } else {
+            if (winboxEl) winboxEl.textContent = 'غير متاح حالياً';
+        }
+
+        if (statusEl) {
+            if (data.tunnel_connected) {
+                statusEl.innerHTML = '<span style="color:#16a34a;"><i class="fa-solid fa-circle-check"></i> متصل بالسحابة (Online)</span>';
+            } else {
+                statusEl.innerHTML = '<span style="color:#dc2626;"><i class="fa-solid fa-circle-xmark"></i> غير متصل بالسحابة (Offline)</span>';
+            }
+        }
+
+        if (ownerEl) {
+            let ownerText = '';
+            if (data.owner_name) ownerText += `👤 المالك: ${escapeHtml(data.owner_name)}`;
+            if (data.owner_phone) ownerText += ` | 📱 الهاتف: ${escapeHtml(data.owner_phone)}`;
+            ownerEl.textContent = ownerText || 'وكيل مسجل';
+        }
+
+        if (advSubdomain && data.subdomain) advSubdomain.value = data.subdomain;
+        if (advToken && data.token) advToken.value = data.token;
+    } catch (e) {
+        console.error('loadTunnelCardInfo error:', e);
+    }
+}
+
+function copyTunnelDomain() {
+    if (!currentTunnelFullDomain) {
+        alert('لا يوجد نطاق متاح للنسخ');
+        return;
+    }
+    navigator.clipboard.writeText(currentTunnelFullDomain)
+        .then(() => alert('تم نسخ رابط اللوحة:\n' + currentTunnelFullDomain))
+        .catch(() => alert('الرابط هو: ' + currentTunnelFullDomain));
+}
+
+function copyTunnelWinbox() {
+    if (!currentTunnelWinboxAddr) {
+        alert('لا يوجد عنوان Winbox متاح للنسخ');
+        return;
+    }
+    navigator.clipboard.writeText(currentTunnelWinboxAddr)
+        .then(() => alert('تم نسخ عنوان Winbox المباشر:\n' + currentTunnelWinboxAddr))
+        .catch(() => alert('عنوان Winbox هو: ' + currentTunnelWinboxAddr));
+}
+
+async function handleTunnelSave(e) {
+    e.preventDefault();
+    const subdomain = document.getElementById('adv-tunnel-subdomain')?.value.trim();
+    const token = document.getElementById('adv-tunnel-token')?.value.trim();
+    const gatewayUrl = document.getElementById('adv-tunnel-gateway')?.value.trim();
+
+    try {
+        const res = await apiFetch('/radius/api/auth/tunnel/config', {
+            method: 'POST',
+            body: JSON.stringify({
+                mode: 'agent',
+                subdomain: subdomain,
+                token: token,
+                gateway_url: gatewayUrl
+            })
+        });
+        const data = await res.json();
+        alert(res.ok ? (data.message || 'تم الحفظ وإعادة تشغيل النفق') : (data.error || 'فشل الحفظ'));
+        if (res.ok) loadTunnelCardInfo();
+    } catch (err) {
+        alert('خطأ في حفظ إعدادات النفق: ' + err.message);
+    }
+}
+
 // Make functions accessible globally
 window.loadAuditLogs = loadAuditLogs;
 window.exportAuditLogsCSV = exportAuditLogsCSV;
 window.clearAuditLogsModal = clearAuditLogsModal;
+window.handleSubdomainLiveCheck = handleSubdomainLiveCheck;
+window.submitOnboarding = submitOnboarding;
+window.loadTunnelCardInfo = loadTunnelCardInfo;
+window.copyTunnelDomain = copyTunnelDomain;
+window.copyTunnelWinbox = copyTunnelWinbox;
+window.handleTunnelSave = handleTunnelSave;

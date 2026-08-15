@@ -427,6 +427,153 @@ func main() {
 		})
 	})
 
+	// ─── Public Self-Service Agent Registration & Subdomain Validation ──────────
+
+	app.Post("/api/agents/check-subdomain", func(c *fiber.Ctx) error {
+		var req struct {
+			Subdomain string `json:"subdomain"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		subdomain := strings.ToLower(strings.TrimSpace(req.Subdomain))
+		if subdomain == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"available": false, "error": "يرجى كتابة اسم النطاق المطلوب"})
+		}
+
+		// Validation rules: 3-30 chars, alphanumeric + hyphens only
+		if len(subdomain) < 3 || len(subdomain) > 30 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"available": false, "error": "يجب أن يكون طول النطاق بين 3 و 30 حرفاً"})
+		}
+
+		// Check reserved names
+		reserved := map[string]bool{"admin": true, "api": true, "ws": true, "mail": true, "vpn": true, "radius": true, "portal": true, "system": true, "root": true}
+		if reserved[subdomain] {
+			return c.JSON(fiber.Map{"available": false, "subdomain": subdomain, "error": "هذا الاسم محجوز للنظام، يرجى اختيار اسم آخر"})
+		}
+
+		for _, r := range subdomain {
+			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"available": false, "error": "يجب أن يحتوي النطاق على أحرف إنجليزية وأرقام وشرطة فقط"})
+			}
+		}
+
+		avail, err := repo.IsSubdomainAvailable(subdomain)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		fullDomain := fmt.Sprintf("%s.%s", subdomain, centralDomain)
+		if !avail {
+			return c.JSON(fiber.Map{
+				"available":   false,
+				"subdomain":   subdomain,
+				"full_domain": fullDomain,
+				"error":       "هذا النطاق مستخدم بالفعل من قبل وكيل آخر، يرجى اختيار اسم مختلف",
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"available":   true,
+			"subdomain":   subdomain,
+			"full_domain": fullDomain,
+			"message":     "النطاق متاح وجاهز للاستخدام!",
+		})
+	})
+
+	app.Post("/api/agents/self-register", func(c *fiber.Ctx) error {
+		var req struct {
+			Name      string `json:"name"`
+			Phone     string `json:"phone"`
+			Subdomain string `json:"subdomain"`
+			Serial    string `json:"serial"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		name := strings.TrimSpace(req.Name)
+		phone := strings.TrimSpace(req.Phone)
+		subdomain := strings.ToLower(strings.TrimSpace(req.Subdomain))
+
+		if name == "" || phone == "" || subdomain == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "الاسم الكامل، رقم الهاتف، واسم النطاق هي حقول مطلوبة"})
+		}
+
+		if len(subdomain) < 3 || len(subdomain) > 30 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يجب أن يكون طول النطاق بين 3 و 30 حرفاً"})
+		}
+
+		for _, r := range subdomain {
+			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يجب أن يحتوي النطاق على أحرف إنجليزية وأرقام وشرطة فقط"})
+			}
+		}
+
+		avail, err := repo.IsSubdomainAvailable(subdomain)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		if !avail {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "اسم النطاق مستخدم بالفعل، يرجى اختيار اسم آخر",
+			})
+		}
+
+		// 1. Create or Save Customer record with Name & Phone
+		custID := fmt.Sprintf("cust-%d", time.Now().UnixNano())
+		_ = repo.SaveCustomer(storage.Customer{
+			ID:          custID,
+			Name:        name,
+			Phone:       phone,
+			CompanyName: name,
+			Status:      "active",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		})
+
+		// 2. Generate secure token & Register Agent session
+		token := fmt.Sprintf("tok-%d-%d", time.Now().UnixNano(), time.Now().Unix()%100000)
+		agent := svc.RegisterAgent(subdomain, token)
+
+		// 3. Create License record
+		licenseID := fmt.Sprintf("license-%s", agent.ID)
+		_ = repo.SaveLicense(storage.License{
+			ID:         licenseID,
+			CustomerID: custID,
+			LicenseKey: fmt.Sprintf("KEY-%s", agent.ID),
+			HWUUID:     req.Serial,
+			Status:     "active",
+			IssuedAt:   time.Now(),
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		})
+
+		// 4. Create Subdomain record in SQLite
+		_, _ = repo.CreateOrGetSubdomain(custID, licenseID, agent.Subdomain)
+
+		webURL := fmt.Sprintf("http://%s.%s", agent.Subdomain, centralDomain)
+		winboxAddress := fmt.Sprintf("%s.%s:%d", agent.Subdomain, centralDomain, agent.WinboxPort)
+		gatewayURL := fmt.Sprintf("wss://%s/ws", centralDomain)
+
+		return c.JSON(fiber.Map{
+			"success":        true,
+			"agent_id":       agent.ID,
+			"subdomain":      agent.Subdomain,
+			"token":          agent.Token,
+			"winbox_port":    agent.WinboxPort,
+			"winbox_address": winboxAddress,
+			"web_url":        webURL,
+			"gateway_url":    gatewayURL,
+			"central_domain": centralDomain,
+			"full_domain":    fmt.Sprintf("%s.%s", agent.Subdomain, centralDomain),
+			"owner_name":     name,
+			"owner_phone":    phone,
+			"message":        "تم حجز النطاق وتسجيل الوكيل بنجاح!",
+		})
+	})
+
 	// Protect all administrative and agent management APIs with JWT Auth Middleware
 	app.Use(authManager.Middleware())
 
