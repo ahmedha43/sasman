@@ -94,6 +94,19 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Calculate Version Tag
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="5.1.0"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
       - name: Build & Push Multi-Arch Image
         if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/build-push-action@v5
@@ -104,7 +117,8 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:v5
-            ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:${{ github.event.inputs.version || '5.1.0' }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:${{ steps.ver.outputs.VERSION }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:v${{ steps.ver.outputs.VERSION }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
