@@ -3,7 +3,9 @@ package core
 import (
 	"crypto/ed25519"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -181,6 +183,53 @@ func GetRouterSerial(client *routeros.Client) (string, error) {
 }
 
 func VerifyLicense(licenseKey string, currentSerial string) (bool, string, time.Time) {
+	// 1. Check Central Cloud-Managed License Lease
+	if shared.RouterConfigState.CloudLicenseStatus != "" || shared.RouterConfigState.TunnelSubdomain != "" {
+		if shared.RouterConfigState.CloudLicenseStatus == "" {
+			if data, err := os.ReadFile("data/cloud_license.json"); err == nil {
+				var lease struct {
+					Status        string `json:"status"`
+					ExpiresAt     string `json:"expires_at"`
+					DaysRemaining int    `json:"days_remaining"`
+					IsExpired     bool   `json:"is_expired"`
+					Valid         bool   `json:"valid"`
+				}
+				if json.Unmarshal(data, &lease) == nil {
+					shared.RouterConfigState.CloudLicenseStatus = lease.Status
+					shared.RouterConfigState.CloudLicenseExpiresAt = lease.ExpiresAt
+					shared.RouterConfigState.CloudLicenseDaysLeft = lease.DaysRemaining
+					shared.RouterConfigState.CloudLicenseValid = lease.Valid
+				}
+			}
+		}
+
+		if shared.RouterConfigState.CloudLicenseStatus == "suspended" {
+			return false, "تم إيقاف وتجميد اشتراك هذا الوكيل من قبل الإدارة المركزية", time.Time{}
+		}
+
+		if shared.RouterConfigState.CloudLicenseExpiresAt != "" {
+			var expTime time.Time
+			var err error
+			expTime, err = time.Parse("2006-01-02 15:04:05", shared.RouterConfigState.CloudLicenseExpiresAt)
+			if err != nil {
+				expTime, err = time.Parse(time.RFC3339, shared.RouterConfigState.CloudLicenseExpiresAt)
+			}
+			if err == nil {
+				if time.Now().UTC().After(expTime.UTC()) {
+					return false, "انتهت صلاحية اشتراك هذا الحساب، يرجى التجديد من الإدارة", expTime
+				}
+				if shared.RouterConfigState.CloudLicenseStatus == "active" || shared.RouterConfigState.CloudLicenseValid {
+					return true, "اشتراك سحابي مفعل", expTime
+				}
+			}
+		}
+
+		if shared.RouterConfigState.CloudLicenseStatus == "active" {
+			return true, "اشتراك سحابي مفعل", time.Now().Add(30 * 24 * time.Hour)
+		}
+	}
+
+	// 2. Fallback to Offline JWT Key
 	if licenseKey == "" {
 		return false, "نظام غير مفعل", time.Time{}
 	}
@@ -201,7 +250,7 @@ func VerifyLicense(licenseKey string, currentSerial string) (bool, string, time.
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		licenseSerial, _ := claims["serial"].(string)
-		if licenseSerial != currentSerial {
+		if licenseSerial != currentSerial && currentSerial != "" {
 			return false, "هذا المفتاح مخصص لجهاز آخر (Serial Mismatch)", time.Time{}
 		}
 
@@ -226,11 +275,20 @@ func GetLicenseStatus(c *fiber.Ctx) error {
 	serial, _ := GetRouterSerial(client)
 	valid, msg, exp := VerifyLicense(shared.RouterConfigState.License, serial)
 
+	expStr := ""
+	if !exp.IsZero() {
+		expStr = exp.Format("2006-01-02 15:04:05")
+	} else if shared.RouterConfigState.CloudLicenseExpiresAt != "" {
+		expStr = shared.RouterConfigState.CloudLicenseExpiresAt
+	}
+
 	return c.JSON(fiber.Map{
-		"valid":   valid,
-		"message": msg,
-		"expires": exp.Format("2006-01-02"),
-		"serial":  serial,
+		"valid":          valid,
+		"message":        msg,
+		"expires":        expStr,
+		"serial":         serial,
+		"status":         shared.RouterConfigState.CloudLicenseStatus,
+		"days_remaining": shared.RouterConfigState.CloudLicenseDaysLeft,
 	})
 }
 

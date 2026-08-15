@@ -694,8 +694,17 @@
                     </div>
 
                      <!-- License status box wrapper -->
-                    <div class="card" style="margin-top:25px;">
-                        <h3>حالة ترخيص النظام</h3>
+                    <div class="card" style="margin-top:25px; border-right:4px solid var(--primary);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <h3 style="margin:0; display:flex; align-items:center; gap:8px;">
+                                <i class="fa-solid fa-shield-halved" style="color:var(--primary);"></i>
+                                <span>معلومات وصلاحية اشتراك النظام</span>
+                            </h3>
+                            <button class="btn btn-dark" style="width:auto; padding:6px 14px; font-size:12px;" onclick="loadLicenseStatus()">
+                                <i class="fa-solid fa-rotate"></i> تحديث الحالة
+                            </button>
+                        </div>
+                        <p class="field-hint" style="margin-bottom:12px;">يتم إدارة وتجديد صلاحية هذا الترخيص مركزياً عبر السيرفر السحابي.</p>
                         <div id="license-status-box" style="margin-top:10px;"></div>
                     </div>
 

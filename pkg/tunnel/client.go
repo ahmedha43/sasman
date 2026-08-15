@@ -53,6 +53,7 @@ type AgentClientConfig struct {
 	OnLocalHTTP      func(req HttpRequestPayload, localPort string) HttpResponsePayload
 	OnMikroTikSync   func(services []relay.ServiceDefinition)
 	OnBroadcast      func(bc broadcast.BroadcastMessage)
+	OnLicenseLease   func(payload []byte)
 	RouterAddress    string
 }
 
@@ -372,6 +373,12 @@ func (c *ResilientAgentClient) connectAndServe() error {
 				if c.cfg.OnBroadcast != nil {
 					go c.cfg.OnBroadcast(bc)
 				}
+			}
+
+		case "license_lease":
+			log.Printf("[Tunnel Client] 🛡️ Received cloud license lease update from central server")
+			if c.cfg.OnLicenseLease != nil {
+				go c.cfg.OnLicenseLease(msg.Payload)
 			}
 		}
 	}

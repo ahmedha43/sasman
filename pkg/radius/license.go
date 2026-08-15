@@ -90,12 +90,21 @@ func LicenseStatusHandler(c *fiber.Ctx) error {
 	}
 
 	valid, msg, exp := core.VerifyLicense(shared.RouterConfigState.License, serial)
+	expStr := ""
+	if !exp.IsZero() {
+		expStr = exp.Format("2006-01-02 15:04:05")
+	} else if shared.RouterConfigState.CloudLicenseExpiresAt != "" {
+		expStr = shared.RouterConfigState.CloudLicenseExpiresAt
+	}
+
 	return c.JSON(fiber.Map{
 		"valid":            valid,
 		"router_connected": true,
 		"message":          msg,
 		"serial":           serial,
-		"expires":          exp.Format("2006-01-02 15:04:05"),
+		"expires":          expStr,
+		"status":           shared.RouterConfigState.CloudLicenseStatus,
+		"days_remaining":   shared.RouterConfigState.CloudLicenseDaysLeft,
 	})
 }
 

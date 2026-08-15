@@ -39,9 +39,13 @@ type RouterConfig struct {
 	TunnelToken      string `json:"tunnel_token"`
 	TunnelGatewayURL string `json:"tunnel_gateway_url"`
 	CentralDomain    string `json:"central_domain"`
-	OwnerName        string `json:"owner_name"`
-	OwnerPhone       string `json:"owner_phone"`
-	WinboxPort       int    `json:"winbox_port"`
+	OwnerName             string `json:"owner_name"`
+	OwnerPhone            string `json:"owner_phone"`
+	WinboxPort            int    `json:"winbox_port"`
+	CloudLicenseStatus    string `json:"cloud_license_status"`
+	CloudLicenseExpiresAt string `json:"cloud_license_expires_at"`
+	CloudLicenseDaysLeft  int    `json:"cloud_license_days_left"`
+	CloudLicenseValid     bool   `json:"cloud_license_valid"`
 }
 
 var RouterConfigState RouterConfig

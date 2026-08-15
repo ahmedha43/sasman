@@ -121,12 +121,41 @@ function renderLicenseGate(data) {
     const gate = document.getElementById('license-gate');
     const main = document.getElementById('main-area');
     const routerBox = document.getElementById('router-setup-box');
+    
+    let statusBadge = '';
+    if (data.status === 'suspended') {
+        statusBadge = '<span style="background:#78350f; color:#fef3c7; padding:4px 10px; border-radius:6px; font-weight:bold;">⏸️ الترخيص مجمّد / موقوف</span>';
+    } else if (data.valid) {
+        statusBadge = '<span style="background:#14532d; color:#86efac; padding:4px 10px; border-radius:6px; font-weight:bold;">🟢 الترخيص مفعّل وصالح</span>';
+    } else {
+        statusBadge = '<span style="background:#7f1d1d; color:#fee2e2; padding:4px 10px; border-radius:6px; font-weight:bold;">🔴 منتهي الصلاحية / غير مفعل</span>';
+    }
+
+    const expDisplay = data.expires ? data.expires : 'غير محدد';
+    const daysDisplay = (data.days_remaining !== undefined && data.days_remaining !== null) ? `${data.days_remaining} يوم` : '-';
+
     const html = `
-        <div><strong>حالة الترخيص:</strong> ${data.valid ? '<span style="color:#166534;">مفعل ✅</span>' : '<span style="color:#991b1b;">غير مفعل</span>'}</div>
-        <div style="font-size:13px; color:#475569; margin-top:4px;">${data.message || ''}</div>
-        ${data.serial ? `<div style="font-size:13px; color:#475569;"><strong>السيريال:</strong> <code>${data.serial}</code></div>` : ''}
-        ${data.expires && data.valid ? `<div style="font-size:13px; color:#475569;"><strong>ينتهي:</strong> ${data.expires}</div>` : ''}
+        <div style="margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div style="font-size:15px;"><strong>حالة الترخيص:</strong> ${statusBadge}</div>
+            ${data.valid ? `<div style="font-size:13px; color:#16a34a; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> اللوحة تعمل بكامل الصلاحيات</div>` : `<div style="font-size:13px; color:#dc2626; font-weight:bold;"><i class="fa-solid fa-circle-exclamation"></i> يرجى التواصل مع الإدارة للتفعيل والتجديد</div>`}
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; font-size:13px; background:#f8fafc; padding:14px; border-radius:8px; border:1px solid #e2e8f0;">
+            <div>
+                <span style="color:#64748b; display:block; margin-bottom:2px;">📅 تاريخ انتهاء الاشتراك:</span>
+                <span style="font-family:monospace; font-size:14px; font-weight:bold; color:#0284c7;">${expDisplay}</span>
+            </div>
+            <div>
+                <span style="color:#64748b; display:block; margin-bottom:2px;">⏳ الأيام المتبقية:</span>
+                <span style="font-size:14px; font-weight:bold; color:${data.days_remaining > 5 ? '#16a34a' : '#dc2626'};">${daysDisplay}</span>
+            </div>
+            ${data.serial ? `<div>
+                <span style="color:#64748b; display:block; margin-bottom:2px;">📟 سيريال المايكروتك:</span>
+                <code style="font-size:12px; background:#e2e8f0; padding:2px 6px; border-radius:4px;">${data.serial}</code>
+            </div>` : ''}
+        </div>
+        ${data.message ? `<div style="font-size:12px; color:#64748b; margin-top:8px;"><i class="fa-solid fa-info-circle"></i> ${data.message}</div>` : ''}
     `;
+
     document.querySelectorAll('#license-status-box').forEach(el => { el.innerHTML = html; });
     if (routerBox) routerBox.style.display = data.router_connected ? 'none' : '';
     if (!gate || !main) return;

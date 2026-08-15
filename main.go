@@ -121,6 +121,26 @@ func startSasmanTunnel(port string) {
 				}()
 			}
 		},
+		OnLicenseLease: func(payload []byte) {
+			var lease struct {
+				Status        string `json:"status"`
+				ExpiresAt     string `json:"expires_at"`
+				DaysRemaining int    `json:"days_remaining"`
+				IsExpired     bool   `json:"is_expired"`
+				Valid         bool   `json:"valid"`
+			}
+			if err := json.Unmarshal(payload, &lease); err == nil {
+				shared.RouterConfigState.CloudLicenseStatus = lease.Status
+				shared.RouterConfigState.CloudLicenseExpiresAt = lease.ExpiresAt
+				shared.RouterConfigState.CloudLicenseDaysLeft = lease.DaysRemaining
+				shared.RouterConfigState.CloudLicenseValid = lease.Valid
+				shared.SaveConfig()
+
+				// Cache on disk
+				_ = os.WriteFile("data/cloud_license.json", payload, 0644)
+				log.Printf("[License Engine] 🛡️ Received Cloud License Lease: status=%s, expires=%s, valid=%v, days_left=%d", lease.Status, lease.ExpiresAt, lease.Valid, lease.DaysRemaining)
+			}
+		},
 	})
 	activeTunnelClient = client
 	sasmanTunnelMu.Unlock()

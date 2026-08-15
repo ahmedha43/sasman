@@ -55,6 +55,18 @@ type Subdomain struct {
 	UpdatedAt  time.Time
 }
 
+type AgentLicenseInfo struct {
+	Subdomain     string     `json:"subdomain"`
+	LicenseID     string     `json:"license_id"`
+	Status        string     `json:"status"` // 'active', 'suspended', 'expired', 'unlicensed'
+	ExpiresAt     *time.Time `json:"expires_at"`
+	ExpiresAtStr  string     `json:"expires_at_str"`
+	DaysRemaining int        `json:"days_remaining"`
+	IsExpired     bool       `json:"is_expired"`
+	DurationDays  int        `json:"duration_days"`
+	LastRenewedAt *time.Time `json:"last_renewed_at"`
+}
+
 type Broadcast struct {
 	ID                string     `json:"id"`
 	Title             string     `json:"title"`
@@ -304,6 +316,34 @@ func (r *SQLiteRepository) CreateOrGetSubdomain(customerID, licenseID, subdomain
 	}
 
 	return &Subdomain{ID: id, CustomerID: customerID, LicenseID: licenseID, Subdomain: subdomain, ZoneName: "sas-man.net", Status: "active", Token: token, WinboxPort: port, GroupName: groupName}, nil
+}
+
+func (r *SQLiteRepository) SaveSubdomain(s Subdomain) error {
+	assignedAtStr := s.AssignedAt.UTC().Format(time.RFC3339)
+	if s.AssignedAt.IsZero() {
+		assignedAtStr = time.Now().UTC().Format(time.RFC3339)
+	}
+	createdAtStr := s.CreatedAt.UTC().Format(time.RFC3339)
+	if s.CreatedAt.IsZero() {
+		createdAtStr = time.Now().UTC().Format(time.RFC3339)
+	}
+	updatedAtStr := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := r.db.Exec(`
+        INSERT INTO subdomains (id, customer_id, license_id, subdomain, zone_name, status, token, winbox_port, group_name, assigned_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            customer_id=excluded.customer_id,
+            license_id=excluded.license_id,
+            subdomain=excluded.subdomain,
+            zone_name=excluded.zone_name,
+            status=excluded.status,
+            token=excluded.token,
+            winbox_port=excluded.winbox_port,
+            group_name=excluded.group_name,
+            updated_at=excluded.updated_at
+    `, s.ID, s.CustomerID, s.LicenseID, s.Subdomain, s.ZoneName, s.Status, s.Token, s.WinboxPort, s.GroupName, assignedAtStr, createdAtStr, updatedAtStr)
+	return err
 }
 
 func (r *SQLiteRepository) ResetSubdomain(subdomain string) error {
@@ -784,5 +824,216 @@ func (r *SQLiteRepository) GetActiveBroadcastsForAgent(subdomain string) ([]Broa
 		}
 	}
 	return matched, nil
+}
+
+func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseInfo, error) {
+	row := r.db.QueryRow(`
+		SELECT s.subdomain, COALESCE(l.id, ''), COALESCE(l.status, 'unlicensed'), l.expires_at, l.updated_at
+		FROM subdomains s
+		LEFT JOIN licenses l ON s.license_id = l.id
+		WHERE LOWER(s.subdomain) = LOWER(?)
+	`, subdomain)
+
+	var info AgentLicenseInfo
+	var expiresAtStr, updatedAtStr sql.NullString
+	err := row.Scan(&info.Subdomain, &info.LicenseID, &info.Status, &expiresAtStr, &updatedAtStr)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return &AgentLicenseInfo{
+				Subdomain:     subdomain,
+				Status:        "unlicensed",
+				IsExpired:     true,
+				DaysRemaining: 0,
+			}, nil
+		}
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	if expiresAtStr.Valid && expiresAtStr.String != "" {
+		if exp, err := time.Parse(time.RFC3339, expiresAtStr.String); err == nil {
+			info.ExpiresAt = &exp
+			info.ExpiresAtStr = exp.Format("2006-01-02 15:04:05")
+			if now.After(exp) {
+				info.IsExpired = true
+				info.DaysRemaining = 0
+				if info.Status == "active" {
+					info.Status = "expired"
+				}
+			} else {
+				info.IsExpired = false
+				diff := exp.Sub(now)
+				info.DaysRemaining = int(diff.Hours() / 24)
+				if info.DaysRemaining == 0 && diff.Seconds() > 0 {
+					info.DaysRemaining = 1
+				}
+			}
+		}
+	} else if info.Status == "active" {
+		// If active without expiry, default 30 days
+		info.IsExpired = false
+		info.DaysRemaining = 30
+	} else {
+		info.IsExpired = true
+		info.DaysRemaining = 0
+	}
+
+	return &info, nil
+}
+
+func (r *SQLiteRepository) ActivateAgentLicense(subdomain string, days int) (*AgentLicenseInfo, error) {
+	if days <= 0 {
+		days = 30
+	}
+
+	info, err := r.GetAgentLicenseInfo(subdomain)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	var newExp time.Time
+
+	// If currently active and expires in the future, add days to current expires_at
+	if info.ExpiresAt != nil && info.ExpiresAt.After(now) && info.Status == "active" {
+		newExp = info.ExpiresAt.Add(time.Duration(days) * 24 * time.Hour)
+	} else {
+		// If expired, suspended, or no exp, start from now + days
+		newExp = now.Add(time.Duration(days) * 24 * time.Hour)
+	}
+
+	newExpStr := newExp.Format(time.RFC3339)
+	nowStr := now.Format(time.RFC3339)
+
+	// If no license exists for this subdomain, create one
+	if info.LicenseID == "" || info.Status == "unlicensed" {
+		row := r.db.QueryRow(`SELECT customer_id FROM subdomains WHERE LOWER(subdomain) = LOWER(?)`, subdomain)
+		var customerID string
+		if err := row.Scan(&customerID); err != nil || customerID == "" {
+			customerID = fmt.Sprintf("cust-%d", now.UnixNano())
+			_, _ = r.db.Exec(`INSERT INTO customers (id, name, status, created_at, updated_at) VALUES (?, ?, 'active', ?, ?)`, customerID, subdomain, nowStr, nowStr)
+		}
+
+		licID := fmt.Sprintf("lic-%d", now.UnixNano())
+		licKey := fmt.Sprintf("KEY-%s-%d", strings.ToUpper(subdomain), now.Unix())
+		_, err = r.db.Exec(`
+			INSERT INTO licenses (id, customer_id, license_key, status, issued_at, expires_at, created_at, updated_at)
+			VALUES (?, ?, ?, 'active', ?, ?, ?, ?)
+		`, licID, customerID, licKey, nowStr, newExpStr, nowStr, nowStr)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = r.db.Exec(`UPDATE subdomains SET license_id = ?, status = 'active', updated_at = ? WHERE LOWER(subdomain) = LOWER(?)`, licID, nowStr, subdomain)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		_, err = r.db.Exec(`
+			UPDATE licenses
+			SET status = 'active', expires_at = ?, updated_at = ?
+			WHERE id = ?
+		`, newExpStr, nowStr, info.LicenseID)
+		if err != nil {
+			return nil, err
+		}
+
+		_, _ = r.db.Exec(`UPDATE subdomains SET status = 'active', updated_at = ? WHERE LOWER(subdomain) = LOWER(?)`, nowStr, subdomain)
+	}
+
+	return r.GetAgentLicenseInfo(subdomain)
+}
+
+func (r *SQLiteRepository) SuspendAgentLicense(subdomain string) error {
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	info, err := r.GetAgentLicenseInfo(subdomain)
+	if err != nil {
+		return err
+	}
+	if info.LicenseID != "" {
+		_, err = r.db.Exec(`UPDATE licenses SET status = 'suspended', updated_at = ? WHERE id = ?`, nowStr, info.LicenseID)
+		if err != nil {
+			return err
+		}
+	}
+	_, err = r.db.Exec(`UPDATE subdomains SET status = 'suspended', updated_at = ? WHERE LOWER(subdomain) = LOWER(?)`, nowStr, subdomain)
+	return err
+}
+
+func (r *SQLiteRepository) ResumeAgentLicense(subdomain string) error {
+	info, err := r.GetAgentLicenseInfo(subdomain)
+	if err != nil {
+		return err
+	}
+	if info.IsExpired || info.ExpiresAt == nil {
+		_, err = r.ActivateAgentLicense(subdomain, 30)
+		return err
+	}
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	if info.LicenseID != "" {
+		_, err = r.db.Exec(`UPDATE licenses SET status = 'active', updated_at = ? WHERE id = ?`, nowStr, info.LicenseID)
+		if err != nil {
+			return err
+		}
+	}
+	_, err = r.db.Exec(`UPDATE subdomains SET status = 'active', updated_at = ? WHERE LOWER(subdomain) = LOWER(?)`, nowStr, subdomain)
+	return err
+}
+
+func (r *SQLiteRepository) GetSubdomainLicensesMap() (map[string]AgentLicenseInfo, error) {
+	rows, err := r.db.Query(`
+		SELECT s.subdomain, COALESCE(l.id, ''), COALESCE(l.status, 'unlicensed'), l.expires_at, l.updated_at
+		FROM subdomains s
+		LEFT JOIN licenses l ON s.license_id = l.id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	now := time.Now().UTC()
+	result := make(map[string]AgentLicenseInfo)
+	for rows.Next() {
+		var sub string
+		var licID, status, expiresAtStr, updatedAtStr sql.NullString
+		if err := rows.Scan(&sub, &licID, &status, &expiresAtStr, &updatedAtStr); err == nil {
+			info := AgentLicenseInfo{
+				Subdomain: sub,
+				LicenseID: licID.String,
+				Status:    status.String,
+			}
+			if info.Status == "" {
+				info.Status = "unlicensed"
+			}
+			if expiresAtStr.Valid && expiresAtStr.String != "" {
+				if exp, err := time.Parse(time.RFC3339, expiresAtStr.String); err == nil {
+					info.ExpiresAt = &exp
+					info.ExpiresAtStr = exp.Format("2006-01-02 15:04:05")
+					if now.After(exp) {
+						info.IsExpired = true
+						info.DaysRemaining = 0
+						if info.Status == "active" {
+							info.Status = "expired"
+						}
+					} else {
+						info.IsExpired = false
+						diff := exp.Sub(now)
+						info.DaysRemaining = int(diff.Hours() / 24)
+						if info.DaysRemaining == 0 && diff.Seconds() > 0 {
+							info.DaysRemaining = 1
+						}
+					}
+				}
+			} else if info.Status == "active" {
+				info.IsExpired = false
+				info.DaysRemaining = 30
+			} else {
+				info.IsExpired = true
+				info.DaysRemaining = 0
+			}
+			result[strings.ToLower(sub)] = info
+		}
+	}
+	return result, nil
 }
 
