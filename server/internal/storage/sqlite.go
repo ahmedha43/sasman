@@ -514,6 +514,16 @@ func (r *SQLiteRepository) ListReleases() ([]ota.ReleaseManifest, error) {
 	return list, nil
 }
 
+func (r *SQLiteRepository) DeleteRelease(version string, targetArch string) error {
+	var err error
+	if targetArch == "" || targetArch == "all" {
+		_, err = r.db.Exec(`DELETE FROM ota_releases WHERE version = ?`, version)
+	} else {
+		_, err = r.db.Exec(`DELETE FROM ota_releases WHERE version = ? AND target_arch = ?`, version, targetArch)
+	}
+	return err
+}
+
 func (r *SQLiteRepository) UpdateAgentOTAStatus(st ota.AgentOTAStatus) error {
 	nowStr := time.Now().UTC().Format(time.RFC3339)
 	_, err := r.db.Exec(`

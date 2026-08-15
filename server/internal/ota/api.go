@@ -3,6 +3,8 @@ package ota
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"mikrotik-manager/pkg/ota"
@@ -34,6 +36,8 @@ func (h *APIHandler) RegisterRoutes(router fiber.Router) {
 	// Admin-managed endpoints
 	group.Get("/releases", h.handleListReleases)
 	group.Post("/releases", h.handlePublishRelease)
+	group.Delete("/releases/:version/:arch", h.handleDeleteRelease)
+	group.Delete("/releases/:version", h.handleDeleteRelease)
 	group.Post("/pull-docker", h.handlePullDockerRelease)
 	group.Get("/status", h.handleGetStatuses)
 	group.Post("/trigger/:subdomain", h.handleTriggerSingle)
@@ -222,6 +226,33 @@ func (h *APIHandler) handlePullDockerRelease(c *fiber.Ctx) error {
 		"success": true,
 		"message": fmt.Sprintf("Successfully processed %d architectures from Docker Hub!", summary.TotalPulled),
 		"summary": summary,
+	})
+}
+
+func (h *APIHandler) handleDeleteRelease(c *fiber.Ctx) error {
+	version := c.Params("version")
+	arch := c.Params("arch")
+
+	if err := h.repo.DeleteRelease(version, arch); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Also delete matching .tar and binary files on disk
+	filenames := []string{
+		"sasman-arm64.tar", "sasman-armv7.tar", "sasman-amd64.tar",
+		fmt.Sprintf("sasman-%s-%s.tar", arch, version),
+		fmt.Sprintf("sasman-agent-%s-%s", arch, version),
+	}
+	for _, fn := range filenames {
+		for _, dir := range []string{"data/releases", "data", "/app/data/releases", "/app/data"} {
+			p := filepath.Join(dir, fn)
+			_ = os.Remove(p)
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("تم حذف الإصدار %s بنجاح", version),
 	})
 }
 

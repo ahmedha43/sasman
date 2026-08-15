@@ -474,14 +474,53 @@
         <div class="card-header">
           <div class="card-title">
             <i class="fa-solid fa-cloud-arrow-up" style="color:var(--primary);"></i>
-            <span>إدارة وتوزيع التحديثات التلقائية (OTA Updates)</span>
+            <span>إدارة وتوزيع التحديثات التلقائية والصور (OTA Updates & Container Images)</span>
           </div>
+          <button class="btn btn-dark btn-xs" onclick="loadOTAReleases()"><i class="fa-solid fa-rotate"></i> تحديث القائمة</button>
         </div>
 
-        <!-- OTA Upload Form -->
-        <div style="background:#0b1329; border:1px solid #334155; border-radius:12px; padding:20px; margin-bottom:24px;">
-          <h4 style="margin-bottom:12px; color:#38bdf8;"><i class="fa-solid fa-upload"></i> رفع إصدار جديد (Publish Release)</h4>
-          <form onsubmit="handleOTAUpload(event)" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; align-items:end;">
+        <!-- 1. Docker Hub Auto-Pull Card -->
+        <div style="background:#0b1329; border:1.5px solid #0ea5e9; border-radius:14px; padding:20px; margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <h4 style="margin:0; color:#38bdf8;"><i class="fa-brands fa-docker" style="color:#0ea5e9; font-size:20px;"></i> جلب وتوليد صور التحديث تلقائياً من Docker Hub</h4>
+            <span class="badge" style="background:#0369a1; color:#e0f2fe; padding:5px 12px; font-size:12px;">يدعم تلقائياً: ARM64 + ARMv7 + AMD64</span>
+          </div>
+          <p class="text-muted" style="font-size:13px; margin-bottom:16px;">يقوم السيرفر بسحب الصورة تلقائياً من Docker Hub، استخراج ملفات الـ Binary، وتوليد حزم الـ TAR لكافة المعماريات وتجهيزها للتحميل والتحديث التلقائي OTA بنقرة واحدة.</p>
+          <form onsubmit="handleDockerPull(event)" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; align-items:end;">
+            <div>
+              <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:4px;">اسم صورة Docker Hub *:</label>
+              <input type="text" id="docker-image" placeholder="ahmedkin99/sasman-manager:latest" value="ahmedkin99/sasman-manager:latest" required style="width:100%; font-family:monospace;">
+            </div>
+            <div>
+              <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:4px;">رقم الإصدار (Version):</label>
+              <input type="text" id="docker-version" placeholder="v5.1.0 (أو اتركه فارغ)" style="width:100%;">
+            </div>
+            <div>
+              <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:4px;">القناة (Channel):</label>
+              <select id="docker-channel" style="width:100%;">
+                <option value="stable">مستقر (Stable)</option>
+                <option value="beta">تجريبي (Beta)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:4px;">ملاحظات الإصدار (Notes):</label>
+              <input type="text" id="docker-notes" placeholder="تحسينات واستقرار عام" style="width:100%;">
+            </div>
+            <div style="grid-column:1 / -1; display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+              <button type="submit" id="btn-docker-pull" class="btn btn-primary" style="padding:10px 24px; background:linear-gradient(135deg, #0ea5e9, #0284c7);">
+                <i class="fa-brands fa-docker"></i> 🚀 بدء جلب ومعالجة الصور من Docker Hub
+              </button>
+              <span id="docker-pull-status" style="font-size:13px; color:#94a3b8; display:none;"></span>
+            </div>
+          </form>
+        </div>
+
+        <!-- 2. Manual Upload Accordion / Secondary Box -->
+        <details style="background:#0f172a; border:1px solid #334155; border-radius:12px; padding:14px 18px; margin-bottom:24px;">
+          <summary style="cursor:pointer; color:#94a3b8; font-weight:bold; font-size:14px;">
+            <i class="fa-solid fa-upload"></i> خيار متقدم: رفع ملف تحديث يدوي (Manual Binary Upload)
+          </summary>
+          <form onsubmit="handleOTAUpload(event)" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; align-items:end; margin-top:14px;">
             <div>
               <label style="font-size:12px; color:#cbd5e1; display:block; margin-bottom:4px;">رقم الإصدار (Version):</label>
               <input type="text" id="ota-version" placeholder="v5.1.0" required style="width:100%;">
@@ -499,13 +538,15 @@
               <input type="file" id="ota-file" required style="width:100%;">
             </div>
             <div>
-              <button type="submit" id="btn-ota-upload" class="btn btn-primary" style="width:100%; padding:10px;">
-                <i class="fa-solid fa-cloud-arrow-up"></i> نشر الإصدار
+              <button type="submit" id="btn-ota-upload" class="btn btn-dark" style="width:100%; padding:10px;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> نشر الملف يدوياً
               </button>
             </div>
           </form>
-        </div>
+        </details>
 
+        <!-- 3. Releases Table Container -->
+        <h4 style="margin-bottom:12px; color:#cbd5e1;"><i class="fa-solid fa-list"></i> الإصدارات المنشورة والصور الجاهزة للتحميل</h4>
         <div id="ota-releases-container">
           <p class="text-muted" style="text-align:center; padding:20px;">جاري تحميل الإصدارات المنشورة...</p>
         </div>
@@ -1060,26 +1101,108 @@
 
         const container = document.getElementById('ota-releases-container');
         if (!releases.length) {
-          container.innerHTML = '<p class="text-muted" style="text-align:center; padding:20px;">لا توجد إصدارات منشورة بعد.</p>';
+          container.innerHTML = '<p class="text-muted" style="text-align:center; padding:20px;">لا توجد إصدارات منشورة بعد. استخدم زر سحب الصور من Docker Hub أعلاه للبدء.</p>';
           return;
         }
 
         let html = '<div class="table-wrap"><table><thead><tr>' +
-          '<th>الإصدار</th><th>المعمارية</th><th>تاريخ النشر</th><th>تحميل</th>' +
+          '<th>الإصدار</th><th>المعمارية</th><th>تاريخ النشر</th><th>تحميل الملفات والصور</th><th>الإجراءات</th>' +
           '</tr></thead><tbody>';
 
         releases.forEach(r => {
+          let tarFile = 'sasman-arm64.tar';
+          if (r.target_arch === 'linux_arm') tarFile = 'sasman-armv7.tar';
+          else if (r.target_arch === 'linux_amd64') tarFile = 'sasman-amd64.tar';
+
           html += `<tr>
-            <td style="font-weight:bold; font-family:monospace; color:#38bdf8;">${escapeHtml(r.version)}</td>
-            <td><code>${escapeHtml(r.target_arch)}</code></td>
-            <td style="font-size:12px; color:#94a3b8;">${escapeHtml(r.created_at || '-')}</td>
-            <td><a href="/api/ota/releases/${encodeURIComponent(r.version)}/${encodeURIComponent(r.target_arch)}/download" class="btn btn-dark btn-xs">📥 تحميل</a></td>
+            <td style="font-weight:bold; font-family:monospace; color:#38bdf8; font-size:14px;">${escapeHtml(r.version)}</td>
+            <td><code style="background:#1e293b; padding:3px 8px; border-radius:6px; color:#a5f3fc;">${escapeHtml(r.target_arch)}</code></td>
+            <td style="font-size:12px; color:#94a3b8;">${escapeHtml(r.created_at ? r.created_at.substring(0,19).replace('T',' ') : '-')}</td>
+            <td>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <a href="/api/ota/bin/${encodeURIComponent(r.target_arch)}/${encodeURIComponent(r.version)}" class="btn btn-dark btn-xs" title="تحميل ملف الـ Binary لتحديث الحاوية الداخلية">
+                  <i class="fa-solid fa-download"></i> Binary
+                </a>
+                <a href="/download/${tarFile}" class="btn btn-dark btn-xs" style="background:#0369a1; color:#fff;" title="تحميل صورة الـ Container TAR للمايكروتك">
+                  <i class="fa-solid fa-box"></i> ${tarFile}
+                </a>
+              </div>
+            </td>
+            <td>
+              <button onclick="deleteOTARelease('${escapeHtml(r.version)}', '${escapeHtml(r.target_arch)}')" class="btn btn-danger btn-xs" title="حذف هذا الإصدار نهائياً">
+                <i class="fa-solid fa-trash"></i> حذف
+              </button>
+            </td>
           </tr>`;
         });
         html += '</tbody></table></div>';
         container.innerHTML = html;
       } catch (err) {
         document.getElementById('ota-releases-container').innerHTML = `<p style="color:var(--danger); text-align:center;">❌ ${err.message}</p>`;
+      }
+    }
+
+    async function deleteOTARelease(version, arch) {
+      if (!confirm(`هل أنت متأكد من حذف الإصدار "${version}" للمعمارية (${arch}) نهائياً؟`)) return;
+      try {
+        const res = await fetch(`/api/ota/releases/${encodeURIComponent(version)}/${encodeURIComponent(arch)}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          loadOTAReleases();
+        } else {
+          alert('❌ ' + (data.error || 'فشل حذف الإصدار'));
+        }
+      } catch (e) {
+        alert('خطأ في الاتصال بالسيرفر أثناء الحذف');
+      }
+    }
+
+    async function handleDockerPull(e) {
+      e.preventDefault();
+      const image = document.getElementById('docker-image').value.trim();
+      const version = document.getElementById('docker-version').value.trim();
+      const channel = document.getElementById('docker-channel').value;
+      const releaseNotes = document.getElementById('docker-notes').value.trim();
+      const btn = document.getElementById('btn-docker-pull');
+      const status = document.getElementById('docker-pull-status');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري سحب ومعالجة الصور من Docker Hub...';
+      status.style.display = 'inline-block';
+      status.style.color = '#38bdf8';
+      status.innerHTML = '⏳ جاري تنزيل الطبقات واستخراج ملفات الـ TAR والـ Binary لكافة المعماريات... قد يستغرق دقيقة أو دقيقتين.';
+
+      try {
+        const res = await fetch('/api/ota/pull-docker', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: image,
+            version: version,
+            channel: channel,
+            release_notes: releaseNotes
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          status.style.color = '#22c55e';
+          status.innerHTML = '✅ ' + data.message;
+          alert('✅ ' + data.message);
+          loadOTAReleases();
+        } else {
+          status.style.color = '#ef4444';
+          status.innerHTML = '❌ ' + (data.error || 'فشل الجلب من Docker Hub');
+          alert('❌ ' + (data.error || 'فشل الجلب من Docker Hub'));
+        }
+      } catch (err) {
+        status.style.color = '#ef4444';
+        status.innerHTML = '❌ خطأ في الاتصال بالسيرفر';
+        alert('خطأ في الاتصال بالسيرفر');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-brands fa-docker"></i> 🚀 بدء جلب ومعالجة الصور من Docker Hub';
       }
     }
 
@@ -1093,19 +1216,23 @@
       if (!fileInput.files || !fileInput.files[0]) return;
 
       const fd = new FormData();
-      fd.append('file', fileInput.files[0]);
+      fd.append('version', version);
+      fd.append('target_arch', arch);
+      fd.append('channel', 'stable');
+      fd.append('binary', fileInput.files[0]);
 
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري النشر...';
 
       try {
-        const res = await fetch(`/api/ota/releases/${encodeURIComponent(version)}/${encodeURIComponent(arch)}/upload`, {
+        const res = await fetch('/api/ota/releases', {
           method: 'POST',
           body: fd
         });
         const data = await res.json();
-        if (res.ok) {
+        if (res.ok && data.success) {
           alert('✅ تم نشر الإصدار بنجاح!');
+          fileInput.value = '';
           loadOTAReleases();
         } else {
           alert('❌ ' + (data.error || 'فشل النشر'));
@@ -1113,7 +1240,7 @@
       } catch (err) { alert('خطأ في الاتصال'); }
       finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> نشر الإصدار';
+        btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> نشر الملف يدوياً';
       }
     }
 
