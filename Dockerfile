@@ -49,7 +49,6 @@ COPY --from=builder /app/docker-entrypoint.sh ./
 COPY --from=builder /app/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/public_radius ./public_radius
-COPY --from=builder /app/data/routing_data.json /app/data/routing_data.json
 
 EXPOSE 88 1812/udp 1813/udp
 
