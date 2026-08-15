@@ -32,15 +32,18 @@ jobs:
 
       # ─── 0. Log in to Docker Hub (if secrets configured) ──────────────────────
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # ─── 1. Build and Push Unified Multi-Arch Image to Docker Hub ──────────────
       - name: Build & Push Multi-Arch Docker Image
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -50,6 +53,9 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:v5
             ${{ secrets.DOCKERHUB_USERNAME }}/sasman-manager:${{ github.event.inputs.version || '5.1.0' }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Create Releases Directory
         run: mkdir -p releases
