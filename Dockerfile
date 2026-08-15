@@ -1,12 +1,12 @@
-# Stage 1: Build the Go binary
-FROM golang:alpine AS builder
+# Stage 1: Build the Go binary natively on host platform
+FROM --platform=$BUILDPLATFORM golang:alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies for Go (lmdb-dev is required for CGO)
-RUN apk add --no-cache build-base lmdb-dev git ca-certificates
+# Install git and certs
+RUN apk add --no-cache git ca-certificates
 
-# Set Go Proxy and disable SumDB for maximum resilience
+# Set Go Proxy and disable SumDB for speed and resilience
 ENV GOPROXY=https://goproxy.io,https://proxy.golang.org,direct
 ENV GOSUMDB=off
 
@@ -14,7 +14,7 @@ ENV GOSUMDB=off
 COPY go.mod go.sum ./
 COPY routeros_pkg ./routeros_pkg
 
-# Now download dependencies with retries and no cache
+# Download dependencies
 RUN go mod download -x -modcacherw
 
 # Copy the rest of the source code
@@ -25,11 +25,8 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-# Set CGO compilation flags to disable robust mutexes for full MikroTik RouterOS ARM64/ARMv7 kernel compatibility
-ENV CGO_CFLAGS="-DMDB_USE_ROBUST=0"
-
-# Build the Go binary
-RUN CGO_ENABLED=1 CGO_CFLAGS="-DMDB_USE_ROBUST=0" GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
+# Build the Go binary with instant native cross-compilation
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
     go build -ldflags="-s -w" -o main .
 
 # Stage 2: Final lightweight image
