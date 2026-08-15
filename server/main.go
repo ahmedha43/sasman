@@ -205,7 +205,6 @@ func main() {
 
 		return fmt.Sprintf(`# ==============================================================================
 #           SASMAN Automatic Container & Full MikroTik Setup for RouterOS v7
-#           Storage Target: %s
 # ==============================================================================
 :put "================================================================="
 :put "         Starting SASMAN Unified Auto-Installer & Setup        "
