@@ -50,6 +50,9 @@ COPY --from=builder /app/supervisord.conf /etc/supervisor/conf.d/supervisord.con
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/public_radius ./public_radius
 
+# Ensure execution permissions on entrypoint script and binary
+RUN chmod +x /app/docker-entrypoint.sh /app/main
+
 EXPOSE 88 1812/udp 1813/udp
 
 ENV SASMAN_DATA_DIR=/app/data
