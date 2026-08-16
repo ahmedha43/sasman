@@ -3,10 +3,13 @@ package prober
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptrace"
+	"net/url"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -181,24 +184,84 @@ func (p *Prober) runAllProbes() {
 }
 
 func (p *Prober) probeService(svc relay.ServiceDefinition) relay.HealthProbe {
-	probeType := svc.ProbeConfig.Type
+	probeType := strings.ToLower(strings.TrimSpace(svc.ProbeConfig.Type))
 	if probeType == "" {
-		if len(svc.Domains) > 0 {
-			probeType = "https"
-		} else {
-			probeType = "tcp_ping"
-		}
+		probeType = "tcp_ping"
 	}
 
-	target := svc.ProbeConfig.TargetURL
-	if target == "" && len(svc.Domains) > 0 {
-		target = "https://" + svc.Domains[0]
+	target := strings.TrimSpace(svc.ProbeConfig.TargetURL)
+	targetDomain := ""
+	if len(svc.Domains) > 0 {
+		targetDomain = strings.TrimPrefix(svc.Domains[0], "*.")
 	}
 
-	start := time.Now()
+	targetPort := 443
+	if len(svc.Ports) > 0 && svc.Ports[0] > 0 {
+		targetPort = svc.Ports[0]
+	}
+
 	switch probeType {
+	case "tcp_ping", "ping", "tcp":
+		host := target
+		if host == "" || strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+			if u, err := url.Parse(host); err == nil && u.Hostname() != "" {
+				host = u.Hostname()
+				if u.Port() != "" {
+					if prt, err := strconv.Atoi(u.Port()); err == nil && prt > 0 {
+						targetPort = prt
+					}
+				}
+			} else if targetDomain != "" {
+				host = targetDomain
+			}
+		}
+
+		dialTarget := net.JoinHostPort(host, strconv.Itoa(targetPort))
+		dialer := net.Dialer{Timeout: 3 * time.Second}
+		start := time.Now()
+		conn, err := dialer.Dial("tcp", dialTarget)
+		latency := float64(time.Since(start).Microseconds()) / 1000.0
+
+		if err != nil {
+			return relay.HealthProbe{
+				Available:    false,
+				LatencyMs:    latency,
+				PacketLoss:   100,
+				LastChecked:  time.Now().UTC(),
+				ErrorMessage: err.Error(),
+			}
+		}
+		_ = conn.Close()
+
+		return relay.HealthProbe{
+			Available:   true,
+			LatencyMs:   latency,
+			PacketLoss:  0,
+			LastChecked: time.Now().UTC(),
+		}
+
 	case "http", "https":
-		req, err := http.NewRequestWithContext(context.Background(), "GET", target, nil)
+		if target == "" && targetDomain != "" {
+			target = probeType + "://" + targetDomain
+		}
+		if !strings.HasPrefix(target, "http://") && !strings.HasPrefix(target, "https://") {
+			target = probeType + "://" + target
+		}
+
+		var tcpConnectStart, tcpConnectDone time.Time
+		trace := &httptrace.ClientTrace{
+			ConnectStart: func(network, addr string) {
+				tcpConnectStart = time.Now()
+			},
+			ConnectDone: func(network, addr string, err error) {
+				tcpConnectDone = time.Now()
+			},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), "GET", target, nil)
 		if err != nil {
 			return relay.HealthProbe{Available: false, LatencyMs: 0, PacketLoss: 100, LastChecked: time.Now().UTC(), ErrorMessage: err.Error()}
 		}
@@ -206,8 +269,14 @@ func (p *Prober) probeService(svc relay.ServiceDefinition) relay.HealthProbe {
 			req.Host = svc.ProbeConfig.HostHeader
 		}
 
+		totalStart := time.Now()
 		resp, err := p.httpClient.Do(req)
-		latency := float64(time.Since(start).Microseconds()) / 1000.0
+		totalDuration := float64(time.Since(totalStart).Microseconds()) / 1000.0
+
+		latency := totalDuration
+		if !tcpConnectStart.IsZero() && !tcpConnectDone.IsZero() {
+			latency = float64(tcpConnectDone.Sub(tcpConnectStart).Microseconds()) / 1000.0
+		}
 
 		if err != nil {
 			return relay.HealthProbe{Available: false, LatencyMs: latency, PacketLoss: 100, LastChecked: time.Now().UTC(), ErrorMessage: err.Error()}
@@ -227,25 +296,17 @@ func (p *Prober) probeService(svc relay.ServiceDefinition) relay.HealthProbe {
 			LastChecked: time.Now().UTC(),
 		}
 
-	case "tcp_ping":
-		host := target
-		if host == "" && len(svc.Domains) > 0 {
-			port := 443
-			if len(svc.Ports) > 0 {
-				port = svc.Ports[0]
-			}
-			host = fmt.Sprintf("%s:%d", svc.Domains[0], port)
-		}
-		conn, err := net.DialTimeout("tcp", host, 3*time.Second)
+	default:
+		dialTarget := net.JoinHostPort(targetDomain, strconv.Itoa(targetPort))
+		dialer := net.Dialer{Timeout: 3 * time.Second}
+		start := time.Now()
+		conn, err := dialer.Dial("tcp", dialTarget)
 		latency := float64(time.Since(start).Microseconds()) / 1000.0
 		if err != nil {
 			return relay.HealthProbe{Available: false, LatencyMs: latency, PacketLoss: 100, LastChecked: time.Now().UTC(), ErrorMessage: err.Error()}
 		}
 		_ = conn.Close()
 		return relay.HealthProbe{Available: true, LatencyMs: latency, PacketLoss: 0, LastChecked: time.Now().UTC()}
-
-	default:
-		return relay.HealthProbe{Available: true, LatencyMs: 1.0, LastChecked: time.Now().UTC()}
 	}
 }
 
