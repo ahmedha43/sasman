@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"math/rand"
 	"net"
@@ -342,6 +341,12 @@ func (s *Service) startWinboxTCPListener(session *AgentSession) {
 			break
 		}
 
+		if tcpConn, ok := conn.(*net.TCPConn); ok {
+			_ = tcpConn.SetNoDelay(true)
+			_ = tcpConn.SetKeepAlive(true)
+			_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
+		}
+
 		if !session.Connected || session.Conn == nil {
 			conn.Close()
 			continue
@@ -383,7 +388,7 @@ func (s *Service) startWinboxTCPListener(session *AgentSession) {
 				})
 			}()
 
-			buf := make([]byte, 4096)
+			buf := make([]byte, 32*1024)
 			for {
 				n, err := c.Read(buf)
 				if n > 0 {
@@ -400,9 +405,6 @@ func (s *Service) startWinboxTCPListener(session *AgentSession) {
 					}
 				}
 				if err != nil {
-					if err != io.EOF {
-						log.Printf("[Tunnel] TCP read error for %s: %v", id, err)
-					}
 					break
 				}
 			}

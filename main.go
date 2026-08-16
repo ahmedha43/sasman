@@ -144,6 +144,45 @@ func startSasmanTunnel(port string) {
 				log.Printf("[License Engine] 🛡️ Received Cloud License Lease: status=%s, expires=%s, valid=%v, days_left=%d", lease.Status, lease.ExpiresAt, lease.Valid, lease.DaysRemaining)
 			}
 		},
+		OnTCPConnect: func(connID string) (net.Conn, error) {
+			routerAddress := strings.TrimSpace(shared.RouterConfigState.Address)
+			if routerAddress == "" {
+				routerAddress = strings.TrimSpace(os.Getenv("ROUTER_ADDRESS"))
+			}
+			if routerAddress == "" {
+				routerAddress = strings.TrimSpace(os.Getenv("ROUTER_IP"))
+			}
+			if routerAddress == "" {
+				routerAddress = "192.168.88.1"
+			}
+			host := routerAddress
+			if strings.Contains(routerAddress, ":") {
+				h, _, err := net.SplitHostPort(routerAddress)
+				if err == nil {
+					host = h
+				}
+			}
+			target := net.JoinHostPort(host, "8291")
+			d := net.Dialer{Timeout: 5 * time.Second, KeepAlive: 15 * time.Second}
+			conn, err := d.Dial("tcp", target)
+			if err != nil {
+				// Try fallback to container default gateway or 127.0.0.1 or standard gateway
+				log.Printf("[Winbox Tunnel] Dial to %s failed (%v), trying fallback gateway...", target, err)
+				for _, fallbackHost := range []string{"172.17.0.1", "127.0.0.1", "192.168.88.1", "172.16.0.1"} {
+					if fallbackHost == host {
+						continue
+					}
+					fbTarget := net.JoinHostPort(fallbackHost, "8291")
+					fbConn, fbErr := d.Dial("tcp", fbTarget)
+					if fbErr == nil && fbConn != nil {
+						log.Printf("[Winbox Tunnel] Connected to fallback MikroTik at %s", fbTarget)
+						return fbConn, nil
+					}
+				}
+				return nil, err
+			}
+			return conn, nil
+		},
 	})
 	activeTunnelClient = client
 	sasmanTunnelMu.Unlock()

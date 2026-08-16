@@ -3,6 +3,7 @@ package tunnel
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -54,6 +55,7 @@ type AgentClientConfig struct {
 	OnMikroTikSync   func(services []relay.ServiceDefinition)
 	OnBroadcast      func(bc broadcast.BroadcastMessage)
 	OnLicenseLease   func(payload []byte)
+	OnTCPConnect     func(connID string) (net.Conn, error)
 	RouterAddress    string
 }
 
@@ -379,6 +381,117 @@ func (c *ResilientAgentClient) connectAndServe() error {
 			log.Printf("[Tunnel Client] 🛡️ Received cloud license lease update from central server")
 			if c.cfg.OnLicenseLease != nil {
 				go c.cfg.OnLicenseLease(msg.Payload)
+			}
+
+		case "tcp_connect":
+			var connectPayload TcpConnectPayload
+			if err := json.Unmarshal(msg.Payload, &connectPayload); err == nil && connectPayload.ConnID != "" {
+				connID := connectPayload.ConnID
+				go func(id string) {
+					var routerConn net.Conn
+					var dialErr error
+
+					if c.cfg.OnTCPConnect != nil {
+						routerConn, dialErr = c.cfg.OnTCPConnect(id)
+					} else {
+						rAddr := strings.TrimSpace(c.cfg.RouterAddress)
+						if rAddr == "" {
+							rAddr = "192.168.88.1"
+						}
+						host := rAddr
+						if strings.Contains(rAddr, ":") {
+							h, _, err := net.SplitHostPort(rAddr)
+							if err == nil {
+								host = h
+							}
+						}
+						target := net.JoinHostPort(host, "8291")
+						d := net.Dialer{Timeout: 5 * time.Second, KeepAlive: 15 * time.Second}
+						routerConn, dialErr = d.Dial("tcp", target)
+					}
+
+					if dialErr != nil || routerConn == nil {
+						log.Printf("[Tunnel Client] ⚠️ Failed to connect to MikroTik Winbox (8291) for conn %s: %v", id, dialErr)
+						closePayload, _ := json.Marshal(TcpClosePayload{ConnID: id})
+						writeMu.Lock()
+						_ = conn.WriteJSON(TunnelMessage{
+							Type:    "tcp_close",
+							Payload: closePayload,
+						})
+						writeMu.Unlock()
+						return
+					}
+
+					if tcpC, ok := routerConn.(*net.TCPConn); ok {
+						_ = tcpC.SetNoDelay(true)
+						_ = tcpC.SetKeepAlive(true)
+						_ = tcpC.SetKeepAlivePeriod(15 * time.Second)
+					}
+
+					tcpConnsMap.Store(id, routerConn)
+
+					// Read from MikroTik router socket and forward to central server
+					go func(rc net.Conn, cID string) {
+						defer func() {
+							rc.Close()
+							tcpConnsMap.Delete(cID)
+							closePayload, _ := json.Marshal(TcpClosePayload{ConnID: cID})
+							writeMu.Lock()
+							_ = conn.WriteJSON(TunnelMessage{
+								Type:    "tcp_close",
+								Payload: closePayload,
+							})
+							writeMu.Unlock()
+						}()
+
+						buf := make([]byte, 32*1024)
+						for {
+							n, err := rc.Read(buf)
+							if n > 0 {
+								dataB64 := base64.StdEncoding.EncodeToString(buf[:n])
+								dataPayload, _ := json.Marshal(TcpDataPayload{
+									ConnID: cID,
+									Data:   dataB64,
+								})
+								writeMu.Lock()
+								writeErr := conn.WriteJSON(TunnelMessage{
+									Type:    "tcp_data",
+									Payload: dataPayload,
+								})
+								writeMu.Unlock()
+								if writeErr != nil {
+									break
+								}
+							}
+							if err != nil {
+								break
+							}
+						}
+					}(routerConn, id)
+				}(connID)
+			}
+
+		case "tcp_data":
+			var dataPayload TcpDataPayload
+			if err := json.Unmarshal(msg.Payload, &dataPayload); err == nil && dataPayload.ConnID != "" {
+				if val, ok := tcpConnsMap.Load(dataPayload.ConnID); ok && val != nil {
+					if rConn, isConn := val.(net.Conn); isConn && rConn != nil {
+						raw, err := base64.StdEncoding.DecodeString(dataPayload.Data)
+						if err == nil && len(raw) > 0 {
+							_, _ = rConn.Write(raw)
+						}
+					}
+				}
+			}
+
+		case "tcp_close":
+			var closePayload TcpClosePayload
+			if err := json.Unmarshal(msg.Payload, &closePayload); err == nil && closePayload.ConnID != "" {
+				if val, ok := tcpConnsMap.LoadAndDelete(closePayload.ConnID); ok && val != nil {
+					if rConn, isConn := val.(net.Conn); isConn && rConn != nil {
+						_ = rConn.Close()
+					}
+				}
 			}
 		}
 	}

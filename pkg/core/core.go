@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -93,15 +95,56 @@ func ResetSharedClient() {
 }
 
 func Connect() (*routeros.Client, error) {
-	if shared.RouterConfigState.Address == "" {
+	addr := strings.TrimSpace(shared.RouterConfigState.Address)
+	if addr == "" {
+		addr = strings.TrimSpace(os.Getenv("ROUTER_ADDRESS"))
+	}
+	if addr == "" {
+		addr = strings.TrimSpace(os.Getenv("ROUTER_IP"))
+	}
+	if addr == "" {
 		return nil, fiber.ErrUnauthorized
 	}
-	// Connection notification disabled
-	client, err := routeros.Dial(shared.RouterConfigState.Address, shared.RouterConfigState.Username, shared.RouterConfigState.Password)
-	if err != nil {
-		return nil, err
+
+	user := shared.RouterConfigState.Username
+	if user == "" {
+		user = os.Getenv("ROUTER_USER")
 	}
-	return client, nil
+	pass := shared.RouterConfigState.Password
+	if pass == "" {
+		pass = os.Getenv("ROUTER_PASS")
+	}
+
+	// Try primary address
+	client, err := routeros.Dial(addr, user, pass)
+	if err == nil && client != nil {
+		return client, nil
+	}
+
+	// Fallback to standard router gateway if container bridged (e.g. 172.17.0.1, 192.168.88.1)
+	host := addr
+	port := "8728"
+	if strings.Contains(addr, ":") {
+		h, p, e := net.SplitHostPort(addr)
+		if e == nil {
+			host = h
+			port = p
+		}
+	}
+
+	for _, fbHost := range []string{"172.17.0.1", "192.168.88.1", "127.0.0.1", "172.16.0.1"} {
+		if fbHost == host {
+			continue
+		}
+		fbAddr := net.JoinHostPort(fbHost, port)
+		fbClient, fbErr := routeros.Dial(fbAddr, user, pass)
+		if fbErr == nil && fbClient != nil {
+			log.Printf("[core] Connected to fallback RouterOS API at %s", fbAddr)
+			return fbClient, nil
+		}
+	}
+
+	return nil, err
 }
 
 func ConnectOrReply(c *fiber.Ctx) (*routeros.Client, bool) {
