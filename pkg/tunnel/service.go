@@ -129,6 +129,8 @@ type SyncConfigPayload struct {
 	InstallationID string                 `json:"installation_id"`
 	LastEvent      string                 `json:"last_event"`
 	UpdatedAt      string                 `json:"updated_at"`
+	OwnerName      string                 `json:"owner_name,omitempty"`
+	OwnerPhone     string                 `json:"owner_phone,omitempty"`
 	App            map[string]interface{} `json:"app"`
 	Container      map[string]interface{} `json:"container"`
 	Mikrotik       map[string]interface{} `json:"mikrotik"`
@@ -138,14 +140,15 @@ type SyncConfigPayload struct {
 }
 
 type Service struct {
-	mu                sync.RWMutex
-	sessions          map[string]*AgentSession
-	pendingRequests   map[string]chan *HttpResponsePayload
-	pendingBackups    map[string]chan *BackupChunkMsg
-	db                *sql.DB
-	OnRelayMessage    func(session *AgentSession, msg TunnelMessage)
-	OnBroadcastLog    func(log broadcast.BroadcastLogPayload)
-	OnAgentRegistered func(subdomain string)
+	mu                   sync.RWMutex
+	sessions             map[string]*AgentSession
+	pendingRequests      map[string]chan *HttpResponsePayload
+	pendingBackups       map[string]chan *BackupChunkMsg
+	db                   *sql.DB
+	OnRelayMessage       func(session *AgentSession, msg TunnelMessage)
+	OnBroadcastLog       func(log broadcast.BroadcastLogPayload)
+	OnAgentRegistered    func(subdomain string)
+	OnSyncConfigReceived func(subdomain string, payload SyncConfigPayload)
 }
 
 func NewService(db *sql.DB) *Service {
@@ -778,6 +781,8 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 					"installation_id": syncPayload.InstallationID,
 					"last_event":      syncPayload.LastEvent,
 					"updated_at":      syncPayload.UpdatedAt,
+					"owner_name":      syncPayload.OwnerName,
+					"owner_phone":     syncPayload.OwnerPhone,
 					"app":             syncPayload.App,
 					"container":       syncPayload.Container,
 					"mikrotik":        syncPayload.Mikrotik,
@@ -785,6 +790,9 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 					"remote_access":   syncPayload.RemoteAccess,
 				}
 				boundSession.writeMu.Unlock()
+				if s.OnSyncConfigReceived != nil {
+					go s.OnSyncConfigReceived(boundSession.Subdomain, syncPayload)
+				}
 			}
 		} else if msg.Type == "broadcast_log" {
 			var bLog broadcast.BroadcastLogPayload

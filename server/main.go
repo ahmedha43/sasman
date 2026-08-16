@@ -154,6 +154,12 @@ func main() {
 		}
 	}
 
+	svc.OnSyncConfigReceived = func(subdomain string, payload tunnel.SyncConfigPayload) {
+		if payload.OwnerName != "" || payload.OwnerPhone != "" {
+			_ = repo.UpdateSubdomainOwner(subdomain, payload.OwnerName, payload.OwnerPhone, subdomain)
+		}
+	}
+
 	backupScheduler := backup.NewScheduler(svc)
 	backupScheduler.Start()
 
@@ -467,10 +473,13 @@ func main() {
 		agent := svc.RegisterAgent(sub, token)
 		subRecord, err := repo.CreateOrGetSubdomain(customerID, licenseID, sub)
 		if err == nil && subRecord != nil {
+			subRecord.CustomerID = customerID
+			subRecord.LicenseID = licenseID
 			subRecord.Token = token
 			subRecord.WinboxPort = agent.WinboxPort
 			_ = repo.SaveSubdomain(*subRecord)
 		}
+		_ = repo.UpdateSubdomainOwner(sub, req.Name, req.Phone, sub)
 
 		webURL := fmt.Sprintf("http://%s.%s", agent.Subdomain, centralDomain)
 		winboxAddress := fmt.Sprintf("%s:%d", centralDomain, agent.WinboxPort)
@@ -593,10 +602,21 @@ func main() {
 				continue
 			}
 
-			if owner, ok := owners[strings.ToLower(subdomain)]; ok {
+			session := svc.GetAgentBySubdomain(subdomain)
+
+			if owner, ok := owners[strings.ToLower(subdomain)]; ok && (owner.Name != "" || owner.Phone != "") {
 				agent["owner_name"] = owner.Name
 				agent["owner_phone"] = owner.Phone
 				agent["company_name"] = owner.CompanyName
+			} else if session != nil && session.SyncData != nil {
+				syncOwnerName, _ := session.SyncData["owner_name"].(string)
+				syncOwnerPhone, _ := session.SyncData["owner_phone"].(string)
+				agent["owner_name"] = syncOwnerName
+				agent["owner_phone"] = syncOwnerPhone
+				agent["company_name"] = subdomain
+				if syncOwnerName != "" || syncOwnerPhone != "" {
+					_ = repo.UpdateSubdomainOwner(subdomain, syncOwnerName, syncOwnerPhone, subdomain)
+				}
 			} else {
 				agent["owner_name"] = ""
 				agent["owner_phone"] = ""
@@ -624,7 +644,6 @@ func main() {
 				agent["backup_size"] = int64(0)
 			}
 
-			session := svc.GetAgentBySubdomain(subdomain)
 			if session != nil && session.SyncData != nil {
 				agent["sync_data"] = session.SyncData
 			} else {

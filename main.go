@@ -895,6 +895,8 @@ func sendSyncConfig(conn *websocket.Conn, writeMu *sync.Mutex) {
 		InstallationID: installationID,
 		LastEvent:      "container_started",
 		UpdatedAt:      now.Format(time.RFC3339),
+		OwnerName:      shared.RouterConfigState.OwnerName,
+		OwnerPhone:     shared.RouterConfigState.OwnerPhone,
 		App:            appInfo,
 		Container:      containerInfo,
 		Mikrotik:       mikrotikInfo,

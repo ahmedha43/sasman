@@ -1622,21 +1622,33 @@
       document.getElementById('up-modal-cur-ver').textContent = currentVer || 'v5.0.0';
       document.getElementById('up-modal-arch').textContent = arch || 'linux_arm64';
 
+      const sel = document.getElementById('up-version-select');
+      sel.innerHTML = '<option value="">جاري جلب الإصدارات المتاحة...</option>';
+
       // Load releases to populate dropdown
       try {
         const res = await fetch('/api/ota/releases');
         if (res.ok) {
-          const releases = await res.json();
-          allReleasesCache = releases || [];
-          const sel = document.getElementById('up-version-select');
-          if (allReleasesCache.length > 0) {
-            const versions = Array.from(new Set(allReleasesCache.map(r => r.version)));
-            sel.innerHTML = versions.map(v => `<option value="${escapeHtml(v)}">v${escapeHtml(v)}</option>`).join('');
+          const data = await res.json();
+          const releases = (data.releases && Array.isArray(data.releases)) ? data.releases : (Array.isArray(data) ? data : []);
+          allReleasesCache = releases;
+
+          if (releases.length > 0) {
+            // Sort releases by date newest first
+            const sorted = [...releases].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+            
+            // Build options showing version and architecture
+            sel.innerHTML = sorted.map(r => {
+              const isArchMatch = (!arch || r.target_arch === arch);
+              return `<option value="${escapeHtml(r.version)}" data-arch="${escapeHtml(r.target_arch)}">v${escapeHtml(r.version)} (${escapeHtml(r.target_arch || 'arm64')}) ${isArchMatch ? '⭐ متطابق' : ''}</option>`;
+            }).join('');
           } else {
-            sel.innerHTML = '<option value="5.1.0">v5.1.0 (الأحدث)</option>';
+            sel.innerHTML = '<option value="5.1.0">v5.1.0 (لا توجد إصدارات مرفوعة بعد)</option>';
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        sel.innerHTML = '<option value="5.1.0">v5.1.0</option>';
+      }
 
       document.getElementById('upgrade-agent-modal').classList.add('active');
     }

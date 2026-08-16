@@ -381,11 +381,54 @@ func (r *SQLiteRepository) UpdateSubdomainGroup(subdomain, groupName string) err
 	return err
 }
 
+func (r *SQLiteRepository) UpdateSubdomainOwner(subdomain, name, phone, company string) error {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	if sub == "" {
+		return nil
+	}
+
+	name = strings.TrimSpace(name)
+	phone = strings.TrimSpace(phone)
+	if name == "" && phone == "" {
+		return nil
+	}
+
+	// 1. Check if customer already exists for this subdomain
+	var custID string
+	err := r.db.QueryRow("SELECT customer_id FROM subdomains WHERE LOWER(subdomain) = ?", sub).Scan(&custID)
+	if err != nil || custID == "" || custID == "customer-default" {
+		// Try to find customer by company_name = subdomain
+		err = r.db.QueryRow("SELECT id FROM customers WHERE LOWER(company_name) = ? OR LOWER(id) = ?", sub, sub).Scan(&custID)
+	}
+
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	if custID == "" || custID == "customer-default" {
+		custID = fmt.Sprintf("cust-%d", time.Now().UnixNano())
+		_, _ = r.db.Exec(`
+			INSERT INTO customers (id, name, phone, email, company_name, status, created_at, updated_at)
+			VALUES (?, ?, ?, '', ?, 'active', ?, ?)
+		`, custID, name, phone, sub, nowStr, nowStr)
+	} else {
+		// Update existing customer record
+		if name != "" && phone != "" {
+			_, _ = r.db.Exec("UPDATE customers SET name = ?, phone = ?, updated_at = ? WHERE id = ?", name, phone, nowStr, custID)
+		} else if name != "" {
+			_, _ = r.db.Exec("UPDATE customers SET name = ?, updated_at = ? WHERE id = ?", name, nowStr, custID)
+		} else if phone != "" {
+			_, _ = r.db.Exec("UPDATE customers SET phone = ?, updated_at = ? WHERE id = ?", phone, nowStr, custID)
+		}
+	}
+
+	// Update subdomain customer_id link
+	_, _ = r.db.Exec("UPDATE subdomains SET customer_id = ?, updated_at = ? WHERE LOWER(subdomain) = ?", custID, nowStr, sub)
+	return nil
+}
+
 func (r *SQLiteRepository) GetSubdomainOwners() (map[string]Customer, error) {
 	rows, err := r.db.Query(`
         SELECT s.subdomain, c.id, c.name, c.phone, c.email, c.company_name
         FROM subdomains s
-        LEFT JOIN customers c ON s.customer_id = c.id
+        LEFT JOIN customers c ON (s.customer_id = c.id OR (LOWER(s.subdomain) = LOWER(c.company_name) AND c.id != 'customer-default'))
     `)
 	if err != nil {
 		return nil, err
