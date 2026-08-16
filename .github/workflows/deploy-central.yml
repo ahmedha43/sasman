@@ -1,0 +1,129 @@
+name: Deploy SASMAN Central Server to VPS
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'server/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'deploy_central.ps1'
+      - '.github/workflows/deploy-central.yml'
+  workflow_dispatch:
+    inputs:
+      vps_host:
+        description: 'VPS Host IP'
+        required: false
+        default: '167.86.73.203'
+      force_deploy:
+        description: 'Force deployment'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-central-server
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: Build Central Server & Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Central Server Docker Image
+        run: |
+          echo "=========================================="
+          echo " STEP 1/4 | Building Central Server Image"
+          echo "=========================================="
+          docker build -f server/Dockerfile -t server-central:new .
+          docker images server-central:new
+
+      - name: Save Docker Image to TAR
+        run: |
+          echo "=========================================="
+          echo " STEP 2/4 | Exporting Docker Image to TAR"
+          echo "=========================================="
+          docker save server-central:new -o server-central.tar
+          ls -lh server-central.tar
+
+      - name: Copy TAR Archive to VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ github.event.inputs.vps_host || secrets.VPS_HOST || '167.86.73.203' }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          password: ${{ secrets.VPS_PASS || 'mushtaq99' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "server-central.tar"
+          target: "/tmp/"
+          timeout: 120s
+
+      - name: Load Image & Restart Central Container on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ github.event.inputs.vps_host || secrets.VPS_HOST || '167.86.73.203' }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          password: ${{ secrets.VPS_PASS || 'mushtaq99' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 120s
+          script: |
+            echo "=========================================="
+            echo " STEP 4/4 | Updating Container on VPS"
+            echo "=========================================="
+            
+            # 1. Ensure Nginx body size limit
+            sed -i '/client_max_body_size/d' /etc/nginx/nginx.conf || true
+            sed -i '/http {/a \    client_max_body_size 256M;' /etc/nginx/nginx.conf || true
+            (nginx -t && systemctl reload nginx) || true
+
+            # 2. Load Docker image
+            docker load -i /tmp/server-central.tar
+            rm -f /tmp/server-central.tar
+
+            # 3. Stop and recreate container cleanly
+            docker stop sasman-central || true
+            docker rm sasman-central || true
+
+            # 4. Ensure data directory exists
+            mkdir -p /root/sasman-central/server/data /root/sasman-central/server/data/releases
+
+            # 5. Run new container with production settings
+            docker run -d \
+              --name sasman-central \
+              --restart unless-stopped \
+              --network host \
+              -e ADDR=:8080 \
+              -e SASMAN_CENTRAL_DOMAIN=sas-man.net \
+              -e SASMAN_DB_PATH=/app/data/sasman-central.db \
+              -e SASMAN_ADMIN_USER=admin \
+              -e SASMAN_ADMIN_PASSWORD="${{ secrets.SASMAN_ADMIN_PASSWORD || 'Mushtaq@Sasman#9977!' }}" \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v /root/sasman-central/server/data:/app/data \
+              server-central:new
+
+            # 6. Verify startup
+            sleep 4
+            docker ps --filter name=sasman-central
+            echo "--- RECENT LOGS ---"
+            docker logs sasman-central --tail 25
+
+            # 7. Health Check Verification
+            echo "--- RUNNING HEALTH CHECK ---"
+            for i in {1..10}; do
+              if curl -s -f http://127.0.0.1:8080/health > /dev/null; then
+                echo "✅ Health check passed (HTTP 200 OK)!"
+                exit 0
+              fi
+              echo "Waiting for server to respond ($i/10)..."
+              sleep 2
+            done
+            echo "❌ Health check timed out!"
+            docker logs sasman-central --tail 50
+            exit 1
