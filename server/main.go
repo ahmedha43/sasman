@@ -338,6 +338,50 @@ func main() {
 	app.Get("/install", func(c *fiber.Ctx) error { return installScriptHandler(c, "disk1") })
 	app.Get("/installer.rsc", func(c *fiber.Ctx) error { return installScriptHandler(c, "disk1") })
 
+	// MikroTik RouterOS v7.21+ App Store Catalog
+	appStoreHandler := func(c *fiber.Ctx) error {
+		yamlContent := fmt.Sprintf(`- name: sasman-manager
+  title: "SASMAN MikroTik Manager v5"
+  description: "Unified Radius Server, Network Management & High-Speed Relay Engine"
+  version: "5.1.0"
+  icon: "https://%s/img/logo.png"
+  image: "ahmedkin99/sasman-manager:latest"
+  auto-update: true
+  categories:
+    - Network
+    - Management
+    - Radius
+  network:
+    mode: bridge
+    bridge: container-bridge
+    address: 172.17.0.2/24
+    gateway: 172.17.0.1
+  ports:
+    - 8080:80
+  mounts:
+    - name: sasman_data
+      src: /disk1/data
+      dst: /app/data
+`, centralDomain)
+		c.Set("Content-Type", "text/yaml; charset=utf-8")
+		return c.SendString(yamlContent)
+	}
+
+	app.Get("/app-store.yaml", appStoreHandler)
+	app.Get("/sasman.tikapp.yaml", appStoreHandler)
+	app.Get("/app-store.json", func(c *fiber.Ctx) error {
+		return c.JSON([]fiber.Map{
+			{
+				"name":        "sasman-manager",
+				"title":       "SASMAN MikroTik Manager v5",
+				"description": "Unified Radius Server, Network Management & High-Speed Relay Engine",
+				"version":     "5.1.0",
+				"image":       "ahmedkin99/sasman-manager:latest",
+				"auto_update": true,
+			},
+		})
+	})
+
 	// 3. Direct Binary and Image Download Endpoint
 	app.Get("/download/:filename", func(c *fiber.Ctx) error {
 		filename := filepath.Base(c.Params("filename"))
