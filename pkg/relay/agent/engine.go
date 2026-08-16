@@ -123,6 +123,12 @@ func (e *Engine) OnRouteTableSync(table relay.AgentRoutingTable) {
 	log.Printf("[Relay Engine] Received new routing table version %d with %d routes", table.Version, len(table.Routes))
 }
 
+func (e *Engine) TriggerProbeNow(serviceID string) {
+	if e.prober != nil {
+		e.prober.TriggerProbeNow(serviceID)
+	}
+}
+
 func (e *Engine) onTelemetry(telemetry relay.ServiceTelemetry) {
 	if e.signaler == nil {
 		return

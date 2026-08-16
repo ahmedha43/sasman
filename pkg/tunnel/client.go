@@ -363,6 +363,14 @@ func (c *ResilientAgentClient) connectAndServe() error {
 				relayEng.OnRouteTableSync(table)
 			}
 
+		case "probe_request", "trigger_probe":
+			var req struct {
+				ServiceID string `json:"service_id"`
+			}
+			_ = json.Unmarshal(msg.Payload, &req)
+			log.Printf("[Tunnel Client] 🔍 Received on-demand probe request for service: %s", req.ServiceID)
+			relayEng.TriggerProbeNow(req.ServiceID)
+
 		case "backup_request":
 			if c.cfg.OnBackupRequest != nil {
 				go c.cfg.OnBackupRequest(conn, msg, &writeMu)

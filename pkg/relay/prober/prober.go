@@ -98,6 +98,43 @@ func (p *Prober) probeLoop() {
 	}
 }
 
+func (p *Prober) TriggerProbeNow(serviceID string) {
+	if serviceID == "" || serviceID == "all" {
+		go p.runAllProbes()
+		return
+	}
+
+	p.mu.RLock()
+	svc, ok := p.services[serviceID]
+	p.mu.RUnlock()
+
+	if !ok {
+		return
+	}
+
+	go func(s relay.ServiceDefinition) {
+		probe := p.probeService(s)
+		p.mu.Lock()
+		p.results[s.ID] = probe
+		resultsCopy := make(map[string]relay.HealthProbe, len(p.results))
+		for k, v := range p.results {
+			resultsCopy[k] = v
+		}
+		p.mu.Unlock()
+
+		if p.onTelemetry != nil {
+			telemetry := relay.ServiceTelemetry{
+				AgentID:     p.agentID,
+				Subdomain:   p.subdomain,
+				Timestamp:   time.Now().UTC(),
+				Services:    resultsCopy,
+				NodeMetrics: p.collectNodeMetrics(),
+			}
+			p.onTelemetry(telemetry)
+		}
+	}(svc)
+}
+
 func (p *Prober) runAllProbes() {
 	p.mu.RLock()
 	svcs := make([]relay.ServiceDefinition, 0, len(p.services))
@@ -125,6 +162,10 @@ func (p *Prober) runAllProbes() {
 
 	p.mu.Lock()
 	p.results = results
+	resultsCopy := make(map[string]relay.HealthProbe, len(p.results))
+	for k, v := range p.results {
+		resultsCopy[k] = v
+	}
 	p.mu.Unlock()
 
 	if p.onTelemetry != nil {
@@ -132,7 +173,7 @@ func (p *Prober) runAllProbes() {
 			AgentID:     p.agentID,
 			Subdomain:   p.subdomain,
 			Timestamp:   time.Now().UTC(),
-			Services:    results,
+			Services:    resultsCopy,
 			NodeMetrics: p.collectNodeMetrics(),
 		}
 		p.onTelemetry(telemetry)

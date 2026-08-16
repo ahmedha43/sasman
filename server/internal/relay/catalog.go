@@ -300,6 +300,18 @@ func (cm *CatalogManager) GetAllServices() []relay.ServiceDefinition {
 	return out
 }
 
+// GetService returns a specific service by ID
+func (cm *CatalogManager) GetService(id string) (relay.ServiceDefinition, error) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	svc, ok := cm.services[id]
+	if !ok {
+		return relay.ServiceDefinition{}, fmt.Errorf("service %s not found", id)
+	}
+	return svc, nil
+}
+
 // GetServicesForAgent filters services permitted for a specific consumer agent by subdomain and group
 func (cm *CatalogManager) GetServicesForAgent(agentSubdomain, agentGroup string) []relay.ServiceDefinition {
 	cm.mu.RLock()

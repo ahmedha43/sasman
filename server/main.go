@@ -56,7 +56,49 @@ func main() {
 		})
 	}
 
-	// Auto-push active broadcasts and license lease to newly registered/connected agents
+	// Initialize SASMAN Service Relay Control Plane
+	relayCatalog, err := relayinternal.NewCatalogManager(repo.GetDB())
+	if err != nil {
+		log.Printf("[Relay] Failed to init relay catalog: %v", err)
+	}
+	relayTelemetry := relayinternal.NewTelemetryHub()
+	relayRouter := relayinternal.NewRouterEngine(relayCatalog, relayTelemetry, func(table relay.AgentRoutingTable) {
+		tableJSON, _ := json.Marshal(table)
+		svc.BroadcastToAgents(tunnel.TunnelMessage{
+			Type:    "route_table_push",
+			Payload: tableJSON,
+		})
+	})
+	relayRouter.Start()
+	relayAPI := relayinternal.NewAPIHandler(relayCatalog, relayTelemetry, relayRouter)
+	relayAPI.SetBroadcaster(
+		func(catalog []relay.ServiceDefinition) {
+			payload, _ := json.Marshal(catalog)
+			svc.BroadcastToAgents(tunnel.TunnelMessage{
+				Type:    "catalog_sync",
+				Payload: payload,
+			})
+		},
+		func(serviceID string) {
+			payload, _ := json.Marshal(map[string]string{"service_id": serviceID})
+			svc.BroadcastToAgents(tunnel.TunnelMessage{
+				Type:    "probe_request",
+				Payload: payload,
+			})
+		},
+		func() []string {
+			agents := svc.ListAgents()
+			out := make([]string, 0, len(agents))
+			for _, a := range agents {
+				if sub, ok := a["subdomain"].(string); ok && sub != "" {
+					out = append(out, sub)
+				}
+			}
+			return out
+		},
+	)
+
+	// Auto-push active broadcasts, license lease, and catalog to newly registered/connected agents
 	svc.OnAgentRegistered = func(subdomain string) {
 		// 1. Push Cloud License Lease on connect
 		if licInfo, err := repo.GetAgentLicenseInfo(subdomain); err == nil && licInfo != nil {
@@ -90,23 +132,21 @@ func main() {
 				_ = svc.SendTunnelMessage(subdomain, "broadcast_push", msg)
 			}
 		}
-	}
 
-	// Initialize SASMAN Service Relay Control Plane
-	relayCatalog, err := relayinternal.NewCatalogManager(repo.GetDB())
-	if err != nil {
-		log.Printf("[Relay] Failed to init relay catalog: %v", err)
+		// 3. Push Service Catalog & Routes on connect for immediate MikroTik RouterOS DNS/Firewall sync
+		if relayCatalog != nil {
+			services := relayCatalog.GetAllServices()
+			if len(services) > 0 {
+				_ = svc.SendTunnelMessage(subdomain, "catalog_sync", services)
+			}
+		}
+		if relayRouter != nil {
+			routes := relayRouter.GetCurrentRoutingTable()
+			if len(routes.Routes) > 0 {
+				_ = svc.SendTunnelMessage(subdomain, "route_table_push", routes)
+			}
+		}
 	}
-	relayTelemetry := relayinternal.NewTelemetryHub()
-	relayRouter := relayinternal.NewRouterEngine(relayCatalog, relayTelemetry, func(table relay.AgentRoutingTable) {
-		tableJSON, _ := json.Marshal(table)
-		svc.BroadcastToAgents(tunnel.TunnelMessage{
-			Type:    "route_table_push",
-			Payload: tableJSON,
-		})
-	})
-	relayRouter.Start()
-	relayAPI := relayinternal.NewAPIHandler(relayCatalog, relayTelemetry, relayRouter)
 
 	svc.OnRelayMessage = func(session *tunnel.AgentSession, msg tunnel.TunnelMessage) {
 		if msg.Type == "telemetry_push" {
