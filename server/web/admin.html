@@ -403,6 +403,9 @@
       <button class="tab-btn active" onclick="switchTab('agents', this)">
         <i class="fa-solid fa-network-wired"></i> الوكلاء والراوترات
       </button>
+      <button class="tab-btn" onclick="switchTab('relay', this)">
+        <i class="fa-solid fa-server"></i> خادم النطاقات والخدمات (Relay)
+      </button>
       <button class="tab-btn" onclick="switchTab('broadcasts', this)">
         <i class="fa-solid fa-bullhorn"></i> الإعلانات والإشعارات الذكية
       </button>
@@ -443,7 +446,40 @@
       </div>
     </div>
 
-    <!-- ================= TAB 2: SMART BROADCAST ================= -->
+    <!-- ================= TAB 2: SERVICE RELAY & DOMAINS ================= -->
+    <div id="tab-relay" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <i class="fa-solid fa-server" style="color:var(--primary);"></i>
+              <span>سيرفر النطاقات والخدمات الموزعة الذكي (Smart Service Relay & Multi-WAN)</span>
+            </div>
+            <p style="font-size:13px; color:#94a3b8; margin:4px 0 0 0;">
+              إضافة وإدارة خدمات ونطاقات التوجيه (مثل شبكتي، سينمانا، خوادم البث المباشر) لتحويل ترافيك الوكلاء تلقائياً لأسرع مسار وأقل بنغ.
+            </p>
+          </div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button class="btn btn-primary" onclick="openServiceModal()">
+              <i class="fa-solid fa-plus"></i> إضافة خدمة / نطاق جديد
+            </button>
+            <button class="btn btn-dark" style="background:#0284c7; color:#fff;" onclick="recalculateRelayRoutes()">
+              <i class="fa-solid fa-arrows-rotate"></i> إعادة احتساب المسارات الذكية
+            </button>
+            <button class="btn btn-dark" onclick="loadRelayServices()">
+              <i class="fa-solid fa-rotate"></i> تحديث
+            </button>
+          </div>
+        </div>
+
+        <div id="relay-services-container">
+          <p class="text-muted" style="text-align:center; padding:20px;">جاري تحميل قائمة الخدمات والنطاقات...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 3: SMART BROADCAST ================= -->
     <div id="tab-broadcasts" class="tab-pane">
       <div class="card">
         <div class="card-header">
@@ -623,6 +659,114 @@
     </div>
   </div>
 
+  <!-- Upgrade Agent Modal -->
+  <div id="upgrade-agent-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:480px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:17px;"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--primary);"></i> ترقية وتحديث نسخة الوكيل</h3>
+        <button class="btn btn-dark btn-xs" onclick="closeUpgradeAgentModal()">✕</button>
+      </div>
+      <div style="background:#0b1329; padding:12px 16px; border-radius:10px; border:1px solid #334155; margin-bottom:16px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;">
+          <div><span style="color:#94a3b8;">الوكيل:</span> <strong id="up-modal-subdomain" style="color:#38bdf8; font-family:monospace;">-</strong></div>
+          <div><span style="color:#94a3b8;">النسخة الحالية:</span> <strong id="up-modal-cur-ver" style="color:#22c55e; font-family:monospace;">-</strong></div>
+          <div style="grid-column:1/-1;"><span style="color:#94a3b8;">المعمارية:</span> <code id="up-modal-arch" style="color:#f59e0b;">-</code></div>
+        </div>
+      </div>
+      <form onsubmit="handleUpgradeAgentSubmit(event)">
+        <input type="hidden" id="up-subdomain-input">
+        <input type="hidden" id="up-arch-input">
+        <div style="margin-bottom:14px;">
+          <label style="font-size:13px; display:block; margin-bottom:6px; font-weight:bold;">اختر الإصدار المستهدف للترقية (Target Version):</label>
+          <select id="up-version-select" style="width:100%; font-size:14px; font-weight:bold; font-family:monospace; padding:10px; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#f8fafc;">
+            <option value="5.1.0">v5.1.0 (الأحدث)</option>
+          </select>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-dark" onclick="closeUpgradeAgentModal()">إلغاء</button>
+          <button type="submit" id="btn-submit-upgrade" class="btn btn-primary" style="padding:10px 24px;">
+            <i class="fa-solid fa-rocket"></i> إرسال أمر الترقية فوراً
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Service Relay Create/Edit Modal -->
+  <div id="service-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:650px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 id="service-modal-title" style="margin:0;"><i class="fa-solid fa-server" style="color:var(--primary);"></i> إضافة خدمة / نطاق جديد (Service Relay)</h3>
+        <button class="btn btn-dark btn-xs" onclick="closeServiceModal()">✕</button>
+      </div>
+      <form onsubmit="handleSaveService(event)">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">معرّف الخدمة (Service ID) *:</label>
+            <input type="text" id="svc-id" placeholder="مثال: cinemana" required style="width:100%; font-family:monospace;">
+          </div>
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">اسم الخدمة (Display Name) *:</label>
+            <input type="text" id="svc-name" placeholder="مثال: شبكتي سينمانا" required style="width:100%;">
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">التصنيف (Category):</label>
+          <select id="svc-category" style="width:100%;">
+            <option value="Streaming">🎬 بث وفيديو (Streaming / TV)</option>
+            <option value="CDN">⚡ خوادم محلية وCDN (Local CDN)</option>
+            <option value="Gaming">🎮 ألعاب إلكترونية (Gaming)</option>
+            <option value="Local ISP">🌐 خوادم مجهزة خاصة (ISP Services)</option>
+            <option value="Other">📦 أخرى (Other)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">النطاقات / الدومينات المستهدفة (Domains / SNI) * (مفصولة بفاصلة):</label>
+          <textarea id="svc-domains" rows="2" placeholder="cinemana.shabakaty.com, *.shabakaty.com, cdn.shabakaty.com" required style="width:100%; font-family:monospace;"></textarea>
+          <div style="font-size:11px; color:#94a3b8; margin-top:2px;">يقوم الوكيل باعتراض وتوجيه أي طلبات لهذه النطاقات تلقائياً.</div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">نطاقات الـ IP المستهدفة (IP CIDRs - اختياري، مفصولة بفاصلة):</label>
+          <input type="text" id="svc-ips" placeholder="10.0.0.0/8, 172.16.0.0/12" style="width:100%; font-family:monospace;">
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">المنافذ (Ports - مفصولة بفاصلة):</label>
+            <input type="text" id="svc-ports" value="80, 443" style="width:100%; font-family:monospace;">
+          </div>
+          <div>
+            <label style="font-size:13px; display:block; margin-bottom:4px;">نطاق التوجيه (Target Scope):</label>
+            <select id="svc-scope" style="width:100%;">
+              <option value="all">🌐 لجميع الوكلاء (All Agents)</option>
+              <option value="selected">🎯 لمجموعات محددة (Selected Groups)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">المجموعات المسموح لها (في حال اختيار مجموعات محددة):</label>
+          <input type="text" id="svc-groups" placeholder="default, VIP, Baghdad" style="width:100%;">
+        </div>
+
+        <div style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="svc-enabled" checked style="width:18px; height:18px;">
+          <label for="svc-enabled" style="font-size:14px; font-weight:bold; cursor:pointer;">تفعيل توجيه الخدمة فورياً للوكلاء</label>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-dark" onclick="closeServiceModal()">إلغاء</button>
+          <button type="submit" class="btn btn-primary" style="padding:10px 24px;">
+            <i class="fa-solid fa-save"></i> حفظ وتوزيع الخدمة
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Register Agent Modal -->
   <div id="register-agent-modal" class="modal-overlay">
     <div class="modal-card">
@@ -784,6 +928,7 @@
       if (pane) pane.classList.add('active');
 
       if (tabId === 'agents') loadAgents();
+      if (tabId === 'relay') loadRelayServices();
       if (tabId === 'broadcasts') loadBroadcasts();
       if (tabId === 'ota') loadOTAReleases();
     }
@@ -934,6 +1079,7 @@
           <td style="font-size:11px; color:#94a3b8;">${timeStr}</td>
           <td>
             <div style="display:flex; gap:4px; flex-wrap:wrap;">
+              <button class="btn btn-dark btn-xs" style="background:#0284c7; color:#fff;" title="ترقية / تحديث الوكيل (OTA Upgrade)" onclick="openUpgradeAgentModal('${escapeHtml(a.subdomain)}', '${escapeHtml(a.agent_version || 'v5.0.0')}', '${escapeHtml(a.arch || 'linux_arm64')}')">🚀 ترقية</button>
               <button class="btn btn-dark btn-xs" title="تحميل النسخة الاحتياطية" onclick="window.location.href='/api/agents/${encodeURIComponent(a.subdomain)}/backup/latest/download'">💾</button>
               <button class="btn btn-warning btn-xs" title="أخذ نسخة احتياطية فوراً" onclick="triggerAgentBackup('${escapeHtml(a.subdomain)}')">🔄</button>
               <button class="btn btn-danger btn-xs" title="حذف الوكيل" onclick="deleteAgent('${escapeHtml(a.subdomain)}')">🗑️</button>
@@ -1433,6 +1579,257 @@
           alert('❌ ' + (data.error || 'فشل'));
         }
       } catch (err) { alert('خطأ في الاتصال'); }
+    }
+
+    // ─── UPGRADE AGENT (OTA) ────────────────────────────────────────────────
+    let allReleasesCache = [];
+
+    async function openUpgradeAgentModal(subdomain, currentVer, arch) {
+      document.getElementById('up-subdomain-input').value = subdomain;
+      document.getElementById('up-arch-input').value = arch || 'linux_arm64';
+      document.getElementById('up-modal-subdomain').textContent = subdomain;
+      document.getElementById('up-modal-cur-ver').textContent = currentVer || 'v5.0.0';
+      document.getElementById('up-modal-arch').textContent = arch || 'linux_arm64';
+
+      // Load releases to populate dropdown
+      try {
+        const res = await fetch('/api/ota/releases');
+        if (res.ok) {
+          const releases = await res.json();
+          allReleasesCache = releases || [];
+          const sel = document.getElementById('up-version-select');
+          if (allReleasesCache.length > 0) {
+            const versions = Array.from(new Set(allReleasesCache.map(r => r.version)));
+            sel.innerHTML = versions.map(v => `<option value="${escapeHtml(v)}">v${escapeHtml(v)}</option>`).join('');
+          } else {
+            sel.innerHTML = '<option value="5.1.0">v5.1.0 (الأحدث)</option>';
+          }
+        }
+      } catch (e) {}
+
+      document.getElementById('upgrade-agent-modal').classList.add('active');
+    }
+
+    function closeUpgradeAgentModal() {
+      document.getElementById('upgrade-agent-modal').classList.remove('active');
+    }
+
+    async function handleUpgradeAgentSubmit(e) {
+      e.preventDefault();
+      const subdomain = document.getElementById('up-subdomain-input').value;
+      const targetArch = document.getElementById('up-arch-input').value;
+      const version = document.getElementById('up-version-select').value;
+      const btn = document.getElementById('btn-submit-upgrade');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري إرسال أمر الترقية...';
+
+      try {
+        const res = await fetch(`/api/ota/trigger/${encodeURIComponent(subdomain)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version, target_arch: targetArch })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ تم إرسال أمر الترقية إلى الوكيل "${subdomain}" بنجاح!\nالنسخة المستهدفة: ${version}`);
+          closeUpgradeAgentModal();
+          loadAgents();
+        } else {
+          alert(`❌ ${data.error || 'فشل إرسال أمر الترقية'}`);
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-rocket"></i> إرسال أمر الترقية فوراً';
+      }
+    }
+
+    // ─── SERVICE RELAY MANAGEMENT ───────────────────────────────────────────
+    let allRelayServicesCache = [];
+
+    async function loadRelayServices() {
+      const container = document.getElementById('relay-services-container');
+      try {
+        const res = await fetch('/api/relay/services');
+        if (!res.ok) throw new Error('فشل جلب قائمة الخدمات الموزعة');
+        const data = await res.json();
+        allRelayServicesCache = data.services || [];
+        renderRelayServicesTable(allRelayServicesCache);
+      } catch (err) {
+        container.innerHTML = `<p style="color:var(--danger); text-align:center; padding:20px;">❌ ${err.message}</p>`;
+      }
+    }
+
+    function renderRelayServicesTable(services) {
+      const container = document.getElementById('relay-services-container');
+      if (!services || !services.length) {
+        container.innerHTML = `<div style="text-align:center; padding:40px 20px;">
+          <i class="fa-solid fa-server" style="font-size:40px; color:#475569; margin-bottom:12px;"></i>
+          <p class="text-muted" style="font-size:15px; margin-bottom:16px;">لم يتم إضافة أي خدمات أو نطاقات بعد.</p>
+          <button class="btn btn-primary" onclick="openServiceModal()">
+            <i class="fa-solid fa-plus"></i> إضافة أول خدمة الآن
+          </button>
+        </div>`;
+        return;
+      }
+
+      let html = '<div class="table-wrap"><table><thead><tr>' +
+        '<th>📦 الخدمة والتصنيف</th>' +
+        '<th>🆔 المعرّف (ID)</th>' +
+        '<th>🌐 النطاقات المستهدفة (SNI Domains)</th>' +
+        '<th>🔌 المنافذ</th>' +
+        '<th>🎯 النطاق المستهدف</th>' +
+        '<th>الحالة</th>' +
+        '<th>إجراءات</th>' +
+        '</tr></thead><tbody>';
+
+      services.forEach(s => {
+        const domains = (s.domains || []).map(d => `<code style="background:#0f172a; border:1px solid #334155; padding:2px 6px; border-radius:4px; font-size:12px; margin:2px; display:inline-block;">${escapeHtml(d)}</code>`).join('');
+        const ports = (s.ports || [80, 443]).join(', ');
+        const scope = s.target_scope === 'selected' ? `مجموعات: ${(s.target_groups || []).join(', ') || 'VIP'}` : '🌐 كافة الوكلاء';
+
+        html += `<tr>
+          <td>
+            <div style="font-weight:bold; color:#f8fafc; font-size:14px;">${escapeHtml(s.name)}</div>
+            <span class="badge" style="background:#0284c7; color:#fff; font-size:11px; margin-top:3px;">${escapeHtml(s.category || 'Streaming')}</span>
+          </td>
+          <td><code style="color:#38bdf8; font-weight:bold;">${escapeHtml(s.id)}</code></td>
+          <td style="max-width:320px;">${domains || '-'}</td>
+          <td><code style="color:#a855f7;">${escapeHtml(ports)}</code></td>
+          <td><span class="badge badge-group">${escapeHtml(scope)}</span></td>
+          <td>
+            <span class="badge ${s.enabled ? 'badge-online' : 'badge-offline'}">
+              ${s.enabled ? '🟢 مفعّلة' : '⏸️ معطلة'}
+            </span>
+          </td>
+          <td>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-dark btn-xs" title="تعديل الخدمة" onclick="openServiceModal('${escapeHtml(s.id)}')">✏️ تعديل</button>
+              <button class="btn btn-danger btn-xs" title="حذف الخدمة" onclick="deleteService('${escapeHtml(s.id)}')">🗑️ حذف</button>
+            </div>
+          </td>
+        </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    function openServiceModal(serviceId) {
+      const isEdit = !!serviceId;
+      document.getElementById('service-modal-title').innerHTML = isEdit ? 
+        '<i class="fa-solid fa-pencil" style="color:var(--primary);"></i> تعديل بيانات الخدمة' : 
+        '<i class="fa-solid fa-plus" style="color:var(--primary);"></i> إضافة خدمة / نطاق جديد (Service Relay)';
+
+      if (isEdit) {
+        const s = allRelayServicesCache.find(x => x.id === serviceId);
+        if (s) {
+          document.getElementById('svc-id').value = s.id;
+          document.getElementById('svc-id').readOnly = true;
+          document.getElementById('svc-name').value = s.name || '';
+          document.getElementById('svc-category').value = s.category || 'Streaming';
+          document.getElementById('svc-domains').value = (s.domains || []).join(', ');
+          document.getElementById('svc-ips').value = (s.ip_ranges || []).join(', ');
+          document.getElementById('svc-ports').value = (s.ports || [80, 443]).join(', ');
+          document.getElementById('svc-scope').value = s.target_scope || 'all';
+          document.getElementById('svc-groups').value = (s.target_groups || []).join(', ');
+          document.getElementById('svc-enabled').checked = s.enabled !== false;
+        }
+      } else {
+        document.getElementById('svc-id').value = '';
+        document.getElementById('svc-id').readOnly = false;
+        document.getElementById('svc-name').value = '';
+        document.getElementById('svc-category').value = 'Streaming';
+        document.getElementById('svc-domains').value = '';
+        document.getElementById('svc-ips').value = '';
+        document.getElementById('svc-ports').value = '80, 443';
+        document.getElementById('svc-scope').value = 'all';
+        document.getElementById('svc-groups').value = '';
+        document.getElementById('svc-enabled').checked = true;
+      }
+
+      document.getElementById('service-modal').classList.add('active');
+    }
+
+    function closeServiceModal() {
+      document.getElementById('service-modal').classList.remove('active');
+    }
+
+    async function handleSaveService(e) {
+      e.preventDefault();
+      const id = document.getElementById('svc-id').value.trim();
+      const name = document.getElementById('svc-name').value.trim();
+      const category = document.getElementById('svc-category').value;
+      const domainsRaw = document.getElementById('svc-domains').value.split(',').map(d => d.trim()).filter(Boolean);
+      const ipsRaw = document.getElementById('svc-ips').value.split(',').map(d => d.trim()).filter(Boolean);
+      const portsRaw = document.getElementById('svc-ports').value.split(',').map(p => parseInt(p.trim(), 10)).filter(p => !isNaN(p));
+      const targetScope = document.getElementById('svc-scope').value;
+      const groupsRaw = document.getElementById('svc-groups').value.split(',').map(g => g.trim()).filter(Boolean);
+      const enabled = document.getElementById('svc-enabled').checked;
+
+      const payload = {
+        id,
+        name,
+        category,
+        domains: domainsRaw,
+        ip_ranges: ipsRaw,
+        ports: portsRaw.length > 0 ? portsRaw : [80, 443],
+        protocols: ['tcp', 'tls'],
+        target_scope: targetScope,
+        target_groups: groupsRaw,
+        enabled
+      };
+
+      try {
+        const res = await fetch('/api/relay/services', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ تم حفظ وتحديث الخدمة بنجاح!');
+          closeServiceModal();
+          loadRelayServices();
+        } else {
+          alert(`❌ ${data.error || 'فشل حفظ الخدمة'}`);
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    async function deleteService(serviceId) {
+      if (!confirm(`⚠️ هل أنت متأكد من رغبتك في حذف خدمة "${serviceId}"؟`)) return;
+      try {
+        const res = await fetch(`/api/relay/services/${encodeURIComponent(serviceId)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ تم حذف الخدمة بنجاح');
+          loadRelayServices();
+        } else {
+          alert(`❌ ${data.error || 'فشل حذف الخدمة'}`);
+        }
+      } catch (e) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    async function recalculateRelayRoutes() {
+      try {
+        const res = await fetch('/api/relay/recalculate', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ تم إعادة احتساب المسارات وتوزيعها على كافة الوكلاء بنجاح!');
+          loadRelayServices();
+        } else {
+          alert(`❌ ${data.error || 'فشل إعادة الاحتساب'}`);
+        }
+      } catch (e) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
     }
 
     async function logout() {
