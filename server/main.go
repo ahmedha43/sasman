@@ -341,27 +341,17 @@ func main() {
 	// MikroTik RouterOS v7.21+ App Store Catalog
 	appStoreHandler := func(c *fiber.Ctx) error {
 		yamlContent := fmt.Sprintf(`- name: sasman-manager
-  title: "SASMAN MikroTik Manager v5"
-  description: "Unified Radius Server, Network Management & High-Speed Relay Engine"
-  version: "5.1.0"
-  icon: "https://%s/img/logo.png"
-  image: "ahmedkin99/sasman-manager:latest"
-  auto-update: true
-  categories:
-    - Network
-    - Management
-    - Radius
-  network:
-    mode: bridge
-    bridge: container-bridge
-    address: 172.17.0.2/24
-    gateway: 172.17.0.1
-  ports:
-    - 8080:80
-  mounts:
-    - name: sasman_data
-      src: /disk1/data
-      dst: /app/data
+  descr: SASMAN MikroTik Manager v5 - Unified Radius Server & Management
+  page: https://%s
+  category: networking
+  default-credentials: "admin / admin"
+  services:
+    sasman:
+      image: docker.io/ahmedkin99/sasman-manager:latest
+      ports:
+        - 8080:80:tcp
+      volumes:
+        - /disk1/data:/app/data
 `, centralDomain)
 		c.Set("Content-Type", "text/yaml; charset=utf-8")
 		return c.SendString(yamlContent)
