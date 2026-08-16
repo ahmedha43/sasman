@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -116,8 +117,17 @@ func (m *Manager) TriggerSingleUpgrade(subdomain string, version string, targetA
 		return fmt.Errorf("release %s (%s) not found: %w", version, targetArch, err)
 	}
 
+	manifestCopy := *manifest
+	if !strings.HasPrefix(manifestCopy.BinaryURL, "http://") && !strings.HasPrefix(manifestCopy.BinaryURL, "https://") {
+		centralHost := os.Getenv("SASMAN_CENTRAL_DOMAIN")
+		if centralHost == "" {
+			centralHost = "sas-man.net"
+		}
+		manifestCopy.BinaryURL = fmt.Sprintf("https://%s/%s", centralHost, strings.TrimPrefix(manifestCopy.BinaryURL, "/"))
+	}
+
 	trigger := ota.UpgradeTrigger{
-		Manifest:    *manifest,
+		Manifest:    manifestCopy,
 		TriggerID:   fmt.Sprintf("trig_%d", time.Now().UnixNano()),
 		RequestedAt: time.Now().UTC(),
 	}

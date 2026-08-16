@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -302,16 +304,37 @@ func (s *Supervisor) writeOTAStatus(targetVer string, status string, lastErr str
 	_ = os.WriteFile(statusFile, data, 0644)
 }
 
-func downloadFile(url string, dest string) error {
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Get(url)
+func downloadFile(urlStr string, dest string) error {
+	urlStr = strings.TrimSpace(urlStr)
+	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
+		centralHost := os.Getenv("SASMAN_CENTRAL_DOMAIN")
+		if centralHost == "" {
+			centralHost = "sas-man.net"
+		}
+		urlStr = "https://" + centralHost + "/" + strings.TrimPrefix(urlStr, "/")
+	}
+
+	client := &http.Client{
+		Timeout: 120 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	resp, err := client.Get(urlStr)
 	if err != nil {
-		return err
+		// Fallback to HTTP if HTTPS fails
+		if strings.HasPrefix(urlStr, "https://") {
+			httpURL := "http://" + strings.TrimPrefix(urlStr, "https://")
+			resp, err = client.Get(httpURL)
+		}
+		if err != nil {
+			return err
+		}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP error: %s", resp.Status)
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
 	}
 
 	out, err := os.Create(dest)
