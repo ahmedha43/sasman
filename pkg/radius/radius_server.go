@@ -511,6 +511,11 @@ func handleAcctRequest(w radius.ResponseWriter, r *radius.Request) {
 	}
 
 	sessionSecs := int64(rfc2866.AcctSessionTime_Get(r.Packet))
+	nasIP, _, _ := net.SplitHostPort(r.RemoteAddr.String())
+	if nasAttr := rfc2865.NASIPAddress_Get(r.Packet); nasAttr != nil {
+		nasIP = nasAttr.String()
+	}
+	termCause := rfc2866.AcctTerminateCause_Get(r.Packet)
 
 	statusStr := ""
 	switch statusType {
@@ -518,13 +523,62 @@ func handleAcctRequest(w radius.ResponseWriter, r *radius.Request) {
 		statusStr = "بدء اتصال 🟢"
 	case rfc2866.AcctStatusType_Value_Stop:
 		statusStr = "قطع اتصال 🔴"
+	case rfc2866.AcctStatusType_Value_InterimUpdate:
+		statusStr = "تحديث دوري 🔄"
 	}
 	
-	if statusStr != "" {
-		radiusLogger.Printf("[radius] 📊 محاسبة: يوزر [%s] | الحالة: %s | الجلسة: %s | IP: %s", username, statusStr, sid, ip)
+	if statusStr != "" && statusType != rfc2866.AcctStatusType_Value_InterimUpdate {
+		radiusLogger.Printf("[radius] 📊 محاسبة: يوزر [%s] | الحالة: %s | الجلسة: %s | IP: %s | MAC: %s", username, statusStr, sid, ip, cli)
 	}
 
+	// 1. Update High-Performance LMDB Store
 	updateLMDBAccounting(username, statusType, sid, ip, cli, inOct, outOct, sessionSecs)
+
+	// 2. Persist Accounting Record into SQLite radacct
+	go recordSQLiteAccounting(username, statusType, sid, ip, cli, nasIP, inOct, outOct, sessionSecs, termCause)
+
+	// 3. Invalidate Session Cache so dashboard and user list reflect changes instantly
+	InvalidateSessionCache()
+}
+
+func recordSQLiteAccounting(username string, status rfc2866.AcctStatusType, sid, ip, cli, nasIP string, in, out uint64, secs int64, termCause rfc2866.AcctTerminateCause) {
+	if DB == nil || username == "" {
+		return
+	}
+	switch status {
+	case rfc2866.AcctStatusType_Value_Start:
+		// Close previous open sessions for this user/sid
+		_, _ = DB.Exec(`UPDATE radacct SET acctstoptime = CURRENT_TIMESTAMP, acctterminatecause = 'Stale-Replaced' WHERE username = ? AND acctstoptime IS NULL`, username)
+		_, _ = DB.Exec(`INSERT INTO radacct (username, acctsessionid, nasipaddress, callingstationid, framedipaddress, acctstarttime, acctupdatetime, acctsessiontime, acctinputoctets, acctoutputoctets)
+			VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'), 0, 0, 0)`,
+			username, sid, nasIP, cli, ip)
+	case rfc2866.AcctStatusType_Value_InterimUpdate:
+		res, err := DB.Exec(`UPDATE radacct SET acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, framedipaddress = CASE WHEN ? != '' THEN ? ELSE framedipaddress END
+			WHERE acctsessionid = ? AND acctstoptime IS NULL`,
+			secs, in, out, ip, ip, sid)
+		if err == nil {
+			if n, _ := res.RowsAffected(); n == 0 {
+				_, _ = DB.Exec(`UPDATE radacct SET acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, framedipaddress = CASE WHEN ? != '' THEN ? ELSE framedipaddress END
+					WHERE username = ? AND acctstoptime IS NULL`,
+					secs, in, out, ip, ip, username)
+			}
+		}
+	case rfc2866.AcctStatusType_Value_Stop:
+		causeStr := termCause.String()
+		if causeStr == "" {
+			causeStr = "User-Request"
+		}
+		res, err := DB.Exec(`UPDATE radacct SET acctstoptime = datetime('now', 'localtime'), acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, acctterminatecause = ?
+			WHERE acctsessionid = ? AND acctstoptime IS NULL`,
+			secs, in, out, causeStr, sid)
+		if err == nil {
+			if n, _ := res.RowsAffected(); n == 0 {
+				_, _ = DB.Exec(`UPDATE radacct SET acctstoptime = datetime('now', 'localtime'), acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, acctterminatecause = ?
+					WHERE username = ? AND acctstoptime IS NULL`,
+					secs, in, out, causeStr, username)
+			}
+		}
+	}
 }
 
 // getLMDBUserData is a wrapper around LMDB lookups

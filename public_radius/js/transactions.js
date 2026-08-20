@@ -117,17 +117,19 @@ function renderUserDetails(data) {
                 </table>
             </div>
             <div class="card" style="margin-bottom:0;">
-                <h4 style="color:var(--text-main); font-weight:700; margin-bottom:15px;">🌐 معلومات الجلسة الحالية</h4>
-                ${s.ip ? `
+                <h4 style="color:var(--text-main); font-weight:700; margin-bottom:15px;">🌐 تفاصيل الجلسة الحالية</h4>
+                ${(s.online || s.ip || s.session_seconds) ? `
                     <table style="font-size:14px;">
-                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">IP:</td><td style="border:none; padding:6px 0; font-family:monospace; color:var(--text-main);">${escapeHtml(s.ip)}</td></tr>
-                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">التنزيل:</td><td style="border:none; padding:6px 0; color:var(--text-main);">${escapeHtml(s.download || '0 B')}</td></tr>
-                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">الرفع:</td><td style="border:none; padding:6px 0; color:var(--text-main);">${escapeHtml(s.upload || '0 B')}</td></tr>
-                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">المدة:</td><td style="border:none; padding:6px 0; color:var(--text-main);">${formatDuration(s.session_seconds || 0)}</td></tr>
-                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">MAC:</td><td style="border:none; padding:6px 0; font-family:monospace; font-size:12px; color:var(--text-muted);">${escapeHtml(s.calling_station || '-')}</td></tr>
-                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">NAS IP:</td><td style="border:none; padding:6px 0; font-family:monospace; font-size:12px; color:var(--text-muted);">${escapeHtml(s.nas_ip || '-')}</td></tr>
+                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">الحالة:</td><td style="border:none; padding:6px 0;"><span class="badge ${st.className}">${st.text}</span></td></tr>
+                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">عنوان IP:</td><td style="border:none; padding:6px 0; font-family:monospace; font-weight:bold; color:var(--primary);">${escapeHtml(s.ip || 'غير محدد')}</td></tr>
+                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">الماك أدرس (MAC):</td><td style="border:none; padding:6px 0; font-family:monospace; font-weight:bold; color:var(--text-main);">${escapeHtml(s.calling_station || '-')}</td></tr>
+                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">مدة الاتصال (Uptime):</td><td style="border:none; padding:6px 0; font-weight:bold; color:var(--success); font-family:monospace;">⏱️ ${formatDuration(s.session_seconds || 0)}</td></tr>
+                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">وقت بدء الجلسة:</td><td style="border:none; padding:6px 0; font-family:monospace; color:var(--text-main);">${escapeHtml(s.started_at || '-')}</td></tr>
+                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">البيانات المستهلكة:</td><td style="border:none; padding:6px 0; font-family:monospace;"><span style="color:var(--info); font-weight:600;">⬇️ ${escapeHtml(s.download || '0 B')}</span> &nbsp;|&nbsp; <span style="color:var(--primary); font-weight:600;">⬆️ ${escapeHtml(s.upload || '0 B')}</span></td></tr>
+                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">سيرفر الراوتر (NAS):</td><td style="border:none; padding:6px 0; font-family:monospace; font-size:12px; color:var(--text-muted);">${escapeHtml(s.nas_ip || '-')}</td></tr>
+                        <tr><td style="border:none; padding:6px 0; color:var(--text-muted);">كود الجلسة (Session ID):</td><td style="border:none; padding:6px 0; font-family:monospace; font-size:11px; color:var(--text-muted);">${escapeHtml(s.session_id || '-')}</td></tr>
                     </table>
-                ` : '<p style="color:var(--text-muted); font-size:14px; margin-top:10px;">لا توجد جلسة نشطة حالياً</p>'}
+                ` : '<div style="padding:20px 0; text-align:center; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-circle-xmark" style="font-size:24px; display:block; margin-bottom:8px; opacity:0.5;"></i>لا توجد جلسة نشطة حالياً</div>'}
             </div>
         </div>
 

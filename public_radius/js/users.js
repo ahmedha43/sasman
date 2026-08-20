@@ -21,14 +21,22 @@ function stopUsersAutoRefresh() {
 function renderSessionStatus(_user, session) {
     const status = session && session.status ? session.status : 'offline';
     const map = {
-        online: { text: 'متصل', className: 'badge-success' },
-        stale: { text: 'تأخر التحديث', className: 'badge-warning' },
-        offline: { text: 'غير متصل', className: 'badge-secondary' },
-        expired: { text: 'منتهي', className: 'badge-danger' },
-        expired_online: { text: 'منتهي (متصل)', className: 'badge-warning' }
+        online: { text: 'متصل 🟢', className: 'badge-success' },
+        stale: { text: 'تأخر التحديث 🟡', className: 'badge-warning' },
+        offline: { text: 'غير متصل ⚪', className: 'badge-secondary' },
+        expired: { text: 'منتهي 🔴', className: 'badge-danger' },
+        expired_online: { text: 'منتهي (متصل) ⚠️', className: 'badge-warning' }
     };
     const meta = map[status] || map.offline;
-    return `<span class="badge ${meta.className}">${meta.text}</span>`;
+    let durationHtml = '';
+    if ((status === 'online' || status === 'expired_online' || status === 'stale') && session) {
+        const secs = session.session_seconds || 0;
+        const dur = (typeof formatDuration === 'function') ? formatDuration(secs) : (secs ? secs + ' ث' : '');
+        if (dur) {
+            durationHtml = `<div style="font-size:0.75rem; font-weight:600; color:var(--success); margin-top:3px; font-family:monospace;" title="مدة الاتصال الحالية">⏱️ ${dur}</div>`;
+        }
+    }
+    return `<div><span class="badge ${meta.className}" style="font-size:0.8rem; font-weight:600;">${meta.text}</span>${durationHtml}</div>`;
 }
 
 function getInitials(name, username) {
@@ -63,7 +71,7 @@ function resetUserForm() {
     const expiryEl = document.getElementById('usr-expiry');
     expiryEl.value = '';
     const expiryWrapper = document.getElementById('usr-expiry-wrapper');
-    expiryWrapper.style.display = ''; // Always show for new user creation mode
+    if (expiryWrapper) expiryWrapper.style.display = '';
 
     document.getElementById('usr-submit-btn').innerText = 'حفظ المشترك';
     document.getElementById('usr-name').readOnly = false;
@@ -185,15 +193,29 @@ function buildUserRow(u) {
 
     // Traffic Display
     const traffic = (s.download || s.upload)
-        ? `<span style="font-size:11px; font-family:monospace; color:var(--text-muted); white-space: nowrap;">⬇️ ${escapeHtml(s.download || '0 B')} <br> ⬆️ ${escapeHtml(s.upload || '0 B')}</span>`
+        ? `<div style="font-size:11px; font-family:monospace; line-height:1.4; white-space: nowrap;">
+            <span style="color:var(--info); font-weight:600;" title="تنزيل (Download)">⬇️ ${escapeHtml(s.download || '0 B')}</span><br>
+            <span style="color:var(--primary); font-weight:600;" title="رفع (Upload)">⬆️ ${escapeHtml(s.upload || '0 B')}</span>
+           </div>`
         : '<span style="color:var(--text-muted);">—</span>';
 
-    // IP Display
-    const ipDisplay = s.ip
-        ? `<span class="device-link" onclick="openDeviceModal('${escapeHtml(s.ip)}')" title="فتح واجهة الجهاز" style="font-family:monospace; font-size:12px; color:var(--primary); cursor:pointer; text-decoration:underline;">
-            ${escapeHtml(s.ip)} 🌐
-           </span>`
-        : '<span style="color:var(--text-muted);">—</span>';
+    // IP & MAC Display
+    let ipMacDisplay = '<span style="color:var(--text-muted);">—</span>';
+    if (s.ip || s.calling_station) {
+        const ipPart = s.ip
+            ? `<div style="font-family:monospace; font-size:12px; font-weight:bold; color:var(--primary);">
+                <span class="device-link" onclick="openDeviceModal('${escapeHtml(s.ip)}')" title="فحص وفتح واجهة الجهاز" style="cursor:pointer; text-decoration:underline;">
+                    ${escapeHtml(s.ip)} 🌐
+                </span>
+               </div>`
+            : '';
+        const macPart = s.calling_station
+            ? `<div style="font-family:monospace; font-size:11px; color:var(--text-muted); margin-top:2px;" title="الماك أدرس للمشترك">
+                📶 ${escapeHtml(s.calling_station)}
+               </div>`
+            : '';
+        ipMacDisplay = `<div>${ipPart}${macPart}</div>`;
+    }
 
     // Expiry Date styling
     const expiry = u.expires_at 
@@ -209,7 +231,7 @@ function buildUserRow(u) {
         <td><span class="badge ${balanceClass}" style="padding:4px 8px; border-radius:6px; font-weight:bold; font-size:0.8rem;">${(u.balance || 0).toLocaleString()} د.ع</span></td>
         <td>${renderSessionStatus(u, s)} ${stoppedBadge}</td>
         <td>${traffic}</td>
-        <td>${ipDisplay}</td>
+        <td>${ipMacDisplay}</td>
         <td>${actions}</td>
     </tr>`;
 }

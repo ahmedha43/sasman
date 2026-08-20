@@ -68,6 +68,27 @@ async function showTab(tabId) {
     if (tabId === 'streams' && typeof window.loadStreams === 'function') window.loadStreams();
 }
 
+function formatDuration(seconds) {
+    const s = parseInt(seconds, 10);
+    if (!s || isNaN(s) || s <= 0) return '0 ثانية';
+
+    const days = Math.floor(s / 86400);
+    const hours = Math.floor((s % 86400) / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const remainingSeconds = s % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days} يوم`);
+    if (hours > 0) parts.push(`${hours} س`);
+    if (minutes > 0) parts.push(`${minutes} د`);
+    if (parts.length === 0) {
+        parts.push(`${remainingSeconds} ث`);
+    }
+
+    return parts.join(' ');
+}
+window.formatDuration = formatDuration;
+
 function resetRadiusContentScroll() {
     requestAnimationFrame(() => {
         const content = document.querySelector('.content-body');

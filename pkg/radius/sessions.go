@@ -197,11 +197,14 @@ func LoadSessionsFromDB() (map[string]SessionInfo, error) {
 			sess.Download      = humanBytes(bw.InputOctets)
 			sess.Upload        = humanBytes(bw.OutputOctets)
 		}
-		if bw.SessionSeconds > 0 {
-			sess.SessionSeconds = bw.SessionSeconds
-		}
 		if bw.StartTime > 0 {
 			sess.StartedAt = time.Unix(bw.StartTime, 0).In(baghdadLocation).Format("2006-01-02 15:04")
+			liveElapsed := time.Now().Unix() - bw.StartTime
+			if liveElapsed > sess.SessionSeconds {
+				sess.SessionSeconds = liveElapsed
+			}
+		} else if bw.SessionSeconds > 0 && sess.SessionSeconds == 0 {
+			sess.SessionSeconds = bw.SessionSeconds
 		}
 		if bw.SessionID != "" {
 			sess.SessionID = bw.SessionID
@@ -232,6 +235,22 @@ func scanSessionRow(rows *sql.Rows) sessionScan {
 	if err := rows.Scan(&username, &ip, &inputOctets, &outputOctets, &sid, &nasIP, &calling, &startAt, &updateAt, &sess); err != nil {
 		return sessionScan{}
 	}
+
+	startedStr := normalizeAcctTime(startAt)
+	// Calculate live elapsed seconds if the session is currently active
+	if startAt.Valid && startAt.String != "" {
+		layouts := []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05Z", time.RFC3339, "2006-01-02 15:04"}
+		for _, l := range layouts {
+			if t, err := time.ParseInLocation(l, startAt.String, baghdadLocation); err == nil {
+				elapsed := int64(time.Since(t).Seconds())
+				if elapsed > sess {
+					sess = elapsed
+				}
+				break
+			}
+		}
+	}
+
 	info := SessionInfo{
 		IP:             ip,
 		DownloadBytes:  inputOctets,
@@ -241,7 +260,7 @@ func scanSessionRow(rows *sql.Rows) sessionScan {
 		SessionID:      sid,
 		NASIP:          nasIP,
 		CallingStation: calling,
-		StartedAt:      normalizeAcctTime(startAt),
+		StartedAt:      startedStr,
 		LastUpdateAt:   normalizeAcctTime(updateAt),
 		SessionSeconds: sess,
 	}
