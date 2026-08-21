@@ -229,7 +229,7 @@ func (r *SQLiteRepository) CreateSchema() error {
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN winbox_port INTEGER NOT NULL DEFAULT 0")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN group_name TEXT NOT NULL DEFAULT 'default'")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_version TEXT NOT NULL DEFAULT 'v5.0.0'")
-	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_arch TEXT NOT NULL DEFAULT 'linux_arm64'")
+	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_arch TEXT NOT NULL DEFAULT ''")
 
 	// Create group_name index after migration
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_group_name ON subdomains(group_name);")
@@ -497,9 +497,10 @@ func (r *SQLiteRepository) ListAllSubdomains() ([]string, error) {
 
 func (r *SQLiteRepository) GetSubdomainArch(subdomain string) (string, error) {
 	var arch string
-	err := r.db.QueryRow("SELECT COALESCE(agent_arch, 'linux_arm64') FROM subdomains WHERE subdomain = ?", subdomain).Scan(&arch)
-	if err != nil {
-		return "linux_arm64", err
+	err := r.db.QueryRow("SELECT COALESCE(agent_arch, '') FROM subdomains WHERE subdomain = ?", subdomain).Scan(&arch)
+	if err != nil || arch == "" {
+		// linux_arm is the safest default — most MikroTik devices (RB4011, RB952, etc.) are ARM 32-bit
+		return "linux_arm", nil
 	}
 	return arch, nil
 }

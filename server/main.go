@@ -146,6 +146,23 @@ func main() {
 				_ = svc.SendTunnelMessage(subdomain, "route_table_push", routes)
 			}
 		}
+
+		// 4. Persist agent arch & version to DB on every connect so OTA sends the correct binary
+		if session := svc.GetAgentBySubdomain(subdomain); session != nil {
+			rawArch := session.Arch
+			ver := session.Version
+			if rawArch != "" {
+				normalizedArch := normalizeArch(rawArch)
+				if ver == "" {
+					ver = "v5.0.0"
+				}
+				if dbErr := repo.UpdateAgentVersionAndArch(subdomain, ver, normalizedArch); dbErr != nil {
+					log.Printf("[OnAgentRegistered] ⚠️ Failed to persist arch for %s: %v", subdomain, dbErr)
+				} else {
+					log.Printf("[OnAgentRegistered] ✅ Saved arch=%s (raw: %s), ver=%s for %s", normalizedArch, rawArch, ver, subdomain)
+				}
+			}
+		}
 	}
 
 	svc.OnRelayMessage = func(session *tunnel.AgentSession, msg tunnel.TunnelMessage) {
@@ -1153,4 +1170,31 @@ func main() {
 
 	log.Printf("central server listening on %s", addr)
 	log.Fatal(app.Listen(addr))
+}
+
+// normalizeArch converts Go runtime arch strings (runtime.GOARCH) to the
+// SASMAN OTA arch identifiers used for binary naming and release matching.
+//
+// MikroTik device arch reference:
+//   - RB4011, RB952, RB951, RB760, RBD52  → arm  (ARM 32-bit / ARMv7)
+//   - RB5009, CCR2004, CRS354              → arm64 (ARM 64-bit / AArch64)
+//   - CCR1009, CCR1016, CCR1036, x86 VMs  → amd64 (x86 64-bit)
+func normalizeArch(goarch string) string {
+	switch strings.ToLower(strings.TrimSpace(goarch)) {
+	case "arm", "armv7", "armv7l", "armhf":
+		return "linux_arm" // 32-bit ARM
+	case "arm64", "aarch64", "armv8":
+		return "linux_arm64" // 64-bit ARM
+	case "amd64", "x86_64":
+		return "linux_amd64"
+	case "386", "x86":
+		return "linux_386"
+	case "mips", "mipsel", "mipsle":
+		return "linux_mips"
+	default:
+		if goarch == "" {
+			return "linux_arm" // safest MikroTik default
+		}
+		return "linux_" + strings.ToLower(goarch)
+	}
 }
