@@ -830,6 +830,66 @@
     </div>
   </div>
 
+  <!-- Agent Credentials Result Modal -->
+  <div id="agent-credentials-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:620px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; color:var(--success);">✅ تم تسجيل الوكيل بنجاح!</h3>
+        <button class="btn btn-dark btn-xs" onclick="closeAgentCredentialsModal()">✕</button>
+      </div>
+
+      <div style="background:var(--bg-app); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px;">
+        <p style="color:var(--warning); font-size:13px; margin:0 0 12px 0; font-weight:600;">
+          ⚠️ احتفظ بهذه المعلومات الآن — لن تُعرض مرة أخرى!
+        </p>
+
+        <table style="width:100%; font-size:13px; border-collapse:collapse;">
+          <tr>
+            <td style="border:none; padding:7px 0; color:var(--text-muted); width:40%;">🌐 النطاق الفرعي:</td>
+            <td style="border:none; padding:7px 0;"><span id="cred-subdomain" style="font-family:monospace; font-weight:700; color:var(--primary);"></span></td>
+          </tr>
+          <tr>
+            <td style="border:none; padding:7px 0; color:var(--text-muted);">🔑 التوكن (Token):</td>
+            <td style="border:none; padding:7px 0;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span id="cred-token" style="font-family:monospace; font-size:11px; font-weight:600; color:var(--danger); word-break:break-all;"></span>
+                <button class="btn btn-xs" onclick="copyToClipboard('cred-token')" style="white-space:nowrap; padding:3px 8px; font-size:11px; width:auto;">📋 نسخ</button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="border:none; padding:7px 0; color:var(--text-muted);">🖥️ رابط الواجهة:</td>
+            <td style="border:none; padding:7px 0;">
+              <a id="cred-web-url" href="#" target="_blank" style="font-family:monospace; font-size:12px; color:var(--primary); text-decoration:underline;"></a>
+            </td>
+          </tr>
+          <tr>
+            <td style="border:none; padding:7px 0; color:var(--text-muted);">🔌 منفذ WinBox:</td>
+            <td style="border:none; padding:7px 0;"><span id="cred-winbox-port" style="font-family:monospace; font-weight:700; color:var(--text-main);"></span></td>
+          </tr>
+          <tr>
+            <td style="border:none; padding:7px 0; color:var(--text-muted);">📡 عنوان WinBox:</td>
+            <td style="border:none; padding:7px 0;"><span id="cred-winbox-addr" style="font-family:monospace; font-size:12px; color:var(--text-main);"></span></td>
+          </tr>
+          <tr>
+            <td style="border:none; padding:7px 0; color:var(--text-muted);">🔗 بوابة WebSocket:</td>
+            <td style="border:none; padding:7px 0;"><span id="cred-gateway" style="font-family:monospace; font-size:11px; color:var(--text-muted);"></span></td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background:#0f2a1a; border:1px solid #22543d; border-radius:8px; padding:14px; margin-bottom:16px;">
+        <p style="color:#68d391; font-size:12px; font-weight:700; margin:0 0 8px 0;">📋 أوامر الإعداد على المايكروتك:</p>
+        <code id="cred-setup-cmd" style="font-family:monospace; font-size:11.5px; color:#9ae6b4; white-space:pre-wrap; display:block; line-height:1.6;"></code>
+      </div>
+
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="copyAllCredentials()" style="width:auto;">📋 نسخ كل المعلومات</button>
+        <button class="btn btn-dark" onclick="closeAgentCredentialsModal()">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Broadcast Create/Edit Modal -->
   <div id="broadcast-modal" class="modal-overlay">
     <div class="modal-card" style="max-width:700px;">
@@ -1259,13 +1319,97 @@
         });
         const data = await res.json();
         if (res.ok) {
-          alert('✅ تم تسجيل الوكيل وحجز النطاق بنجاح!');
           closeRegisterAgentModal();
           loadAgents();
+          // Populate credentials modal
+          document.getElementById('cred-subdomain').textContent = data.subdomain || '';
+          document.getElementById('cred-token').textContent = data.token || '';
+          const webUrl = data.web_url || '';
+          const webUrlEl = document.getElementById('cred-web-url');
+          webUrlEl.textContent = webUrl;
+          webUrlEl.href = webUrl;
+          document.getElementById('cred-winbox-port').textContent = data.winbox_port ? data.winbox_port.toString() : '—';
+          document.getElementById('cred-winbox-addr').textContent = data.winbox_address || '—';
+          document.getElementById('cred-gateway').textContent = data.gateway_url || '—';
+
+          // Build MikroTik setup commands
+          const cmds = `/container/config set registry-url=https://registry-1.docker.io \\
+/container add \\
+  remote-image=ahmedkin99/sasman-manager:latest \\
+  interface=veth-sasman \\
+  root-dir=/disk1/sasman-data \\
+  logging=yes \\
+  start-on-boot=yes \\
+  envlist=sasman-env
+
+# متغيرات البيئة (في /container/envs):
+SASMAN_SERVER_URL = ${data.gateway_url || 'wss://sas-man.net/ws'}
+SASMAN_TOKEN     = ${data.token || ''}
+SASMAN_SUBDOMAIN = ${data.subdomain || ''}`;
+          document.getElementById('cred-setup-cmd').textContent = cmds;
+          document.getElementById('agent-credentials-modal').classList.add('active');
         } else {
           alert('❌ ' + (data.error || 'فشل التسجيل'));
         }
       } catch (err) { alert('خطأ في الاتصال'); }
+    }
+
+    function closeAgentCredentialsModal() {
+      document.getElementById('agent-credentials-modal').classList.remove('active');
+    }
+
+    function copyToClipboard(elementId) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      const text = el.textContent || el.innerText || '';
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = el.parentElement.querySelector('button') || document.activeElement;
+        if (orig && orig.tagName === 'BUTTON') {
+          const prevText = orig.textContent;
+          orig.textContent = '✅ تم النسخ';
+          setTimeout(() => orig.textContent = prevText, 1500);
+        }
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      });
+    }
+
+    function copyAllCredentials() {
+      const subdomain = document.getElementById('cred-subdomain').textContent;
+      const token = document.getElementById('cred-token').textContent;
+      const webUrl = document.getElementById('cred-web-url').textContent;
+      const winboxPort = document.getElementById('cred-winbox-port').textContent;
+      const winboxAddr = document.getElementById('cred-winbox-addr').textContent;
+      const gateway = document.getElementById('cred-gateway').textContent;
+      const setupCmd = document.getElementById('cred-setup-cmd').textContent;
+
+      const text = `=== معلومات تسجيل الوكيل ===
+🌐 النطاق الفرعي: ${subdomain}
+🔑 التوكن: ${token}
+🖥️ رابط الواجهة: ${webUrl}
+🔌 منفذ WinBox: ${winboxPort}
+📡 عنوان WinBox: ${winboxAddr}
+🔗 بوابة WebSocket: ${gateway}
+
+=== أوامر الإعداد ===
+${setupCmd}`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('✅ تم نسخ كل المعلومات إلى الحافظة!');
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        alert('✅ تم النسخ!');
+      });
     }
 
     // ─── SMART BROADCASTS ───────────────────────────────────────────────────
