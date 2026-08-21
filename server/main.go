@@ -813,6 +813,95 @@ func main() {
 		return c.JSON(fiber.Map{"success": deleted, "subdomain": subdomain})
 	})
 
+	app.Post("/api/agents/register-from-ui", func(c *fiber.Ctx) error {
+		var payload struct {
+			Name      string `json:"name"`
+			Phone     string `json:"phone"`
+			Subdomain string `json:"subdomain"`
+			GroupName string `json:"group_name"`
+			Token     string `json:"token"`
+		}
+		if err := c.BodyParser(&payload); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		sub := strings.ToLower(strings.TrimSpace(payload.Subdomain))
+		if len(sub) < 3 || len(sub) > 30 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم النطاق غير صالح (يجب أن يكون بين 3 و 30 حرفاً)"})
+		}
+
+		available, err := repo.IsSubdomainAvailable(sub)
+		if err != nil || !available {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "اسم النطاق هذا محجوز مسبقاً، يرجى اختيار اسم آخر"})
+		}
+
+		token := payload.Token
+		if token == "" {
+			token = fmt.Sprintf("tok-%d-%s", time.Now().Unix(), strings.ToLower(sub))
+		}
+
+		customerID := fmt.Sprintf("cust-%d", time.Now().UnixNano())
+		customer := storage.Customer{
+			ID:          customerID,
+			Name:        payload.Name,
+			Phone:       payload.Phone,
+			Email:       "",
+			CompanyName: sub,
+			Status:      "active",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+		_ = repo.SaveCustomer(customer)
+
+		licenseID := fmt.Sprintf("lic-%d", time.Now().UnixNano())
+		licenseKey := fmt.Sprintf("KEY-%s-%d", strings.ToUpper(sub), time.Now().Unix())
+		initExp := time.Now().UTC().Add(30 * 24 * time.Hour)
+		planName := payload.GroupName
+		if planName == "" {
+			planName = "basic"
+		}
+		_ = repo.SaveLicense(storage.License{
+			ID:         licenseID,
+			CustomerID: customerID,
+			LicenseKey: licenseKey,
+			PlanName:   planName,
+			Status:     "active",
+			IssuedAt:   time.Now(),
+			ExpiresAt:  &initExp,
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		})
+
+		agent := svc.RegisterAgent(sub, token)
+		subRecord, err := repo.CreateOrGetSubdomain(customerID, licenseID, sub)
+		if err == nil && subRecord != nil {
+			subRecord.CustomerID = customerID
+			subRecord.LicenseID = licenseID
+			subRecord.Token = token
+			subRecord.WinboxPort = agent.WinboxPort
+			_ = repo.SaveSubdomain(*subRecord)
+		}
+
+		if payload.Name != "" || payload.Phone != "" {
+			_ = repo.UpdateSubdomainOwner(sub, payload.Name, payload.Phone, sub)
+		}
+
+		webURL := fmt.Sprintf("http://%s.%s", agent.Subdomain, centralDomain)
+		winboxAddress := fmt.Sprintf("%s:%d", centralDomain, agent.WinboxPort)
+		gatewayURL := fmt.Sprintf("wss://%s/ws", centralDomain)
+
+		return c.JSON(fiber.Map{
+			"success":        true,
+			"subdomain":      agent.Subdomain,
+			"token":          agent.Token,
+			"winbox_port":    agent.WinboxPort,
+			"web_url":        webURL,
+			"winbox_address": winboxAddress,
+			"gateway_url":    gatewayURL,
+			"central_domain": centralDomain,
+		})
+	})
+
 	app.Post("/api/agents/register", func(c *fiber.Ctx) error {
 		var payload struct {
 			Subdomain string `json:"subdomain"`
