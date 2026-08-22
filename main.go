@@ -290,7 +290,8 @@ func main() {
 			strings.HasPrefix(path, "/admin/js/") ||
 			strings.HasPrefix(path, "/admin/css/") ||
 			strings.HasPrefix(path, "/admin/fonts/") ||
-			path == "/radius/unnamed.png" {
+			path == "/radius/unnamed.png" ||
+			path == "/radius/logo.png" {
 			c.Set("Cache-Control", "public, max-age=86400")
 		}
 		return c.Next()
@@ -310,6 +311,7 @@ func main() {
 			strings.HasPrefix(path, "/radius/fonts") ||
 			strings.HasPrefix(path, "/radius/vendor") ||
 			path == "/radius/unnamed.png" ||
+			path == "/radius/logo.png" ||
 			path == "/radius/favicon.ico" ||
 			strings.HasPrefix(path, "/js/login.js") { // If any
 			return c.Next()
@@ -660,6 +662,7 @@ func main() {
 	app.Static("/radius/fonts", "./public_radius/fonts")
 	app.Static("/radius/vendor", "./public_radius/vendor")
 	app.Static("/radius/unnamed.png", "./public_radius/unnamed.png")
+	app.Static("/radius/logo.png", "./public_radius/logo.png")
 
 	// Explicit HTML pages
 	app.Get("/radius", func(c *fiber.Ctx) error {
