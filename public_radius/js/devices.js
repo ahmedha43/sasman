@@ -3,6 +3,38 @@
  * Manages Switches, PtP Links, and Sector APs with Vendor-Agnostic Architecture
  */
 
+function formatBytes(bytes, decimals = 1) {
+    const b = parseInt(bytes, 10);
+    if (!b || isNaN(b) || b <= 0) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    const i = Math.floor(Math.log(b) / Math.log(k));
+    if (i < 0) return '0 B';
+    const index = Math.min(i, sizes.length - 1);
+    return parseFloat((b / Math.pow(k, index)).toFixed(dm)) + ' ' + sizes[index];
+}
+
+function formatDuration(seconds) {
+    const s = parseInt(seconds, 10);
+    if (!s || isNaN(s) || s <= 0) return '0 ثانية';
+
+    const days = Math.floor(s / 86400);
+    const hours = Math.floor((s % 86400) / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const remainingSeconds = s % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days} يوم`);
+    if (hours > 0) parts.push(`${hours} س`);
+    if (minutes > 0) parts.push(`${minutes} د`);
+    if (parts.length === 0) {
+        parts.push(`${remainingSeconds} ث`);
+    }
+
+    return parts.join(' ');
+}
+
 let allDevicesCache = [];
 let allVendorsCache = [];
 let allTypesCache = [];
