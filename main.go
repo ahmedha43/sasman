@@ -27,6 +27,8 @@ import (
 
 	"mikrotik-manager/pkg/broadcast"
 	"mikrotik-manager/pkg/core"
+	"mikrotik-manager/pkg/devices"
+	_ "mikrotik-manager/pkg/devices/drivers/mikrotik"
 	"mikrotik-manager/pkg/firebase"
 	"mikrotik-manager/pkg/lan"
 	"mikrotik-manager/pkg/radius"
@@ -223,6 +225,11 @@ func main() {
 	}
 	radius.InitDB()
 	radius.EnsureDefaultAdmin()
+
+	// Initialize Network Devices Subsystem (Switches, PtP Links, Sectors)
+	if _, err := devices.Init(radius.DB); err != nil {
+		log.Printf("[devices] Warning: Failed to init network devices subsystem: %v", err)
+	}
 
 	// Start Native Go RADIUS Server
 	radius.StartRadiusServer()
@@ -538,6 +545,10 @@ func main() {
 	api.Post("/tunnel/settings", saveTunnelSettingsHandler)
 	radiusAccount.Get("/ngrok/token", getNgrokTokenHandler)
 	radiusAccount.Post("/ngrok/token", saveNgrokTokenHandler)
+
+	// Network Devices Management APIs (/radius/api/auth/devices and /radius/api/devices)
+	devices.RegisterAPIRoutes(radiusAccount)
+	devices.RegisterAPIRoutes(radiusAPI)
 
 	// License activation is public while unlicensed so first-run setup can fetch the MikroTik serial.
 	radiusAPI.Post("/license/activate", radius.RequireAdminUnlessUnlicensed, radius.LicenseActivateHandler)

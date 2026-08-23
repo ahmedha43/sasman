@@ -5,6 +5,7 @@ const radiusModules = {
     users: ['/radius/js/profiles.js?v=10', '/radius/js/transactions.js?v=10', '/radius/js/users.js?v=10'],
     vouchers: ['/radius/js/vouchers.js?v=10'],
     nas: ['/radius/js/nas.js?v=10'],
+    devices: ['/radius/js/devices.js?v=10'],
     streams: ['/radius/js/streams.js?v=10'],
     whatsapp: ['/radius/js/whatsapp.js?v=10'],
     logs: ['/radius/js/logs.js?v=10']
@@ -62,6 +63,7 @@ async function showTab(tabId) {
     if (tabId === 'account' && typeof window.loadShutdownConfig === 'function') window.loadShutdownConfig();
     if (tabId === 'profiles' && typeof window.loadProfiles === 'function') window.loadProfiles();
     if (tabId === 'nas' && typeof window.loadNAS === 'function') window.loadNAS();
+    if (tabId === 'devices' && typeof window.loadDevices === 'function') window.loadDevices();
     if (tabId === 'vouchers' && typeof window.loadVouchers === 'function') window.loadVouchers();
     if (tabId === 'users' && typeof window.loadUsers === 'function') window.loadUsers();
     if (tabId === 'audit-logs' && typeof window.loadAuditLogs === 'function') window.loadAuditLogs(1);

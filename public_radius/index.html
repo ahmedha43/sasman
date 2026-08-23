@@ -111,6 +111,12 @@
                 </button>
             </li>
             <li class="menu-item">
+                <button class="menu-link tab-btn" onclick="showTab('devices')">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <span>أجهزة الشبكة (Devices)</span>
+                </button>
+            </li>
+            <li class="menu-item">
                 <button class="menu-link tab-btn" onclick="showTab('streams')">
                     <i class="fa-solid fa-tower-broadcast"></i>
                     <span>البث المباشر (Streams)</span>
@@ -531,6 +537,112 @@
                                 <tbody id="nas-tbody">
                                     <tr>
                                         <td colspan="6" style="text-align:center;">لا توجد أجهزة NAS متصلة حالياً...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 4.5 TAB NETWORK DEVICES ================= -->
+                <div id="tab-devices" class="tab-content">
+                    <!-- KPI Summary Stats Cards -->
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:18px;">
+                        <div class="card" style="padding:14px; text-align:center; background:linear-gradient(135deg, rgba(66, 153, 225, 0.1), rgba(49, 130, 206, 0.05)); border:1px solid rgba(66, 153, 225, 0.3); border-radius:10px;">
+                            <div style="font-size:11px; color:var(--text-muted); font-weight:700;"><i class="fa-solid fa-server"></i> إجمالي الأجهزة</div>
+                            <div id="stat-dev-total" style="font-size:24px; font-weight:800; color:#4299e1; margin-top:4px;">0</div>
+                        </div>
+                        <div class="card" style="padding:14px; text-align:center; background:linear-gradient(135deg, rgba(72, 187, 120, 0.1), rgba(56, 161, 105, 0.05)); border:1px solid rgba(72, 187, 120, 0.3); border-radius:10px;">
+                            <div style="font-size:11px; color:var(--text-muted); font-weight:700;"><i class="fa-solid fa-circle-check"></i> متصلة وتعمل</div>
+                            <div id="stat-dev-online" style="font-size:24px; font-weight:800; color:#48bb78; margin-top:4px;">0</div>
+                        </div>
+                        <div class="card" style="padding:14px; text-align:center; background:linear-gradient(135deg, rgba(245, 101, 101, 0.1), rgba(229, 62, 62, 0.05)); border:1px solid rgba(245, 101, 101, 0.3); border-radius:10px;">
+                            <div style="font-size:11px; color:var(--text-muted); font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> غير متصلة</div>
+                            <div id="stat-dev-offline" style="font-size:24px; font-weight:800; color:#f56565; margin-top:4px;">0</div>
+                        </div>
+                        <div class="card" style="padding:14px; text-align:center; background:var(--bg-app); border:1px solid var(--border); border-radius:10px;">
+                            <div style="font-size:11px; color:var(--text-muted); font-weight:700;"><i class="fa-solid fa-diagram-project"></i> Switches</div>
+                            <div id="stat-dev-switches" style="font-size:24px; font-weight:800; color:var(--text-main); margin-top:4px;">0</div>
+                        </div>
+                        <div class="card" style="padding:14px; text-align:center; background:var(--bg-app); border:1px solid var(--border); border-radius:10px;">
+                            <div style="font-size:11px; color:var(--text-muted); font-weight:700;"><i class="fa-solid fa-arrows-left-right-to-line"></i> PtP Links</div>
+                            <div id="stat-dev-links" style="font-size:24px; font-weight:800; color:#b794f4; margin-top:4px;">0</div>
+                        </div>
+                        <div class="card" style="padding:14px; text-align:center; background:var(--bg-app); border:1px solid var(--border); border-radius:10px;">
+                            <div style="font-size:11px; color:var(--text-muted); font-weight:700;"><i class="fa-solid fa-tower-broadcast"></i> Sector APs</div>
+                            <div id="stat-dev-sectors" style="font-size:24px; font-weight:800; color:#81e6d9; margin-top:4px;">0</div>
+                        </div>
+                        <div class="card" style="padding:14px; text-align:center; background:var(--bg-app); border:1px solid var(--border); border-radius:10px;">
+                            <div style="font-size:11px; color:var(--text-muted); font-weight:700;"><i class="fa-solid fa-users"></i> عملاء اللاسلكي</div>
+                            <div id="stat-dev-clients" style="font-size:24px; font-weight:800; color:#ecc94b; margin-top:4px;">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Main Devices Table Card -->
+                    <div class="card">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; border-bottom:1px solid var(--border); padding-bottom:14px;">
+                            <div>
+                                <h3 style="margin:0; border:none; padding:0; font-size:18px;"><i class="fa-solid fa-network-wired"></i> أجهزة الشبكة والأبراج (Network Devices)</h3>
+                                <p style="margin:4px 0 0 0; font-size:12px; color:var(--text-muted);">إدارة ومراقبة السويتشات، روابط الأبراج اللاسلكية، وسكترات البث بمختلف الشركات المصنعة</p>
+                            </div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button class="btn btn-dark" style="width:auto; padding:8px 14px; font-size:12.5px;" onclick="loadDevices()" title="إعادة تحميل"><i class="fa-solid fa-rotate"></i> تحديث</button>
+                                <button class="btn btn-primary" style="width:auto; padding:8px 18px; font-size:13px; font-weight:700;" onclick="openAddDeviceModal()"><i class="fa-solid fa-plus"></i> إضافة جهاز جديد</button>
+                            </div>
+                        </div>
+
+                        <!-- Filters & Search Bar -->
+                        <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+                            <div style="flex:1; min-width:220px;">
+                                <input type="text" id="dev-search-input" placeholder="🔍 بحث بالاسم، IP، الموديل، أو الموقع..." oninput="handleDeviceSearch(this.value)" style="width:100%; padding:8px 12px; font-size:12.5px; border-radius:6px; border:1px solid var(--border); background:var(--bg-app); color:var(--text-main);">
+                            </div>
+                            <div style="min-width:140px;">
+                                <select id="dev-filter-type" onchange="filterDevicesByType(this.value)" style="width:100%; padding:8px 10px; font-size:12.5px; border-radius:6px; border:1px solid var(--border); background:var(--bg-app); color:var(--text-main);">
+                                    <option value="all">جميع الأنواع</option>
+                                    <option value="switch">Switches</option>
+                                    <option value="link">PtP Links</option>
+                                    <option value="sector">Sector APs</option>
+                                </select>
+                            </div>
+                            <div style="min-width:140px;">
+                                <select id="dev-filter-vendor" onchange="filterDevicesByVendor(this.value)" style="width:100%; padding:8px 10px; font-size:12.5px; border-radius:6px; border:1px solid var(--border); background:var(--bg-app); color:var(--text-main);">
+                                    <option value="all">جميع الشركات</option>
+                                    <option value="mikrotik">MikroTik</option>
+                                    <option value="ubiquiti">Ubiquiti</option>
+                                    <option value="huawei">Huawei</option>
+                                    <option value="cisco">Cisco</option>
+                                </select>
+                            </div>
+                            <div style="min-width:120px;">
+                                <select id="dev-filter-status" onchange="filterDevicesByStatus(this.value)" style="width:100%; padding:8px 10px; font-size:12.5px; border-radius:6px; border:1px solid var(--border); background:var(--bg-app); color:var(--text-main);">
+                                    <option value="all">جميع الحالات</option>
+                                    <option value="online">متصل (Online)</option>
+                                    <option value="offline">غير متصل (Offline)</option>
+                                    <option value="warning">تحذير (Warning)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Devices Table Container -->
+                        <div style="overflow-x:auto;">
+                            <table class="table" style="width:100%; font-size:13px;">
+                                <thead>
+                                    <tr>
+                                        <th>الجهاز والموقع</th>
+                                        <th>عنوان IP والمنفذ</th>
+                                        <th>النوع والشركة</th>
+                                        <th>الموديل والنظام</th>
+                                        <th>الحالة</th>
+                                        <th>المعالج (CPU)</th>
+                                        <th>التشغيل والمقاييس</th>
+                                        <th style="text-align:left;">الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devices-tbody">
+                                    <tr>
+                                        <td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted);">
+                                            <i class="fa-solid fa-spinner fa-spin"></i> جاري تحميل أجهزة الشبكة...
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1676,6 +1788,136 @@
                 <button id="nas-submit-btn" class="btn btn-primary" style="width:auto; padding:12px 30px;" onclick="createNAS()">إضافة الراوتر</button>
                 <button class="btn" style="width:auto; padding:12px 25px;" onclick="closeNASModal()">إلغاء</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 9.5 Network Device Add/Edit & Discovery Wizard Modal -->
+    <div id="device-modal" class="modal-backdrop">
+        <div class="modal-card" style="width: min(100%, 780px); max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 id="device-modal-title"><i class="fa-solid fa-network-wired" style="color:var(--primary);"></i> إضافة واكتشاف جهاز شبكة جديد</h3>
+                <button class="modal-close" onclick="closeDeviceModal()">×</button>
+            </div>
+            <p class="field-hint" style="margin-bottom:15px; line-height:1.6; color:var(--text-muted);">
+                أدخل عنوان IP وبيانات الدخول للراوتر أو السويتش أو رابط البرج. يمكنك الضغط على <strong>"🔍 اختبار واكتشاف"</strong> ليقوم النظام تلقائياً بقراءة الموديل، المنافذ، ونظام التشغيل وتحديد نوع الجهاز تلقائياً.
+            </p>
+            <form id="device-add-form" onsubmit="handleSaveDevice(event)">
+                <input type="hidden" id="dev-form-id">
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                    <div>
+                        <label>الشركة المصنعة (Vendor):</label>
+                        <select id="dev-form-vendor" required style="width:100%; padding:9px; border-radius:6px; border:1px solid var(--border); background:var(--bg-app); color:var(--text-main);">
+                            <option value="mikrotik">MikroTik</option>
+                            <option value="ubiquiti">Ubiquiti</option>
+                            <option value="huawei">Huawei</option>
+                            <option value="cisco">Cisco</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>نوع الجهاز (Device Type):</label>
+                        <select id="dev-form-type" required style="width:100%; padding:9px; border-radius:6px; border:1px solid var(--border); background:var(--bg-app); color:var(--text-main);">
+                            <option value="switch">Switch / محول شبكة</option>
+                            <option value="link">PtP Link / ربط لاسلكي</option>
+                            <option value="sector">Sector AP / سكتور بث</option>
+                            <option value="router">Router / راوتر</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>عنوان IP الخاص بالجهاز:</label>
+                        <input type="text" id="dev-form-ip" placeholder="مثال: 192.168.10.2 أو 10.0.0.5" required>
+                    </div>
+                    <div>
+                        <label>منفذ الـ API / Port:</label>
+                        <input type="number" id="dev-form-port" value="8728" placeholder="8728">
+                    </div>
+                    <div>
+                        <label>اسم المستخدم (Username):</label>
+                        <input type="text" id="dev-form-user" value="admin" placeholder="admin" required>
+                    </div>
+                    <div>
+                        <label>كلمة المرور (Password):</label>
+                        <input type="password" id="dev-form-pass" placeholder="اتركه فارغاً إذا لم تتغير">
+                    </div>
+                </div>
+
+                <!-- Discovery & Test Connection Actions -->
+                <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+                    <button type="button" id="dev-test-btn" class="btn btn-dark" style="width:auto; padding:8px 16px; font-size:12.5px;" onclick="testDeviceConnection()">
+                        <i class="fa-solid fa-plug"></i> اختبار الاتصال
+                    </button>
+                    <button type="button" id="dev-discover-btn" class="btn" style="width:auto; padding:8px 18px; font-size:12.5px; background:#2b6cb0; border-color:#2b6cb0; color:#fff;" onclick="discoverDeviceDetails()">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> 🔍 فحص واكتشاف الجهاز تلقائياً
+                    </button>
+                </div>
+
+                <!-- Discovery Preview Box (Auto-Populated) -->
+                <div id="dev-discovery-preview" style="display:none;"></div>
+
+                <!-- Secondary Parameters -->
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:16px;">
+                    <div>
+                        <label>الاسم التعريفي للجهاز:</label>
+                        <input type="text" id="dev-form-name" placeholder="مثال: Tower-Alpha-CRS326" required>
+                    </div>
+                    <div>
+                        <label>دورية الفحص والمراقبة (ثواني):</label>
+                        <input type="number" id="dev-form-interval" value="30" min="5" max="3600">
+                    </div>
+                    <div>
+                        <label>الموقع / البرج / الكابينة:</label>
+                        <input type="text" id="dev-form-location" placeholder="مثال: برج الجامعة - كابينة 1">
+                    </div>
+                    <div>
+                        <label>ملاحظات إضافية:</label>
+                        <input type="text" id="dev-form-notes" placeholder="اختياري...">
+                    </div>
+                    <div style="grid-column: 1 / -1; margin-top:4px;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:700;">
+                            <input type="checkbox" id="dev-form-monitored" checked>
+                            📡 تفعيل المراقبة الدورية وكشف الانقطاع التلقائي (Active Monitoring)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="action-row" style="margin-top:22px; border-top:1px solid var(--border); padding-top:14px;">
+                    <button type="submit" id="dev-submit-btn" class="btn btn-primary" style="width:auto; padding:10px 28px; font-weight:700;">حفظ الجهاز</button>
+                    <button type="button" class="btn" style="width:auto; padding:10px 20px;" onclick="closeDeviceModal()">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 9.6 Network Device 360° Comprehensive Details Modal -->
+    <div id="device-details-modal" class="modal-backdrop">
+        <div class="modal-card" style="width: min(100%, 960px); max-height: 92vh; overflow-y: auto; padding:24px;">
+            <div class="modal-header" style="border-bottom:1px solid var(--border); padding-bottom:14px; margin-bottom:16px;">
+                <div>
+                    <h3 id="dev-modal-header-title" style="margin:0; font-size:19px; display:flex; align-items:center; gap:8px;">اسم الجهاز</h3>
+                    <div id="dev-modal-header-meta" style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); margin-top:4px;"></div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button class="btn btn-dark btn-sm" style="padding:6px 12px; font-size:12px;" onclick="if(activeDetailDevice) triggerDevicePoll(activeDetailDevice.id)">
+                        <i class="fa-solid fa-rotate"></i> فحص فوري
+                    </button>
+                    <button class="modal-close" onclick="closeDeviceDetailModal()">×</button>
+                </div>
+            </div>
+
+            <!-- Sub Navigation Tabs inside Device 360 View -->
+            <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:8px; overflow-x:auto;">
+                <button id="dev-tab-btn-overview" class="btn btn-sm dev-detail-tab-btn active" style="padding:6px 14px; font-size:12.5px;" onclick="switchDetailTab('overview')"><i class="fa-solid fa-gauge"></i> عام وموارد</button>
+                <button id="dev-tab-btn-ports" class="btn btn-sm dev-detail-tab-btn" style="padding:6px 14px; font-size:12.5px;" onclick="switchDetailTab('ports')"><i class="fa-solid fa-ethernet"></i> المنافذ والـ VLANs</button>
+                <button id="dev-tab-btn-wireless" class="btn btn-sm dev-detail-tab-btn" style="padding:6px 14px; font-size:12.5px;" onclick="switchDetailTab('wireless')"><i class="fa-solid fa-satellite-dish"></i> الراديو اللاسلكي</button>
+                <button id="dev-tab-btn-clients" class="btn btn-sm dev-detail-tab-btn" style="padding:6px 14px; font-size:12.5px;" onclick="switchDetailTab('clients')"><i class="fa-solid fa-users"></i> المشتركون المتصلون</button>
+                <button id="dev-tab-btn-events" class="btn btn-sm dev-detail-tab-btn" style="padding:6px 14px; font-size:12.5px;" onclick="switchDetailTab('events')"><i class="fa-solid fa-clock-rotate-left"></i> سجل الأحداث</button>
+            </div>
+
+            <!-- Tab Panes -->
+            <div id="dev-tab-pane-overview" class="dev-detail-tab-pane active"></div>
+            <div id="dev-tab-pane-ports" class="dev-detail-tab-pane" style="display:none;"></div>
+            <div id="dev-tab-pane-wireless" class="dev-detail-tab-pane" style="display:none;"></div>
+            <div id="dev-tab-pane-clients" class="dev-detail-tab-pane" style="display:none;"></div>
+            <div id="dev-tab-pane-events" class="dev-detail-tab-pane" style="display:none;"></div>
         </div>
     </div>
 
