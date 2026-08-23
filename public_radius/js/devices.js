@@ -342,6 +342,8 @@ function openAddDeviceModal() {
     document.getElementById('dev-form-id').value = '';
     document.getElementById('dev-form-name').value = '';
     document.getElementById('dev-form-ip').value = '';
+    const vSelect = document.getElementById('dev-form-vendor');
+    if (vSelect) vSelect.value = 'mikrotik';
     document.getElementById('dev-form-port').value = '8728';
     document.getElementById('dev-form-user').value = 'admin';
     document.getElementById('dev-form-pass').value = '';

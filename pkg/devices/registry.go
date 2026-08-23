@@ -1,4 +1,4 @@
-﻿package devices
+package devices
 
 import (
 	"fmt"
@@ -29,4 +29,15 @@ func GetDriver(vendorSlug string) (Driver, error) {
 		return nil, fmt.Errorf("no driver registered for vendor '%s'", vendorSlug)
 	}
 	return driver, nil
+}
+
+// ListRegisteredVendors returns a list of vendor slugs that have active registered drivers
+func ListRegisteredVendors() []string {
+	driversMu.RLock()
+	defer driversMu.RUnlock()
+	var list []string
+	for slug := range drivers {
+		list = append(list, slug)
+	}
+	return list
 }

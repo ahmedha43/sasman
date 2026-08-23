@@ -55,7 +55,20 @@ func handleListVendors(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(vendors)
+
+	activeVendors := make(map[string]bool)
+	for _, slug := range ListRegisteredVendors() {
+		activeVendors[slug] = true
+	}
+
+	var supported []Vendor
+	for _, v := range vendors {
+		if activeVendors[v.Slug] {
+			supported = append(supported, v)
+		}
+	}
+
+	return c.JSON(supported)
 }
 
 func handleListTypes(c *fiber.Ctx) error {
