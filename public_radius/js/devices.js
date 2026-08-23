@@ -547,25 +547,37 @@ async function deleteDevice(id, name) {
 }
 
 async function triggerDevicePoll(id) {
+    const btn = document.getElementById('dev-modal-poll-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الفحص...';
+    }
+
     try {
         const res = await apiFetch(`/radius/api/devices/${id}/poll`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
             loadDevices();
             if (activeDetailDevice && activeDetailDevice.id === id) {
-                openDeviceDetailModal(id);
+                await openDeviceDetailModal(id, true);
             }
         } else {
             alert('فشل فحص الجهاز: ' + (data.error || 'الجهاز غير قابل للوصول'));
         }
     } catch (e) {
         console.error(e);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-rotate"></i> فحص فوري';
+        }
     }
 }
 
 // ─── 360° DEVICE DETAILS MODAL & TABS ────────────────────────────────────────
 
-async function openDeviceDetailModal(id) {
+async function openDeviceDetailModal(id, keepTab = false) {
+    const prevTab = currentDetailTab;
     try {
         const res = await apiFetch(`/radius/api/devices/${id}`);
         if (!res.ok) throw new Error('فشل جلب تفاصيل الجهاز');
@@ -573,6 +585,9 @@ async function openDeviceDetailModal(id) {
         activeDetailDevice = detail.device;
 
         renderDevice360Modal(detail);
+        if (keepTab && prevTab) {
+            switchDetailTab(prevTab);
+        }
         document.getElementById('device-details-modal').classList.add('active');
     } catch (e) {
         alert('تعذر فتح تفاصيل الجهاز: ' + e.message);
