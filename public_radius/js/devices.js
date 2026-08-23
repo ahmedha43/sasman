@@ -3,6 +3,16 @@
  * Manages Switches, PtP Links, and Sector APs with Vendor-Agnostic Architecture
  */
 
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function formatBytes(bytes, decimals = 1) {
     const b = parseInt(bytes, 10);
     if (!b || isNaN(b) || b <= 0) return '0 B';
@@ -35,6 +45,10 @@ function formatDuration(seconds) {
     return parts.join(' ');
 }
 
+window.escapeHtml = escapeHtml;
+window.formatBytes = formatBytes;
+window.formatDuration = formatDuration;
+
 let allDevicesCache = [];
 let allVendorsCache = [];
 let allTypesCache = [];
@@ -44,7 +58,6 @@ let currentStatusFilter = 'all';
 let currentSearchQuery = '';
 let activeDetailDevice = null;
 let currentDetailTab = 'overview';
-let activePollInterval = null;
 
 async function loadDevices() {
     try {
@@ -100,8 +113,8 @@ async function fetchDevicesSummary() {
 }
 
 async function fetchDevicesList() {
-    const tableBody = document.getElementById('devices-tbody');
-    if (!tableBody) return;
+    const tbody = document.getElementById('devices-tbody');
+    if (!tbody) return;
 
     try {
         let url = '/radius/api/devices?';
@@ -116,8 +129,8 @@ async function fetchDevicesList() {
         renderDevicesList(allDevicesCache);
     } catch (e) {
         console.error(e);
-        if (tableBody) {
-            tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger); padding:24px;">❌ حدث خطأ في تحميل الأجهزة</td></tr>`;
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger); padding:24px;">❌ حدث خطأ في تحميل الأجهزة</td></tr>`;
         }
     }
 }
@@ -144,7 +157,7 @@ function renderDevicesList(devices) {
                 <td colspan="8" style="text-align:center; padding:40px 20px; color:var(--text-muted);">
                     <div style="font-size:38px; margin-bottom:12px;">📡</div>
                     <div style="font-size:16px; font-weight:700; color:var(--text-main);">لا توجد أجهزة مطابقة</div>
-                    <div style="font-size:13px; margin-top:4px;">اضغط على زر "إضافة جهاز جديد" للبدء في مراقبة السويتشات وروابط الأبراج</div>
+                    <div style="font-size:13px; margin-top:4px;">اضغط على زر "إضافة جهاز جديد" للبدء في مراقبة السويتشات وروابط الأبراج والسكتورات</div>
                 </td>
             </tr>
         `;
@@ -160,10 +173,10 @@ function renderDevicesList(devices) {
         if (d.type_slug === 'switch') {
             extraInfo = `<span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-ethernet"></i> ${d.interfaces_count || 0} منفذ</span>`;
         } else if (d.type_slug === 'sector') {
-            extraInfo = `<span style="font-size:11.5px; color:#48bb78; font-weight:600;"><i class="fa-solid fa-users"></i> ${d.clients_count || 0} مشترك</span>`;
+            extraInfo = `<span style="font-size:11.5px; color:#48bb78; font-weight:700;"><i class="fa-solid fa-users"></i> ${d.clients_count || 0} مشترك متصل</span>`;
         } else if (d.type_slug === 'link') {
             const ccq = d.wireless_info ? `${d.wireless_info.ccq}%` : '—';
-            extraInfo = `<span style="font-size:11.5px; color:#4299e1; font-weight:600;"><i class="fa-solid fa-tower-cell"></i> CCQ: ${ccq}</span>`;
+            extraInfo = `<span style="font-size:11.5px; color:#4299e1; font-weight:700;"><i class="fa-solid fa-tower-cell"></i> CCQ: ${ccq}</span>`;
         }
 
         const cpuBadge = d.status === 'online' ? `
@@ -212,7 +225,7 @@ function renderDevicesList(devices) {
                 </td>
                 <td style="text-align:left;">
                     <div style="display:flex; gap:6px; justify-content:flex-end;">
-                        <button class="btn btn-sm" style="background:#2b6cb0; border-color:#2b6cb0; padding:5px 10px; font-size:11.5px;" onclick="openDeviceDetailModal(${d.id})" title="عرض التفاصيل 360°">
+                        <button class="btn btn-sm" style="background:#2b6cb0; border-color:#2b6cb0; padding:5px 10px; font-size:11.5px; color:#fff;" onclick="openDeviceDetailModal(${d.id})" title="عرض التفاصيل 360°">
                             <i class="fa-solid fa-chart-pie"></i> تفاصيل
                         </button>
                         <button class="btn btn-dark btn-sm" style="padding:5px 8px;" onclick="triggerDevicePoll(${d.id})" title="فحص فوري">
@@ -321,7 +334,6 @@ function openAddDeviceModal() {
     document.getElementById('dev-form-notes').value = '';
     document.getElementById('dev-form-monitored').checked = true;
     
-    // Reset discovery preview box
     const previewBox = document.getElementById('dev-discovery-preview');
     if (previewBox) {
         previewBox.style.display = 'none';
@@ -388,7 +400,7 @@ async function discoverDeviceDetails() {
     const btn = document.getElementById('dev-discover-btn');
     const origHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-radar fa-spin"></i> جاري الفحص والاكتشاف...';
+    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles fa-spin"></i> جاري الفحص والاكتشاف...';
 
     try {
         const res = await apiFetch('/radius/api/devices/discover', {
@@ -399,7 +411,6 @@ async function discoverDeviceDetails() {
         if (data.success && data.discovery) {
             const disc = data.discovery;
             
-            // Auto fill fields
             if (!document.getElementById('dev-form-name').value && disc.device_name) {
                 document.getElementById('dev-form-name').value = disc.device_name;
             }
@@ -407,7 +418,6 @@ async function discoverDeviceDetails() {
                 document.getElementById('dev-form-type').value = disc.suggested_type;
             }
 
-            // Show discovery box
             const previewBox = document.getElementById('dev-discovery-preview');
             if (previewBox) {
                 previewBox.style.display = 'block';
@@ -464,13 +474,11 @@ async function handleSaveDevice(e) {
     try {
         let res;
         if (id) {
-            // Update
             res = await apiFetch(`/radius/api/devices/${id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ name, ip, port, username, password, auth_type: authType, poll_interval_sec: pollIntervalSec, is_monitored: isMonitored, location, notes })
             });
         } else {
-            // Create
             res = await apiFetch('/radius/api/devices', {
                 method: 'POST',
                 body: JSON.stringify({ vendor_slug: vendorSlug, type_slug: typeSlug, name, ip, port, username, password, auth_type: authType, poll_interval_sec: pollIntervalSec, is_monitored: isMonitored, location, notes })
@@ -509,7 +517,6 @@ async function openEditDeviceModal(id) {
         document.getElementById('dev-form-notes').value = d.notes || '';
         document.getElementById('dev-form-monitored').checked = d.is_monitored;
 
-        // Leave password empty unless user wants to change it
         document.getElementById('dev-form-pass').value = '';
 
         const previewBox = document.getElementById('dev-discovery-preview');
@@ -556,7 +563,7 @@ async function triggerDevicePoll(id) {
     }
 }
 
-// ─── 360° DEVICE DETAILS MODAL ───────────────────────────────────────────────
+// ─── 360° DEVICE DETAILS MODAL & TABS ────────────────────────────────────────
 
 async function openDeviceDetailModal(id) {
     try {
@@ -579,13 +586,34 @@ function closeDeviceDetailModal() {
 
 function switchDetailTab(tabName) {
     currentDetailTab = tabName;
-    document.querySelectorAll('.dev-detail-tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.dev-detail-tab-pane').forEach(p => p.classList.remove('active'));
 
+    // Reset all tab buttons
+    document.querySelectorAll('.dev-detail-tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'transparent';
+        b.style.color = 'var(--text-main)';
+        b.style.borderColor = 'var(--border)';
+    });
+
+    // Hide all tab panes
+    document.querySelectorAll('.dev-detail-tab-pane').forEach(p => {
+        p.classList.remove('active');
+        p.style.display = 'none';
+    });
+
+    // Activate the clicked button
     const btn = document.getElementById(`dev-tab-btn-${tabName}`);
     const pane = document.getElementById(`dev-tab-pane-${tabName}`);
-    if (btn) btn.classList.add('active');
-    if (pane) pane.classList.add('active');
+    if (btn) {
+        btn.classList.add('active');
+        btn.style.background = 'var(--primary)';
+        btn.style.borderColor = 'var(--primary)';
+        btn.style.color = '#fff';
+    }
+    if (pane) {
+        pane.classList.add('active');
+        pane.style.display = 'block';
+    }
 }
 
 function renderDevice360Modal(detail) {
@@ -599,7 +627,7 @@ function renderDevice360Modal(detail) {
     document.getElementById('dev-modal-header-meta').innerHTML = `
         <span><i class="fa-solid fa-network-wired"></i> ${escapeHtml(d.ip)}</span>
         <span>•</span>
-        <span>${escapeHtml(d.vendor_name)} ${escapeHtml(d.model_name || d.board_name || '')}</span>
+        <span>${escapeHtml(d.vendor_name || 'MikroTik')} ${escapeHtml(d.model_name || d.board_name || '')}</span>
         <span>•</span>
         <span>${getStatusBadge(d.status)}</span>
     `;
@@ -614,22 +642,62 @@ function renderDevice360Modal(detail) {
     const tabBtnPorts = document.getElementById('dev-tab-btn-ports');
     const tabBtnWireless = document.getElementById('dev-tab-btn-wireless');
     const tabBtnClients = document.getElementById('dev-tab-btn-clients');
+    const tabBtnEvents = document.getElementById('dev-tab-btn-events');
+
+    if (tabBtnEvents) {
+        tabBtnEvents.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> سجل الأحداث (${events.length})`;
+    }
 
     if (d.type_slug === 'switch') {
-        if (tabBtnPorts) tabBtnPorts.style.display = 'inline-block';
+        if (tabBtnPorts) {
+            tabBtnPorts.style.display = 'inline-block';
+            tabBtnPorts.innerHTML = `<i class="fa-solid fa-ethernet"></i> المنافذ (${ifaces.length})`;
+        }
         if (tabBtnWireless) tabBtnWireless.style.display = 'none';
         if (tabBtnClients) tabBtnClients.style.display = 'none';
         renderPortsTab(ifaces);
     } else if (d.type_slug === 'link') {
-        if (tabBtnPorts) tabBtnPorts.style.display = 'inline-block';
-        if (tabBtnWireless) tabBtnWireless.style.display = 'inline-block';
+        if (tabBtnPorts) {
+            tabBtnPorts.style.display = 'inline-block';
+            tabBtnPorts.innerHTML = `<i class="fa-solid fa-ethernet"></i> المنافذ (${ifaces.length})`;
+        }
+        if (tabBtnWireless) {
+            tabBtnWireless.style.display = 'inline-block';
+            tabBtnWireless.innerHTML = `<i class="fa-solid fa-arrows-left-right-to-line"></i> الرابط اللاسلكي`;
+        }
         if (tabBtnClients) tabBtnClients.style.display = 'none';
         renderWirelessLinkTab(wireless, ifaces);
         renderPortsTab(ifaces);
     } else if (d.type_slug === 'sector') {
-        if (tabBtnPorts) tabBtnPorts.style.display = 'none';
-        if (tabBtnWireless) tabBtnWireless.style.display = 'inline-block';
-        if (tabBtnClients) tabBtnClients.style.display = 'inline-block';
+        if (tabBtnPorts) {
+            tabBtnPorts.style.display = 'inline-block';
+            tabBtnPorts.innerHTML = `<i class="fa-solid fa-ethernet"></i> المنافذ (${ifaces.length})`;
+        }
+        if (tabBtnWireless) {
+            tabBtnWireless.style.display = 'inline-block';
+            tabBtnWireless.innerHTML = `<i class="fa-solid fa-tower-broadcast"></i> الراديو اللاسلكي`;
+        }
+        if (tabBtnClients) {
+            tabBtnClients.style.display = 'inline-block';
+            tabBtnClients.innerHTML = `<i class="fa-solid fa-users"></i> المشتركون المتصلون (${clients.length})`;
+        }
+        renderWirelessSectorTab(wireless);
+        renderClientsTab(clients);
+        renderPortsTab(ifaces);
+    } else {
+        if (tabBtnPorts) {
+            tabBtnPorts.style.display = 'inline-block';
+            tabBtnPorts.innerHTML = `<i class="fa-solid fa-ethernet"></i> المنافذ (${ifaces.length})`;
+        }
+        if (tabBtnWireless) {
+            tabBtnWireless.style.display = 'inline-block';
+            tabBtnWireless.innerHTML = `<i class="fa-solid fa-satellite-dish"></i> الراديو`;
+        }
+        if (tabBtnClients) {
+            tabBtnClients.style.display = 'inline-block';
+            tabBtnClients.innerHTML = `<i class="fa-solid fa-users"></i> المشتركون (${clients.length})`;
+        }
+        renderPortsTab(ifaces);
         renderWirelessSectorTab(wireless);
         renderClientsTab(clients);
     }
@@ -637,7 +705,7 @@ function renderDevice360Modal(detail) {
     // Events Tab
     renderEventsTab(events);
 
-    // Switch to default overview
+    // Default to Overview tab
     switchDetailTab('overview');
 }
 
@@ -701,7 +769,7 @@ function buildOverviewHTML(d, ifaces, wireless, clients) {
             <div style="background:linear-gradient(135deg, rgba(40,94,97,0.2), rgba(72,187,120,0.1)); border:1px solid rgba(40,94,97,0.4); border-radius:10px; padding:16px; margin-bottom:16px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
                     <h4 style="margin:0; font-size:15px; color:#81e6d9;"><i class="fa-solid fa-tower-broadcast"></i> راديو السكتور والمشتركين المتصلين</h4>
-                    <span class="badge" style="background:#234e52; color:#b2f5ea;"><i class="fa-solid fa-users"></i> ${clients.length} مشترك متصل</span>
+                    <span class="badge" style="background:#234e52; color:#b2f5ea; cursor:pointer;" onclick="switchDetailTab('clients')"><i class="fa-solid fa-users"></i> ${clients.length} مشترك متصل (عرض التفاصيل)</span>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; text-align:center;">
                     <div style="background:rgba(0,0,0,0.25); padding:10px; border-radius:8px;">
@@ -898,7 +966,7 @@ function renderWirelessSectorTab(wireless) {
                 <div><strong>عرض القناة:</strong> ${wireless.channel_width}</div>
                 <div><strong>قوة البث (TX Power):</strong> ${wireless.tx_power} dBm</div>
                 <div><strong>الضوضاء (Noise Floor):</strong> ${wireless.noise_floor} dBm</div>
-                <div><strong>المشتركون المتصلون:</strong> <span class="badge badge-success">${wireless.connected_clients || 0} مشترك</span></div>
+                <div><strong>المشتركون المتصلون:</strong> <span class="badge badge-success" style="cursor:pointer;" onclick="switchDetailTab('clients')">${wireless.connected_clients || 0} مشترك متصل 🔍</span></div>
             </div>
         </div>
     `;
@@ -909,19 +977,37 @@ function renderClientsTab(clients) {
     if (!pane) return;
 
     if (!clients || clients.length === 0) {
-        pane.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">لا يوجد مشتركون متصلون بالسكتور حالياً</div>';
+        pane.innerHTML = `
+            <div style="text-align:center; padding:40px 20px; color:var(--text-muted); background:var(--bg-app); border:1px solid var(--border); border-radius:10px;">
+                <div style="font-size:36px; margin-bottom:10px;">📡</div>
+                <div style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:6px;">لا توجد تفاصيل مشتركون متصلون مسجلة حالياً</div>
+                <div style="font-size:12.5px; color:var(--text-muted); margin-bottom:14px;">اضغط على زر "فحص فوري" لجلب أحدث جدول المشتركين المتصلين من السكتور</div>
+                <button class="btn btn-primary btn-sm" onclick="if(activeDetailDevice) triggerDevicePoll(activeDetailDevice.id)">
+                    <i class="fa-solid fa-rotate"></i> تحديث وفحص فوري الآن
+                </button>
+            </div>
+        `;
         return;
     }
 
     pane.innerHTML = `
+        <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:13.5px; font-weight:700; color:var(--text-main);">
+                <i class="fa-solid fa-users" style="color:#48bb78;"></i> قائمة الأجهزة والمشتركين المتصلين بالسكتور (${clients.length})
+            </div>
+            <button class="btn btn-dark btn-sm" style="font-size:11.5px; padding:4px 10px;" onclick="if(activeDetailDevice) triggerDevicePoll(activeDetailDevice.id)">
+                <i class="fa-solid fa-rotate"></i> تحديث المشتركين
+            </button>
+        </div>
         <div style="overflow-x:auto;">
             <table class="table" style="width:100%; font-size:12.5px;">
                 <thead>
                     <tr>
+                        <th>اسم العميل / الجهاز</th>
                         <th>عنوان الماك (MAC)</th>
                         <th>عنوان IP</th>
-                        <th>اسم الجهاز / العميل</th>
                         <th>الإشارة (Signal)</th>
+                        <th>SNR</th>
                         <th>CCQ</th>
                         <th>السرعات (TX / RX)</th>
                         <th>مدة الاتصال</th>
@@ -930,20 +1016,41 @@ function renderClientsTab(clients) {
                 </thead>
                 <tbody>
                     ${clients.map(c => {
-                        const sigColor = c.signal > -65 ? '#48bb78' : (c.signal > -75 ? '#ecc94b' : '#f56565');
+                        let sigColor = '#48bb78';
+                        let sigText = 'ممتاز';
+                        if (c.signal <= -75) {
+                            sigColor = '#f56565';
+                            sigText = 'ضعيف';
+                        } else if (c.signal <= -68) {
+                            sigColor = '#ecc94b';
+                            sigText = 'جيد';
+                        }
+
+                        let ccqColor = '#48bb78';
+                        if (c.ccq < 60 && c.ccq > 0) ccqColor = '#f56565';
+                        else if (c.ccq < 80 && c.ccq > 0) ccqColor = '#ecc94b';
+
                         return `
                             <tr>
-                                <td><span style="font-family:monospace; font-weight:700;">${escapeHtml(c.mac_address)}</span></td>
-                                <td><span style="font-family:monospace; color:var(--primary);">${escapeHtml(c.ip_address || '—')}</span></td>
-                                <td><strong>${escapeHtml(c.hostname || 'Station Client')}</strong></td>
-                                <td><span class="badge" style="background:rgba(0,0,0,0.3); color:${sigColor}; font-family:monospace; font-weight:700;">${c.signal} dBm</span></td>
-                                <td><span style="font-family:monospace; font-weight:700; color:#4299e1;">${c.ccq}%</span></td>
-                                <td style="font-family:monospace; font-size:11.5px;">
+                                <td>
+                                    <div style="font-weight:700; color:var(--text-main); font-size:13px;">${escapeHtml(c.hostname || 'Station Client')}</div>
+                                    <div style="font-size:10.5px; color:var(--text-muted);">${c.status === 'connected' ? '🟢 متصل' : '🔴 غير متصل'}</div>
+                                </td>
+                                <td><span style="font-family:monospace; font-weight:700; color:var(--text-main);">${escapeHtml(c.mac_address)}</span></td>
+                                <td><span style="font-family:monospace; color:var(--primary); font-weight:600;">${escapeHtml(c.ip_address || '—')}</span></td>
+                                <td>
+                                    <span class="badge" style="background:rgba(0,0,0,0.35); color:${sigColor}; font-family:monospace; font-weight:800; font-size:12px;">
+                                        ${c.signal} dBm <span style="font-size:10px; font-weight:normal;">(${sigText})</span>
+                                    </span>
+                                </td>
+                                <td><span style="font-family:monospace; font-weight:700; color:#81e6d9;">${c.snr ? c.snr + ' dB' : '—'}</span></td>
+                                <td><span style="font-family:monospace; font-weight:800; color:${ccqColor};">${c.ccq ? c.ccq + '%' : '—'}</span></td>
+                                <td style="font-family:monospace; font-size:11px;">
                                     ⬆️ ${c.tx_rate || '—'}<br>
                                     ⬇️ ${c.rx_rate || '—'}
                                 </td>
                                 <td>${formatDuration(c.uptime_seconds)}</td>
-                                <td style="font-family:monospace; font-size:11.5px;">
+                                <td style="font-family:monospace; font-size:11px;">
                                     ⬇️ ${formatBytes(c.rx_bytes)}<br>
                                     ⬆️ ${formatBytes(c.tx_bytes)}
                                 </td>

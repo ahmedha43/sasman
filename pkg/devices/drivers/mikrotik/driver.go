@@ -1,4 +1,4 @@
-﻿package mikrotik
+package mikrotik
 
 import (
 	"context"
@@ -485,15 +485,42 @@ func (d *Driver) PollLink(ctx context.Context, target devices.TargetConfig) (*de
 	}
 
 	// 3. Wireless Registration Table (Link Peer Status)
-	if reply, err := client.Run("/interface/wireless/registration-table/print", "detail"); err == nil && len(reply.Re) > 0 {
-		m := reply.Re[0].Map
-		sig, _ := strconv.Atoi(m["signal-strength"])
-		ccq, _ := strconv.Atoi(strings.TrimSuffix(m["overall-tx-ccq"], "%"))
+	var linkRegRows []map[string]string
+	if reply, err := client.Run("/interface/wireless/registration-table/print"); err == nil && len(reply.Re) > 0 {
+		for _, re := range reply.Re {
+			linkRegRows = append(linkRegRows, re.Map)
+		}
+	}
+	if len(linkRegRows) == 0 {
+		if reply, err := client.Run("/interface/wifi/registration-table/print"); err == nil && len(reply.Re) > 0 {
+			for _, re := range reply.Re {
+				linkRegRows = append(linkRegRows, re.Map)
+			}
+		}
+	}
+	if len(linkRegRows) == 0 {
+		if reply, err := client.Run("/interface/wifiwave2/registration-table/print"); err == nil && len(reply.Re) > 0 {
+			for _, re := range reply.Re {
+				linkRegRows = append(linkRegRows, re.Map)
+			}
+		}
+	}
+
+	if len(linkRegRows) > 0 {
+		m := linkRegRows[0]
+		sig := cleanSignal(m["signal-strength"])
+		if sig == 0 {
+			sig = cleanSignal(m["signal-strength-ch0"])
+		}
+		if sig == 0 {
+			sig = cleanSignal(m["signal"])
+		}
+		ccq := cleanInt(m["overall-tx-ccq"])
 		if ccq == 0 {
-			ccq, _ = strconv.Atoi(strings.TrimSuffix(m["tx-ccq"], "%"))
+			ccq = cleanInt(m["tx-ccq"])
 		}
 		dist, _ := strconv.ParseFloat(strings.TrimSuffix(m["distance"], "km"), 64)
-		snr, _ := strconv.Atoi(m["signal-to-noise"])
+		snr := cleanInt(m["signal-to-noise"])
 		if snr == 0 && sig != 0 && data.Wireless.NoiseFloor != 0 {
 			snr = sig - data.Wireless.NoiseFloor
 		}
@@ -509,7 +536,7 @@ func (d *Driver) PollLink(ctx context.Context, target devices.TargetConfig) (*de
 		if data.Wireless.RemoteDeviceInfo == "" {
 			data.Wireless.RemoteDeviceInfo = m["routeros-version"]
 		}
-		data.Wireless.ConnectedClients = len(reply.Re)
+		data.Wireless.ConnectedClients = len(linkRegRows)
 	}
 
 	// 4. Ethernet Interfaces
@@ -613,62 +640,187 @@ func (d *Driver) PollSector(ctx context.Context, target devices.TargetConfig) (*
 	}
 
 	// 4. Connected Clients
-	if reply, err := client.Run("/interface/wireless/registration-table/print", "detail"); err == nil {
-		data.Wireless.ConnectedClients = len(reply.Re)
+	var regRows []map[string]string
+
+	// Try standard wireless registration table
+	if reply, err := client.Run("/interface/wireless/registration-table/print"); err == nil && len(reply.Re) > 0 {
 		for _, re := range reply.Re {
-			m := re.Map
-			mac := strings.ToLower(m["mac-address"])
-			sig, _ := strconv.Atoi(m["signal-strength"])
-			noise, _ := strconv.Atoi(m["noise-floor"])
-			if noise == 0 {
-				noise = data.Wireless.NoiseFloor
-			}
-			snr, _ := strconv.Atoi(m["signal-to-noise"])
-			if snr == 0 && sig != 0 && noise != 0 {
-				snr = sig - noise
-			}
-			ccq, _ := strconv.Atoi(strings.TrimSuffix(m["overall-tx-ccq"], "%"))
-			if ccq == 0 {
-				ccq, _ = strconv.Atoi(strings.TrimSuffix(m["tx-ccq"], "%"))
-			}
-
-			rxBytes, _ := strconv.ParseInt(m["bytes"], 10, 64)
-			txBytes, _ := strconv.ParseInt(m["tx-bytes"], 10, 64)
-			if rxBytes == 0 {
-				// Sometimes formatted as "rx,tx"
-				parts := strings.Split(m["bytes"], ",")
-				if len(parts) == 2 {
-					rxBytes, _ = strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
-					txBytes, _ = strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
-				}
-			}
-
-			clientItem := devices.DeviceWirelessClient{
-				MACAddress:    mac,
-				IPAddress:     ipMap[mac],
-				Hostname:      m["radio-name"],
-				Signal:        sig,
-				Noise:         noise,
-				SNR:           snr,
-				TXRate:        m["tx-rate"],
-				RXRate:        m["rx-rate"],
-				CCQ:           ccq,
-				UptimeSeconds: parseUptime(m["uptime"]),
-				RXBytes:       rxBytes,
-				TXBytes:       txBytes,
-				Status:        "connected",
-				LastSeen:      now,
-			}
-
-			if clientItem.Hostname == "" {
-				clientItem.Hostname = hostMap[mac]
-			}
-
-			data.Clients = append(data.Clients, clientItem)
+			regRows = append(regRows, re.Map)
 		}
 	}
 
+	// If empty, try RouterOS v7 wifi
+	if len(regRows) == 0 {
+		if reply, err := client.Run("/interface/wifi/registration-table/print"); err == nil && len(reply.Re) > 0 {
+			for _, re := range reply.Re {
+				regRows = append(regRows, re.Map)
+			}
+		}
+	}
+
+	// If empty, try wifiwave2
+	if len(regRows) == 0 {
+		if reply, err := client.Run("/interface/wifiwave2/registration-table/print"); err == nil && len(reply.Re) > 0 {
+			for _, re := range reply.Re {
+				regRows = append(regRows, re.Map)
+			}
+		}
+	}
+
+	// If empty, try CAPsMAN
+	if len(regRows) == 0 {
+		if reply, err := client.Run("/caps-man/registration-table/print"); err == nil && len(reply.Re) > 0 {
+			for _, re := range reply.Re {
+				regRows = append(regRows, re.Map)
+			}
+		}
+	}
+
+	data.Wireless.ConnectedClients = len(regRows)
+	for _, m := range regRows {
+		mac := strings.ToLower(m["mac-address"])
+		sig := cleanSignal(m["signal-strength"])
+		if sig == 0 {
+			sig = cleanSignal(m["signal-strength-ch0"])
+		}
+		if sig == 0 {
+			sig = cleanSignal(m["signal"])
+		}
+		noise := cleanSignal(m["noise-floor"])
+		if noise == 0 {
+			noise = data.Wireless.NoiseFloor
+		}
+		snr := cleanInt(m["signal-to-noise"])
+		if snr == 0 && sig != 0 && noise != 0 {
+			snr = sig - noise
+		}
+		ccq := cleanInt(m["overall-tx-ccq"])
+		if ccq == 0 {
+			ccq = cleanInt(m["tx-ccq"])
+		}
+		if ccq == 0 {
+			ccq = cleanInt(m["ccq"])
+		}
+
+		rxBytes, txBytes := cleanBytes(m["bytes"])
+		if rxBytes == 0 && m["rx-bytes"] != "" {
+			rxBytes, _ = strconv.ParseInt(m["rx-bytes"], 10, 64)
+			txBytes, _ = strconv.ParseInt(m["tx-bytes"], 10, 64)
+		}
+		if rxBytes == 0 && m["bytes-received"] != "" {
+			rxBytes, _ = strconv.ParseInt(m["bytes-received"], 10, 64)
+			txBytes, _ = strconv.ParseInt(m["bytes-sent"], 10, 64)
+		}
+
+		txRate := m["tx-rate"]
+		rxRate := m["rx-rate"]
+		if txRate == "" {
+			txRate = m["rate"]
+		}
+
+		hostname := m["radio-name"]
+		if hostname == "" {
+			hostname = m["comment"]
+		}
+		if hostname == "" {
+			hostname = hostMap[mac]
+		}
+		if hostname == "" {
+			hostname = m["interface"]
+		}
+
+		clientItem := devices.DeviceWirelessClient{
+			MACAddress:    mac,
+			IPAddress:     ipMap[mac],
+			Hostname:      hostname,
+			Signal:        sig,
+			Noise:         noise,
+			SNR:           snr,
+			TXRate:        txRate,
+			RXRate:        rxRate,
+			CCQ:           ccq,
+			UptimeSeconds: parseUptime(m["uptime"]),
+			RXBytes:       rxBytes,
+			TXBytes:       txBytes,
+			Status:        "connected",
+			LastSeen:      now,
+		}
+
+		data.Clients = append(data.Clients, clientItem)
+	}
+
 	return data, nil
+}
+
+func cleanSignal(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	var res string
+	isNegative := false
+	if strings.HasPrefix(s, "-") {
+		isNegative = true
+		s = s[1:]
+	}
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			res += string(c)
+		} else if res != "" {
+			break
+		}
+	}
+	if res == "" {
+		return 0
+	}
+	val, _ := strconv.Atoi(res)
+	if isNegative {
+		return -val
+	}
+	return val
+}
+
+func cleanInt(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	var res string
+	isNegative := false
+	if strings.HasPrefix(s, "-") {
+		isNegative = true
+		s = s[1:]
+	}
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			res += string(c)
+		} else if res != "" {
+			break
+		}
+	}
+	if res == "" {
+		return 0
+	}
+	val, _ := strconv.Atoi(res)
+	if isNegative {
+		return -val
+	}
+	return val
+}
+
+func cleanBytes(s string) (int64, int64) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, 0
+	}
+	parts := strings.Split(s, ",")
+	if len(parts) == 2 {
+		rx, _ := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+		tx, _ := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+		return rx, tx
+	}
+	b, _ := strconv.ParseInt(s, 10, 64)
+	return b, 0
 }
 
 func parseUptime(s string) int64 {
