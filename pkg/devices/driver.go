@@ -1,4 +1,4 @@
-﻿package devices
+package devices
 
 import (
 	"context"
@@ -20,4 +20,13 @@ type Driver interface {
 
 	// PollSector collects radio parameters and all active connected client stations for Sector AP devices
 	PollSector(ctx context.Context, target TargetConfig) (*SectorProfileData, error)
+
+	// CableTest executes an ethernet TDR cable diagnostic on a specific interface
+	CableTest(ctx context.Context, target TargetConfig, ifaceName string) (*CableTestResult, error)
+
+	// MonitorPort queries live, real-time link parameters (speed, duplex, SFP diagnostics, flow control) for a specific interface
+	MonitorPort(ctx context.Context, target TargetConfig, ifaceName string) (*PortMonitorResult, error)
+
+	// GetSwitchHosts fetches switch chip and bridge MAC host tables
+	GetSwitchHosts(ctx context.Context, target TargetConfig) ([]MACTableEntry, error)
 }

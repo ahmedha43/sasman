@@ -910,6 +910,7 @@ function renderPortsTab(ifaces) {
                         <th>الماك (MAC)</th>
                         <th>PoE / SFP</th>
                         <th>الترافيك (⬇️ RX / ⬆️ TX)</th>
+                        <th style="text-align:center;">تشخيص وفحص</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -935,6 +936,14 @@ function renderPortsTab(ifaces) {
                                 <td style="font-family:monospace; font-size:11.5px;">
                                     ⬇️ ${formatBytes(i.rx_bytes)}<br>
                                     ⬆️ ${formatBytes(i.tx_bytes)}
+                                </td>
+                                <td style="text-align:center; white-space:nowrap;">
+                                    <button class="btn btn-sm btn-outline-primary" style="padding:4px 8px; font-size:11px; margin-left:3px;" onclick="runCableTest(${activeDetailDevice ? activeDetailDevice.id : 0}, '${escapeHtml(i.name)}', this)" title="فحص الكيبل لمعرفة القطع والمسافة">
+                                        <i class="fa-solid fa-plug"></i> فحص الكيبل
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" style="padding:4px 8px; font-size:11px;" onclick="openPortMonitorModal(${activeDetailDevice ? activeDetailDevice.id : 0}, '${escapeHtml(i.name)}')" title="مراقبة حية للمنفذ">
+                                        <i class="fa-solid fa-chart-line"></i> مونيتور
+                                    </button>
                                 </td>
                             </tr>
                         `;
@@ -1126,6 +1135,224 @@ function renderEventsTab(events) {
     `;
 }
 
+// ─── CABLE TEST & PORT MONITOR ───────────────────────────────────────────────
+
+async function runCableTest(deviceId, ifaceName, btn) {
+    const modal = document.getElementById('device-cable-test-modal');
+    const titleEl = document.getElementById('cable-modal-title');
+    const bodyEl = document.getElementById('cable-test-body');
+    const retestBtn = document.getElementById('cable-retest-btn');
+
+    if (titleEl) {
+        titleEl.innerHTML = `<i class="fa-solid fa-plug" style="color:var(--primary);"></i> فحص الكيبل: <span style="font-family:monospace; margin-right:6px;">${escapeHtml(ifaceName)}</span>`;
+    }
+    if (modal) modal.classList.add('active');
+
+    if (retestBtn) {
+        retestBtn.onclick = () => runCableTest(deviceId, ifaceName, btn);
+    }
+
+    if (bodyEl) {
+        bodyEl.innerHTML = `
+            <div style="text-align:center; padding:30px;">
+                <i class="fa-solid fa-spinner fa-spin fa-2x" style="color:var(--primary);"></i>
+                <p style="margin-top:12px; font-size:13.5px; color:var(--text-muted);">جاري إرسال نبضات TDR لفحص أزواج الكيبل وقياس المسافة...</p>
+            </div>
+        `;
+    }
+
+    try {
+        const res = await apiFetch(`/radius/api/devices/${deviceId}/cable-test`, {
+            method: 'POST',
+            body: JSON.stringify({ interface: ifaceName })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'فشل الفحص');
+        }
+        const data = await res.json();
+        renderCableTestResult(data, ifaceName);
+    } catch (e) {
+        if (bodyEl) {
+            bodyEl.innerHTML = `
+                <div style="background:rgba(229,62,62,0.1); border:1px solid #e53e3e; border-radius:8px; padding:16px; text-align:center;">
+                    <i class="fa-solid fa-triangle-exclamation fa-2x" style="color:#e53e3e; margin-bottom:8px;"></i>
+                    <h4 style="margin:0 0 6px 0; color:#e53e3e;">تعذر إتمام فحص الكيبل</h4>
+                    <p style="margin:0; font-size:12.5px; color:var(--text-muted);">${escapeHtml(e.message)}</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderCableTestResult(data, ifaceName) {
+    const bodyEl = document.getElementById('cable-test-body');
+    if (!bodyEl) return;
+
+    const isOk = data.status === 'ok' || data.status === 'valid';
+    const isOpen = data.status === 'open' || data.status === 'open-cable';
+    const isShort = data.status === 'short' || data.status === 'shorted-cable';
+
+    let statusBadge = '<span class="badge badge-success" style="font-size:13px; padding:6px 12px;">✅ الكيبل سليم ومتصل (OK)</span>';
+    if (isOpen) {
+        statusBadge = '<span class="badge badge-warning" style="font-size:13px; padding:6px 12px;">⚠️ انقطاع في السلك (Open Cable)</span>';
+    } else if (isShort) {
+        statusBadge = '<span class="badge badge-danger" style="font-size:13px; padding:6px 12px;">❌ التماس كهربائي (Shorted Cable)</span>';
+    } else if (!isOk) {
+        statusBadge = `<span class="badge badge-secondary" style="font-size:13px; padding:6px 12px;">${escapeHtml(data.status)}</span>`;
+    }
+
+    let pairsHTML = '';
+    if (data.cable_pairs && data.cable_pairs.length > 0) {
+        pairsHTML = `
+            <div style="margin-top:16px;">
+                <h5 style="margin:0 0 8px 0; font-size:13px; color:var(--text-muted);">حالة الأزواج النحاسية (Cable Pairs):</h5>
+                <table class="table" style="width:100%; font-size:12.5px;">
+                    <thead>
+                        <tr>
+                            <th>الزوج (Pair)</th>
+                            <th>الحالة (Status)</th>
+                            <th>المسافة المقدرة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.cable_pairs.map(p => {
+                            let pBadge = '<span class="badge" style="background:#22543d; color:#9ae6b4;">OK</span>';
+                            if (p.status.includes('open')) pBadge = '<span class="badge" style="background:#744210; color:#fbd38d;">OPEN (مقطوع)</span>';
+                            if (p.status.includes('short')) pBadge = '<span class="badge" style="background:#742a2a; color:#feb2b2;">SHORT (التماس)</span>';
+
+                            return `
+                                <tr>
+                                    <td><strong>${escapeHtml(p.pair)}</strong></td>
+                                    <td>${pBadge}</td>
+                                    <td style="font-family:monospace; font-weight:700;">${p.length ? p.length + ' متر' : (data.length_meter ? data.length_meter + ' متر' : '—')}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    bodyEl.innerHTML = `
+        <div style="background:var(--bg-app); border:1px solid var(--border); border-radius:10px; padding:16px; text-align:center;">
+            <div style="margin-bottom:12px;">${statusBadge}</div>
+            <div style="display:flex; justify-content:center; gap:20px; font-size:13.5px; margin-top:8px;">
+                <div>المنفذ: <strong style="font-family:monospace; color:var(--primary);">${escapeHtml(ifaceName)}</strong></div>
+                ${data.length_meter ? `<div>الطول الإجمالي: <strong style="font-family:monospace; color:#38b2ac;">${data.length_meter} متر</strong></div>` : ''}
+            </div>
+        </div>
+        ${pairsHTML}
+    `;
+}
+
+function closeCableTestModal() {
+    const modal = document.getElementById('device-cable-test-modal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function openPortMonitorModal(deviceId, ifaceName) {
+    const modal = document.getElementById('device-port-monitor-modal');
+    const titleEl = document.getElementById('monitor-modal-title');
+    const bodyEl = document.getElementById('port-monitor-body');
+    const refreshBtn = document.getElementById('monitor-refresh-btn');
+
+    if (titleEl) {
+        titleEl.innerHTML = `<i class="fa-solid fa-chart-line" style="color:var(--primary);"></i> مراقبة المنفذ: <span style="font-family:monospace; margin-right:6px;">${escapeHtml(ifaceName)}</span>`;
+    }
+    if (modal) modal.classList.add('active');
+
+    if (refreshBtn) {
+        refreshBtn.onclick = () => openPortMonitorModal(deviceId, ifaceName);
+    }
+
+    if (bodyEl) {
+        bodyEl.innerHTML = `
+            <div style="text-align:center; padding:30px;">
+                <i class="fa-solid fa-spinner fa-spin fa-2x" style="color:var(--primary);"></i>
+                <p style="margin-top:12px; font-size:13.5px; color:var(--text-muted);">جاري قراءة حالة المنفذ اللحظية من جهاز المايكروتك...</p>
+            </div>
+        `;
+    }
+
+    try {
+        const res = await apiFetch(`/radius/api/devices/${deviceId}/ports/${encodeURIComponent(ifaceName)}/monitor`);
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'فشل جلب المراقبة');
+        }
+        const data = await res.json();
+        renderPortMonitorResult(data, ifaceName);
+    } catch (e) {
+        if (bodyEl) {
+            bodyEl.innerHTML = `
+                <div style="background:rgba(229,62,62,0.1); border:1px solid #e53e3e; border-radius:8px; padding:16px; text-align:center;">
+                    <i class="fa-solid fa-triangle-exclamation fa-2x" style="color:#e53e3e; margin-bottom:8px;"></i>
+                    <h4 style="margin:0 0 6px 0; color:#e53e3e;">تعذر جلب حالة المراقبة الحية</h4>
+                    <p style="margin:0; font-size:12.5px; color:var(--text-muted);">${escapeHtml(e.message)}</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderPortMonitorResult(d, ifaceName) {
+    const bodyEl = document.getElementById('port-monitor-body');
+    if (!bodyEl) return;
+
+    const isUp = d.status === 'link-ok' || d.status === 'up';
+    const statusBadge = isUp ? '<span class="badge badge-success">LINK OK (متصل)</span>' : '<span class="badge badge-secondary">NO LINK (مفصول)</span>';
+
+    let sfpSection = '';
+    if (d.sfp_module_present === 'yes' || d.sfp_temp || d.sfp_tx_power_dbm) {
+        sfpSection = `
+            <div style="background:var(--bg-app); border:1px solid var(--border); border-radius:10px; padding:14px; margin-top:14px;">
+                <h5 style="margin:0 0 10px 0; font-size:13px; color:#63b3ed;"><i class="fa-solid fa-plug"></i> بيانات ومعايير الـ SFP البصرية (Optical DDM)</h5>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; text-align:center;">
+                    <div style="background:rgba(0,0,0,0.25); padding:8px; border-radius:6px;">
+                        <div style="font-size:11px; color:var(--text-muted);">حرارة الموديول</div>
+                        <div style="font-size:15px; font-weight:700; font-family:monospace; color:#48bb78;">${d.sfp_temp ? d.sfp_temp + ' °C' : '—'}</div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.25); padding:8px; border-radius:6px;">
+                        <div style="font-size:11px; color:var(--text-muted);">TX Power (الإرسال)</div>
+                        <div style="font-size:15px; font-weight:700; font-family:monospace; color:#38b2ac;">${d.sfp_tx_power_dbm ? d.sfp_tx_power_dbm + ' dBm' : '—'}</div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.25); padding:8px; border-radius:6px;">
+                        <div style="font-size:11px; color:var(--text-muted);">RX Power (الاستقبال)</div>
+                        <div style="font-size:15px; font-weight:700; font-family:monospace; color:#4299e1;">${d.sfp_rx_power_dbm ? d.sfp_rx_power_dbm + ' dBm' : '—'}</div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.25); padding:8px; border-radius:6px;">
+                        <div style="font-size:11px; color:var(--text-muted);">الطول الموجي</div>
+                        <div style="font-size:15px; font-weight:700; font-family:monospace;">${d.sfp_wavelength || '—'}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    bodyEl.innerHTML = `
+        <div style="background:var(--bg-app); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <h4 style="margin:0; font-size:15px; font-family:monospace;">${escapeHtml(ifaceName)}</h4>
+                <div>${statusBadge}</div>
+            </div>
+            <table style="width:100%; font-size:13px; border-collapse:collapse;">
+                <tr><td style="padding:6px; color:var(--text-muted); width:40%;">السرعة اللحظية (Rate):</td><td style="font-family:monospace; font-weight:700; color:var(--primary); font-size:15px;">${escapeHtml(d.rate || '—')}</td></tr>
+                <tr><td style="padding:6px; color:var(--text-muted);">نمط الإرسال (Duplex):</td><td><span class="badge badge-info">${d.full_duplex ? 'Full Duplex' : 'Half Duplex'}</span></td></tr>
+                <tr><td style="padding:6px; color:var(--text-muted);">التفاوض التلقائي (Auto-Neg):</td><td>${escapeHtml(d.auto_negotiation || '—')}</td></tr>
+                <tr><td style="padding:6px; color:var(--text-muted);">Flow Control (TX / RX):</td><td>${escapeHtml(d.tx_flow_control || 'off')} / ${escapeHtml(d.rx_flow_control || 'off')}</td></tr>
+            </table>
+        </div>
+        ${sfpSection}
+    `;
+}
+
+function closePortMonitorModal() {
+    const modal = document.getElementById('device-port-monitor-modal');
+    if (modal) modal.classList.remove('active');
+}
+
 // Global expose
 window.loadDevices = loadDevices;
 window.filterDevicesByType = filterDevicesByType;
@@ -1143,3 +1370,7 @@ window.triggerDevicePoll = triggerDevicePoll;
 window.openDeviceDetailModal = openDeviceDetailModal;
 window.closeDeviceDetailModal = closeDeviceDetailModal;
 window.switchDetailTab = switchDetailTab;
+window.runCableTest = runCableTest;
+window.closeCableTestModal = closeCableTestModal;
+window.openPortMonitorModal = openPortMonitorModal;
+window.closePortMonitorModal = closePortMonitorModal;

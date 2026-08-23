@@ -1,4 +1,4 @@
-﻿package devices
+package devices
 
 import (
 	"context"
@@ -31,6 +31,9 @@ func RegisterAPIRoutes(router fiber.Router) {
 	group.Get("/:id/metrics", handleGetMetrics)
 	group.Get("/:id/clients", handleGetClients)
 	group.Get("/:id/events", handleGetEvents)
+	group.Post("/:id/cable-test", handleCableTest)
+	group.Get("/:id/ports/:interface/monitor", handleMonitorPort)
+	group.Get("/:id/switch/hosts", handleGetSwitchHosts)
 }
 
 func handleGetSummary(c *fiber.Ctx) error {
@@ -402,4 +405,130 @@ func handleListAlerts(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(alerts)
+}
+
+func handleCableTest(c *fiber.Ctx) error {
+	if GlobalService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Devices service not initialized"})
+	}
+
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid device ID"})
+	}
+
+	var req struct {
+		Interface string `json:"interface"`
+	}
+	if err := c.BodyParser(&req); err != nil || req.Interface == "" {
+		req.Interface = c.Query("interface")
+	}
+	if req.Interface == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Interface name is required"})
+	}
+
+	dev, err := GlobalService.repo.GetDevice(id)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Device not found"})
+	}
+
+	driver, err := GetDriver(dev.VendorSlug)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unsupported vendor driver"})
+	}
+
+	target, err := GlobalService.repo.GetDeviceCredentials(id)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing device credentials"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := driver.CableTest(ctx, *target, req.Interface)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(result)
+}
+
+func handleMonitorPort(c *fiber.Ctx) error {
+	if GlobalService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Devices service not initialized"})
+	}
+
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid device ID"})
+	}
+
+	ifaceName := c.Params("interface")
+	if ifaceName == "" {
+		ifaceName = c.Query("interface")
+	}
+	if ifaceName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Interface name is required"})
+	}
+
+	dev, err := GlobalService.repo.GetDevice(id)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Device not found"})
+	}
+
+	driver, err := GetDriver(dev.VendorSlug)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unsupported vendor driver"})
+	}
+
+	target, err := GlobalService.repo.GetDeviceCredentials(id)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing device credentials"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := driver.MonitorPort(ctx, *target, ifaceName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(result)
+}
+
+func handleGetSwitchHosts(c *fiber.Ctx) error {
+	if GlobalService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Devices service not initialized"})
+	}
+
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid device ID"})
+	}
+
+	dev, err := GlobalService.repo.GetDevice(id)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Device not found"})
+	}
+
+	driver, err := GetDriver(dev.VendorSlug)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unsupported vendor driver"})
+	}
+
+	target, err := GlobalService.repo.GetDeviceCredentials(id)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing device credentials"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	hosts, err := driver.GetSwitchHosts(ctx, *target)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(hosts)
 }

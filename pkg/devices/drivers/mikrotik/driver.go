@@ -983,3 +983,179 @@ func parseUptime(s string) int64 {
 
 	return totalSec
 }
+
+// CableTest executes an ethernet TDR cable diagnostic on a specific interface
+func (d *Driver) CableTest(ctx context.Context, target devices.TargetConfig, ifaceName string) (*devices.CableTestResult, error) {
+	client, err := d.dial(target)
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
+	}
+	defer client.Close()
+
+	reply, err := client.Run("/interface/ethernet/cable-test", "=numbers="+ifaceName, "=once=")
+	if err != nil {
+		return nil, fmt.Errorf("cable-test failed: %w", err)
+	}
+
+	result := &devices.CableTestResult{
+		Interface:  ifaceName,
+		Status:     "unknown",
+		RawDetails: make(map[string]string),
+	}
+
+	if len(reply.Re) > 0 {
+		m := reply.Re[0].Map
+		result.RawDetails = m
+		result.Status = m["status"]
+		if result.Status == "" {
+			result.Status = m["cable-test"]
+		}
+		if result.Status == "" {
+			result.Status = "ok"
+		}
+
+		// Parse cable-pairs=open:14,open:14,open:14,open:14 or ok:42,...
+		if pairsStr, ok := m["cable-pairs"]; ok && pairsStr != "" {
+			pairs := strings.Split(pairsStr, ",")
+			for idx, p := range pairs {
+				parts := strings.Split(p, ":")
+				pairItem := devices.CablePairStatus{
+					Pair:   fmt.Sprintf("Pair %d", idx+1),
+					Status: parts[0],
+				}
+				if len(parts) > 1 {
+					dist, _ := strconv.ParseFloat(strings.TrimSuffix(parts[1], "m"), 64)
+					pairItem.Length = dist
+					if result.LengthMeter == 0 && dist > 0 {
+						result.LengthMeter = dist
+					}
+				}
+				result.CablePairs = append(result.CablePairs, pairItem)
+			}
+		}
+
+		// Direct pair keys: pair1-status, pair2-status, etc.
+		if len(result.CablePairs) == 0 {
+			for pNum := 1; pNum <= 4; pNum++ {
+				pKey := fmt.Sprintf("pair%d-status", pNum)
+				dKey := fmt.Sprintf("pair%d-distance", pNum)
+				if pStat, ok := m[pKey]; ok {
+					dist, _ := strconv.ParseFloat(strings.TrimSuffix(m[dKey], "m"), 64)
+					result.CablePairs = append(result.CablePairs, devices.CablePairStatus{
+						Pair:   fmt.Sprintf("Pair %d", pNum),
+						Status: pStat,
+						Length: dist,
+					})
+					if result.LengthMeter == 0 && dist > 0 {
+						result.LengthMeter = dist
+					}
+				}
+			}
+		}
+
+		if lenStr, ok := m["length"]; ok && result.LengthMeter == 0 {
+			dist, _ := strconv.ParseFloat(strings.TrimSuffix(lenStr, "m"), 64)
+			result.LengthMeter = dist
+		}
+	}
+
+	return result, nil
+}
+
+// MonitorPort queries live, real-time link parameters (speed, duplex, SFP diagnostics, flow control) for a specific interface
+func (d *Driver) MonitorPort(ctx context.Context, target devices.TargetConfig, ifaceName string) (*devices.PortMonitorResult, error) {
+	client, err := d.dial(target)
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
+	}
+	defer client.Close()
+
+	reply, err := client.Run("/interface/ethernet/monitor", "=numbers="+ifaceName, "=once=")
+	if err != nil {
+		return nil, fmt.Errorf("monitor failed: %w", err)
+	}
+
+	result := &devices.PortMonitorResult{
+		Interface: ifaceName,
+		Status:    "down",
+	}
+
+	if len(reply.Re) > 0 {
+		m := reply.Re[0].Map
+		result.Status = m["status"]
+		result.AutoNegotiation = m["auto-negotiation"]
+		result.Rate = m["rate"]
+		if result.Rate == "" {
+			result.Rate = m["speed"]
+		}
+		result.FullDuplex = m["full-duplex"] == "true" || m["full-duplex"] == "yes"
+		result.DefaultName = m["default-name"]
+		result.TXFlowControl = m["tx-flow-control"]
+		result.RXFlowControl = m["rx-flow-control"]
+		result.SFPModulePresent = m["sfp-module-present"]
+		result.SFPRXLoss = m["sfp-rx-loss"]
+		result.SFPTXFault = m["sfp-tx-fault"]
+		result.SFPWavelength = m["sfp-wavelength"]
+		result.SFPVendor = m["sfp-vendor-name"]
+		result.SFPPartNumber = m["sfp-vendor-part-number"]
+
+		if f, err := strconv.ParseFloat(m["sfp-temperature"], 64); err == nil {
+			result.SFPTemp = f
+		}
+		if f, err := strconv.ParseFloat(m["sfp-supply-voltage"], 64); err == nil {
+			result.SFPSupplyVolt = f
+		}
+		if f, err := strconv.ParseFloat(m["sfp-tx-bias-current"], 64); err == nil {
+			result.SFPTXBiasCurrent = f
+		}
+		if f, err := strconv.ParseFloat(m["sfp-tx-power"], 64); err == nil {
+			result.SFPTXPowerDBm = f
+		}
+		if f, err := strconv.ParseFloat(m["sfp-rx-power"], 64); err == nil {
+			result.SFPRXPowerDBm = f
+		}
+	}
+
+	return result, nil
+}
+
+// GetSwitchHosts fetches switch chip and bridge MAC host tables
+func (d *Driver) GetSwitchHosts(ctx context.Context, target devices.TargetConfig) ([]devices.MACTableEntry, error) {
+	client, err := d.dial(target)
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
+	}
+	defer client.Close()
+
+	var entries []devices.MACTableEntry
+
+	// 1. Switch Chip Host Table
+	if reply, err := client.Run("/interface/ethernet/switch/host/print"); err == nil {
+		for _, re := range reply.Re {
+			m := re.Map
+			entries = append(entries, devices.MACTableEntry{
+				MACAddress: m["mac-address"],
+				Interface:  m["port"],
+				Bridge:     m["switch"],
+				Dynamic:    m["dynamic"] == "true" || m["dynamic"] == "yes",
+				Age:        m["age"],
+			})
+		}
+	}
+
+	// 2. Bridge Host Table
+	if reply, err := client.Run("/interface/bridge/host/print"); err == nil {
+		for _, re := range reply.Re {
+			m := re.Map
+			entries = append(entries, devices.MACTableEntry{
+				MACAddress: m["mac-address"],
+				Interface:  m["interface"],
+				Bridge:     m["bridge"],
+				Dynamic:    m["dynamic"] == "true" || m["dynamic"] == "yes",
+				Age:        m["age"],
+			})
+		}
+	}
+
+	return entries, nil
+}

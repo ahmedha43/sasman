@@ -1921,6 +1921,44 @@
         </div>
     </div>
 
+    <!-- 9b. Device Port Cable Test Modal -->
+    <div id="device-cable-test-modal" class="modal-backdrop">
+        <div class="modal-card" style="width: min(100%, 550px); max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 id="cable-modal-title" style="margin:0; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-plug" style="color:var(--primary);"></i> فحص الكيبل (Cable Test)
+                </h3>
+                <button class="modal-close" onclick="closeCableTestModal()">×</button>
+            </div>
+            <div id="cable-test-body" style="padding:15px 0;">
+                <div style="text-align:center; padding:30px;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p style="margin-top:10px;">جاري إرسال نبضات الفحص للكيبل...</p></div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:15px; border-top:1px solid var(--border); padding-top:12px;">
+                <button class="btn btn-primary btn-sm" id="cable-retest-btn"><i class="fa-solid fa-rotate"></i> إعادة الفحص</button>
+                <button class="btn btn-secondary btn-sm" onclick="closeCableTestModal()">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 9c. Device Port Live Monitor Modal -->
+    <div id="device-port-monitor-modal" class="modal-backdrop">
+        <div class="modal-card" style="width: min(100%, 650px); max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 id="monitor-modal-title" style="margin:0; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-chart-line" style="color:var(--primary);"></i> مراقبة المنفذ الحية (Live Monitor)
+                </h3>
+                <button class="modal-close" onclick="closePortMonitorModal()">×</button>
+            </div>
+            <div id="port-monitor-body" style="padding:15px 0;">
+                <div style="text-align:center; padding:30px;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p style="margin-top:10px;">جاري جلب حالة المنفذ اللحظية...</p></div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:15px; border-top:1px solid var(--border); padding-top:12px;">
+                <button class="btn btn-primary btn-sm" id="monitor-refresh-btn"><i class="fa-solid fa-rotate"></i> تحديث لحظي</button>
+                <button class="btn btn-secondary btn-sm" onclick="closePortMonitorModal()">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 10. Agent Add/Edit Modal -->
     <div id="agent-modal" class="modal-backdrop">
         <div class="modal-card" style="width: min(100%, 750px); max-height: 90vh; overflow-y: auto;">

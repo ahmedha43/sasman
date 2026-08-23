@@ -1,4 +1,4 @@
-﻿package devices
+package devices
 
 import (
 	"time"
@@ -325,4 +325,40 @@ type SFPEntry struct {
 	TXPowerDBm   float64 `json:"tx_power_dbm"`
 	RXPowerDBm   float64 `json:"rx_power_dbm"`
 	LinkDistance string  `json:"link_distance,omitempty"`
+}
+
+type CableTestResult struct {
+	Interface   string            `json:"interface"`
+	Status      string            `json:"status"` // "ok", "open", "shorted", "failed", "unknown"
+	LengthMeter float64           `json:"length_meter"`
+	CablePairs  []CablePairStatus `json:"cable_pairs"`
+	RawDetails  map[string]string `json:"raw_details,omitempty"`
+}
+
+type CablePairStatus struct {
+	Pair   string  `json:"pair"`   // "pair-1", "pair-2", "pair-3", "pair-4"
+	Status string  `json:"status"` // "ok", "open", "shorted"
+	Length float64 `json:"length"` // distance in meters if available
+}
+
+type PortMonitorResult struct {
+	Interface        string  `json:"interface"`
+	Status           string  `json:"status"`
+	AutoNegotiation  string  `json:"auto_negotiation"`
+	Rate             string  `json:"rate"`
+	FullDuplex       bool    `json:"full_duplex"`
+	DefaultName      string  `json:"default_name"`
+	TXFlowControl    string  `json:"tx_flow_control"`
+	RXFlowControl    string  `json:"rx_flow_control"`
+	SFPModulePresent string  `json:"sfp_module_present"`
+	SFPRXLoss        string  `json:"sfp_rx_loss"`
+	SFPTXFault       string  `json:"sfp_tx_fault"`
+	SFPTemp          float64 `json:"sfp_temp"`
+	SFPSupplyVolt    float64 `json:"sfp_supply_volt"`
+	SFPTXBiasCurrent float64 `json:"sfp_tx_bias_current"`
+	SFPTXPowerDBm    float64 `json:"sfp_tx_power_dbm"`
+	SFPRXPowerDBm    float64 `json:"sfp_rx_power_dbm"`
+	SFPWavelength    string  `json:"sfp_wavelength"`
+	SFPVendor        string  `json:"sfp_vendor"`
+	SFPPartNumber    string  `json:"sfp_part_number"`
 }
