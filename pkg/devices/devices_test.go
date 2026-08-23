@@ -1,4 +1,4 @@
-﻿package devices_test
+package devices_test
 
 import (
 	"context"
@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"mikrotik-manager/pkg/devices"
+	_ "mikrotik-manager/pkg/devices/drivers/cambium"
 	_ "mikrotik-manager/pkg/devices/drivers/mikrotik"
+	_ "mikrotik-manager/pkg/devices/drivers/mimosa"
+	_ "mikrotik-manager/pkg/devices/drivers/ubiquiti"
 	_ "modernc.org/sqlite"
 )
 
@@ -56,15 +59,18 @@ func TestCrypto(t *testing.T) {
 }
 
 func TestDeviceRegistry(t *testing.T) {
-	driver, err := devices.GetDriver("mikrotik")
-	if err != nil {
-		t.Fatalf("MikroTik driver not found in registry: %v", err)
-	}
-	if driver == nil {
-		t.Fatal("MikroTik driver is nil")
+	vendors := []string{"mikrotik", "ubiquiti", "cambium", "mimosa"}
+	for _, v := range vendors {
+		driver, err := devices.GetDriver(v)
+		if err != nil {
+			t.Fatalf("%s driver not found in registry: %v", v, err)
+		}
+		if driver == nil {
+			t.Fatalf("%s driver is nil", v)
+		}
 	}
 
-	_, err = devices.GetDriver("non_existent_vendor")
+	_, err := devices.GetDriver("non_existent_vendor")
 	if err == nil {
 		t.Error("Expected error for non existent vendor, got nil")
 	}

@@ -1,4 +1,4 @@
-﻿package devices
+package devices
 
 import (
 	"database/sql"
@@ -255,6 +255,8 @@ func EnsureSchema(db *sql.DB) error {
 		{"cisco", "Cisco Systems", "fa-solid fa-network-wired", "https://cisco.com"},
 		{"tplink", "TP-Link", "fa-solid fa-router", "https://tp-link.com"},
 		{"zte", "ZTE Corporation", "fa-solid fa-satellite-dish", "https://zte.com.cn"},
+		{"cambium", "Cambium Networks", "fa-solid fa-satellite-dish", "https://cambiumnetworks.com"},
+		{"mimosa", "Mimosa Networks", "fa-solid fa-tower-broadcast", "https://mimosa.co"},
 	}
 
 	for _, v := range seedVendors {

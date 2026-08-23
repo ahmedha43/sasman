@@ -287,6 +287,22 @@ function populateVendorAndTypeSelects() {
 
     if (vSelect && allVendorsCache.length > 0) {
         vSelect.innerHTML = allVendorsCache.map(v => `<option value="${v.slug}">${escapeHtml(v.name)}</option>`).join('');
+        vSelect.onchange = function() {
+            const portInput = document.getElementById('dev-form-port');
+            const userInput = document.getElementById('dev-form-user');
+            if (this.value === 'ubiquiti') {
+                if (portInput) portInput.value = '22';
+                if (userInput && (!userInput.value || userInput.value === 'admin')) userInput.value = 'ubnt';
+            } else if (this.value === 'cambium') {
+                if (portInput) portInput.value = '22';
+                if (userInput && (!userInput.value || userInput.value === 'ubnt')) userInput.value = 'admin';
+            } else if (this.value === 'mimosa') {
+                if (portInput) portInput.value = '443';
+            } else if (this.value === 'mikrotik') {
+                if (portInput) portInput.value = '8728';
+                if (userInput && userInput.value === 'ubnt') userInput.value = 'admin';
+            }
+        };
     }
     if (tSelect && allTypesCache.length > 0) {
         tSelect.innerHTML = allTypesCache.map(t => `<option value="${t.slug}">${escapeHtml(t.name)}</option>`).join('');
