@@ -728,16 +728,24 @@ function buildOverviewHTML(d, ifaces, wireless, clients) {
     const memPercent = d.memory_total > 0 ? Math.round((d.memory_used / d.memory_total) * 100) : 0;
     const storagePercent = d.storage_total > 0 ? Math.round((d.storage_used / d.storage_total) * 100) : 0;
 
+    // Filter physical & hardware ports
+    const physicalIfaces = (ifaces || []).filter(i => {
+        const name = (i.name || '').toLowerCase();
+        const type = (i.type || '').toLowerCase();
+        return !name.startsWith('<pppoe-') && !name.startsWith('<l2tp-') && !name.startsWith('<sstp-') && !name.startsWith('<ovpn-') &&
+               type !== 'pppoe-in' && type !== 'l2tp-in' && type !== 'sstp-in' && type !== 'ovpn-in' && type !== 'loopback';
+    });
+
     let typeHero = '';
-    if (d.type_slug === 'switch') {
+    if (d.type_slug === 'switch' || d.type_slug === 'router') {
         typeHero = `
             <div style="background:var(--bg-app); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                     <h4 style="margin:0; font-size:14px;"><i class="fa-solid fa-ethernet" style="color:var(--primary);"></i> لوحة المنافذ السريعة (Port Status)</h4>
-                    <span style="font-size:12px; color:var(--text-muted);">${ifaces.length} منفذ معرف</span>
+                    <span style="font-size:12px; color:var(--text-muted);">${physicalIfaces.length} منفذ فعلي</span>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(65px, 1fr)); gap:6px;">
-                    ${ifaces.map(i => {
+                    ${physicalIfaces.map(i => {
                         const isUp = i.status === 'up';
                         const isSfp = i.is_sfp;
                         const isPoe = i.is_poe;
@@ -876,8 +884,16 @@ function renderPortsTab(ifaces) {
     const pane = document.getElementById('dev-tab-pane-ports');
     if (!pane) return;
 
-    if (!ifaces || ifaces.length === 0) {
-        pane.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">لا توجد منافذ مسجلة لهذا الجهاز</div>';
+    // Filter physical & hardware ports
+    const filteredIfaces = (ifaces || []).filter(i => {
+        const name = (i.name || '').toLowerCase();
+        const type = (i.type || '').toLowerCase();
+        return !name.startsWith('<pppoe-') && !name.startsWith('<l2tp-') && !name.startsWith('<sstp-') && !name.startsWith('<ovpn-') &&
+               type !== 'pppoe-in' && type !== 'l2tp-in' && type !== 'sstp-in' && type !== 'ovpn-in' && type !== 'loopback';
+    });
+
+    if (filteredIfaces.length === 0) {
+        pane.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">لا توجد منافذ فعلية مسجلة لهذا الجهاز</div>';
         return;
     }
 
@@ -897,7 +913,7 @@ function renderPortsTab(ifaces) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${ifaces.map(i => {
+                    ${filteredIfaces.map(i => {
                         const isUp = i.status === 'up';
                         const statusBadge = isUp ? '<span class="badge" style="background:#22543d; color:#9ae6b4;">UP</span>' : '<span class="badge" style="background:#4a5568; color:#cbd5e0;">DOWN</span>';
                         let extraBadge = '—';
@@ -912,8 +928,8 @@ function renderPortsTab(ifaces) {
                                 <td><strong>${escapeHtml(i.name)}</strong></td>
                                 <td><span style="font-family:monospace; color:var(--text-muted);">${escapeHtml(i.type)}</span></td>
                                 <td>${statusBadge}</td>
-                                <td><span style="font-family:monospace;">${escapeHtml(i.speed || '—')}</span></td>
-                                <td>${escapeHtml(i.duplex || '—')}</td>
+                                <td><span style="font-family:monospace; font-weight:700; color:var(--primary);">${escapeHtml(i.speed || '—')}</span></td>
+                                <td><span style="font-family:monospace;">${escapeHtml(i.duplex || '—')}</span></td>
                                 <td><span style="font-family:monospace; font-size:11px;">${escapeHtml(i.mac_address || '—')}</span></td>
                                 <td>${extraBadge}</td>
                                 <td style="font-family:monospace; font-size:11.5px;">

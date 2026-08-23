@@ -171,9 +171,18 @@ func (d *Driver) Discover(ctx context.Context, target devices.TargetConfig) (*de
 	if reply, err := client.Run("/interface/print"); err == nil {
 		for idx, re := range reply.Re {
 			m := re.Map
+			name := m["name"]
+			ifType := strings.ToLower(m["type"])
+			isDynamic := m["dynamic"] == "true" || strings.HasPrefix(name, "<pppoe-") || strings.HasPrefix(name, "<l2tp-") || strings.HasPrefix(name, "<sstp-") || strings.HasPrefix(name, "<ovpn-")
+
+			// Filter out dynamic client tunnels and loopback from main hardware port map
+			if isDynamic || ifType == "pppoe-in" || ifType == "l2tp-in" || ifType == "sstp-in" || ifType == "ovpn-in" || ifType == "ppp-in" || ifType == "loopback" {
+				continue
+			}
+
 			iface := devices.DeviceInterface{
 				IfIndex:    idx + 1,
-				Name:       m["name"],
+				Name:       name,
 				Type:       m["type"],
 				MACAddress: m["mac-address"],
 				Status:     "down",
@@ -243,14 +252,44 @@ func (d *Driver) PollSwitch(ctx context.Context, target devices.TargetConfig) (*
 
 	// 3. Ethernet / SFP / PoE Interfaces
 	ethMap := make(map[string]map[string]string)
-	if ethReply, err := client.Run("/interface/ethernet/print", "detail"); err == nil {
+	if ethReply, err := client.Run("/interface/ethernet/print"); err == nil {
 		for _, re := range ethReply.Re {
 			ethMap[re.Map["name"]] = re.Map
 		}
 	}
 
+	// Monitor running ethernet ports to get negotiated speed and duplex
+	for name, eth := range ethMap {
+		if eth["running"] == "true" || eth["disabled"] != "true" {
+			if monReply, err := client.Run("/interface/ethernet/monitor", "=numbers="+name, "=once="); err == nil && len(monReply.Re) > 0 {
+				m := monReply.Re[0].Map
+				if m["rate"] != "" {
+					eth["speed"] = m["rate"]
+				}
+				if m["rate"] == "" && m["speed"] != "" {
+					eth["speed"] = m["speed"]
+				}
+				if m["full-duplex"] != "" {
+					eth["full-duplex"] = m["full-duplex"]
+				}
+				if m["sfp-temperature"] != "" {
+					eth["sfp-temperature"] = m["sfp-temperature"]
+				}
+				if m["sfp-tx-power"] != "" {
+					eth["sfp-tx-power"] = m["sfp-tx-power"]
+				}
+				if m["sfp-rx-power"] != "" {
+					eth["sfp-rx-power"] = m["sfp-rx-power"]
+				}
+				if m["sfp-wavelength"] != "" {
+					eth["sfp-wavelength"] = m["sfp-wavelength"]
+				}
+			}
+		}
+	}
+
 	poeMap := make(map[string]map[string]string)
-	if poeReply, err := client.Run("/interface/ethernet/poe/print", "detail"); err == nil {
+	if poeReply, err := client.Run("/interface/ethernet/poe/print"); err == nil {
 		for _, re := range poeReply.Re {
 			poeMap[re.Map["name"]] = re.Map
 		}
@@ -261,10 +300,18 @@ func (d *Driver) PollSwitch(ctx context.Context, target devices.TargetConfig) (*
 	var totalRXErrors, totalTXErrors int64
 	var totalRXDrops, totalTXDrops int64
 
-	if reply, err := client.Run("/interface/print", "detail"); err == nil {
+	if reply, err := client.Run("/interface/print"); err == nil {
 		for idx, re := range reply.Re {
 			m := re.Map
 			name := m["name"]
+			ifType := strings.ToLower(m["type"])
+			isDynamic := m["dynamic"] == "true" || strings.HasPrefix(name, "<pppoe-") || strings.HasPrefix(name, "<l2tp-") || strings.HasPrefix(name, "<sstp-") || strings.HasPrefix(name, "<ovpn-")
+
+			// Filter out dynamic PPPoE/VPN client sessions and loopback from physical switch ports
+			if isDynamic || ifType == "pppoe-in" || ifType == "l2tp-in" || ifType == "sstp-in" || ifType == "ovpn-in" || ifType == "ppp-in" || ifType == "loopback" {
+				continue
+			}
+
 			iface := devices.DeviceInterface{
 				IfIndex:    idx + 1,
 				Name:       name,
@@ -282,13 +329,64 @@ func (d *Driver) PollSwitch(ctx context.Context, target devices.TargetConfig) (*
 			iface.MTU = mtu
 
 			rxBytes, _ := strconv.ParseInt(m["rx-byte"], 10, 64)
+			if rxBytes == 0 {
+				rxBytes, _ = strconv.ParseInt(m["rx-bytes"], 10, 64)
+			}
+			if rxBytes == 0 {
+				rxBytes, _ = strconv.ParseInt(m["rx_byte"], 10, 64)
+			}
+			if rxBytes == 0 && m["bytes"] != "" {
+				rx, _ := cleanBytes(m["bytes"])
+				rxBytes = rx
+			}
+
 			txBytes, _ := strconv.ParseInt(m["tx-byte"], 10, 64)
+			if txBytes == 0 {
+				txBytes, _ = strconv.ParseInt(m["tx-bytes"], 10, 64)
+			}
+			if txBytes == 0 {
+				txBytes, _ = strconv.ParseInt(m["tx_byte"], 10, 64)
+			}
+			if txBytes == 0 && m["bytes"] != "" {
+				_, tx := cleanBytes(m["bytes"])
+				txBytes = tx
+			}
+
 			rxPkts, _ := strconv.ParseInt(m["rx-packet"], 10, 64)
+			if rxPkts == 0 {
+				rxPkts, _ = strconv.ParseInt(m["rx-packets"], 10, 64)
+			}
+			if rxPkts == 0 && m["packets"] != "" {
+				rxP, _ := cleanBytes(m["packets"])
+				rxPkts = rxP
+			}
+
 			txPkts, _ := strconv.ParseInt(m["tx-packet"], 10, 64)
+			if txPkts == 0 {
+				txPkts, _ = strconv.ParseInt(m["tx-packets"], 10, 64)
+			}
+			if txPkts == 0 && m["packets"] != "" {
+				_, txP := cleanBytes(m["packets"])
+				txPkts = txP
+			}
+
 			rxErr, _ := strconv.ParseInt(m["rx-error"], 10, 64)
+			if rxErr == 0 {
+				rxErr, _ = strconv.ParseInt(m["rx-errors"], 10, 64)
+			}
 			txErr, _ := strconv.ParseInt(m["tx-error"], 10, 64)
+			if txErr == 0 {
+				txErr, _ = strconv.ParseInt(m["tx-errors"], 10, 64)
+			}
+
 			rxDrop, _ := strconv.ParseInt(m["rx-drop"], 10, 64)
+			if rxDrop == 0 {
+				rxDrop, _ = strconv.ParseInt(m["rx-drops"], 10, 64)
+			}
 			txDrop, _ := strconv.ParseInt(m["tx-drop"], 10, 64)
+			if txDrop == 0 {
+				txDrop, _ = strconv.ParseInt(m["tx-drops"], 10, 64)
+			}
 
 			iface.RXBytes = rxBytes
 			iface.TXBytes = txBytes
@@ -313,12 +411,19 @@ func (d *Driver) PollSwitch(ctx context.Context, target devices.TargetConfig) (*
 				if iface.Speed == "" {
 					iface.Speed = eth["rate"]
 				}
-				iface.Duplex = eth["full-duplex"]
-				if iface.Duplex == "true" {
-					iface.Duplex = "full"
-				} else if iface.Duplex == "false" {
-					iface.Duplex = "half"
+				if iface.Speed == "" && iface.Status == "up" && (eth["auto-negotiation"] == "true" || eth["auto-negotiation"] == "yes") {
+					iface.Speed = "1 Gbps"
 				}
+
+				iface.Duplex = eth["full-duplex"]
+				if iface.Duplex == "true" || iface.Duplex == "yes" {
+					iface.Duplex = "Full"
+				} else if iface.Duplex == "false" || iface.Duplex == "no" {
+					iface.Duplex = "Half"
+				} else if iface.Status == "up" && iface.Duplex == "" {
+					iface.Duplex = "Full"
+				}
+
 				if strings.Contains(strings.ToLower(eth["sfp-type"]), "sfp") || strings.Contains(strings.ToLower(name), "sfp") {
 					iface.IsSFP = true
 					iface.SFPWavelength = eth["sfp-wavelength"]
@@ -466,10 +571,10 @@ func (d *Driver) PollLink(ctx context.Context, target devices.TargetConfig) (*de
 	}
 
 	// 2. Wireless Radio
-	if reply, err := client.Run("/interface/wireless/print", "detail"); err == nil && len(reply.Re) > 0 {
+	if reply, err := client.Run("/interface/wireless/print"); err == nil && len(reply.Re) > 0 {
 		m := reply.Re[0].Map
 		freq, _ := strconv.Atoi(m["frequency"])
-		noise, _ := strconv.Atoi(m["noise-floor"])
+		noise := cleanSignal(m["noise-floor"])
 		txPower, _ := strconv.Atoi(m["tx-power"])
 
 		data.Wireless = devices.DeviceWireless{
@@ -540,7 +645,7 @@ func (d *Driver) PollLink(ctx context.Context, target devices.TargetConfig) (*de
 	}
 
 	// 4. Ethernet Interfaces
-	if reply, err := client.Run("/interface/print", "detail", "?type=ether"); err == nil {
+	if reply, err := client.Run("/interface/print", "?type=ether"); err == nil {
 		for idx, re := range reply.Re {
 			m := re.Map
 			iface := devices.DeviceInterface{
@@ -554,7 +659,23 @@ func (d *Driver) PollLink(ctx context.Context, target devices.TargetConfig) (*de
 				iface.Status = "up"
 			}
 			rxBytes, _ := strconv.ParseInt(m["rx-byte"], 10, 64)
+			if rxBytes == 0 {
+				rxBytes, _ = strconv.ParseInt(m["rx-bytes"], 10, 64)
+			}
+			if rxBytes == 0 && m["bytes"] != "" {
+				rx, _ := cleanBytes(m["bytes"])
+				rxBytes = rx
+			}
+
 			txBytes, _ := strconv.ParseInt(m["tx-byte"], 10, 64)
+			if txBytes == 0 {
+				txBytes, _ = strconv.ParseInt(m["tx-bytes"], 10, 64)
+			}
+			if txBytes == 0 && m["bytes"] != "" {
+				_, tx := cleanBytes(m["bytes"])
+				txBytes = tx
+			}
+
 			iface.RXBytes = rxBytes
 			iface.TXBytes = txBytes
 			iface.UpdatedAt = now
@@ -596,10 +717,10 @@ func (d *Driver) PollSector(ctx context.Context, target devices.TargetConfig) (*
 	}
 
 	// 2. Wireless Radio
-	if reply, err := client.Run("/interface/wireless/print", "detail"); err == nil && len(reply.Re) > 0 {
+	if reply, err := client.Run("/interface/wireless/print"); err == nil && len(reply.Re) > 0 {
 		m := reply.Re[0].Map
 		freq, _ := strconv.Atoi(m["frequency"])
-		noise, _ := strconv.Atoi(m["noise-floor"])
+		noise := cleanSignal(m["noise-floor"])
 		txPower, _ := strconv.Atoi(m["tx-power"])
 
 		data.Wireless = devices.DeviceWireless{
