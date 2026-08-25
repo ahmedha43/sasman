@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +37,12 @@ func (th *TelemetryHub) SetAgentRole(agentKey string, role relay.NodeRole) {
 	}
 }
 
+func isStarlinkOrSatellite(asn, isp string) bool {
+	asnUpper := strings.ToUpper(strings.TrimSpace(asn))
+	ispLower := strings.ToLower(strings.TrimSpace(isp))
+	return asnUpper == "AS14593" || strings.Contains(ispLower, "space") || strings.Contains(ispLower, "starlink")
+}
+
 // GetAgentRole returns the assigned or auto-detected role of an agent
 func (th *TelemetryHub) GetAgentRole(agentKey string) relay.NodeRole {
 	th.mu.RLock()
@@ -46,10 +53,16 @@ func (th *TelemetryHub) GetAgentRole(agentKey string) relay.NodeRole {
 
 	// Auto-detect role from telemetry
 	if tel, exists := th.reports[agentKey]; exists {
-		if tel.CountryCode == "IQ" || (tel.Services["cinemana"].Available) {
+		// 1. Starlink / SpaceX is ALWAYS a Consumer Node (even if GeoIP is Iraq)
+		if isStarlinkOrSatellite(tel.ASN, tel.ISPName) {
+			return relay.NodeRoleConsumer
+		}
+
+		// 2. Domestic Iraqi Line (Cinemana reachable or Domestic Iraqi ISP)
+		if tel.Services["cinemana"].Available || (tel.CountryCode == "IQ" && tel.PublicIP != "") {
 			return relay.NodeRoleExit
 		}
-		if tel.ASN == "AS14593" || tel.CountryCode != "IQ" && tel.CountryCode != "" {
+		if tel.CountryCode != "IQ" && tel.CountryCode != "" {
 			return relay.NodeRoleConsumer
 		}
 	}
@@ -68,9 +81,11 @@ func (th *TelemetryHub) IngestTelemetry(t relay.ServiceTelemetry) {
 
 	if role, exists := th.agentRoles[key]; exists && role != "" {
 		t.AssignedRole = role
-	} else if t.CountryCode == "IQ" || t.Services["cinemana"].Available {
+	} else if isStarlinkOrSatellite(t.ASN, t.ISPName) {
+		t.AssignedRole = relay.NodeRoleConsumer
+	} else if t.Services["cinemana"].Available || (t.CountryCode == "IQ" && t.PublicIP != "") {
 		t.AssignedRole = relay.NodeRoleExit
-	} else if t.ASN == "AS14593" {
+	} else if t.CountryCode != "IQ" && t.CountryCode != "" {
 		t.AssignedRole = relay.NodeRoleConsumer
 	} else {
 		t.AssignedRole = relay.NodeRoleHybrid

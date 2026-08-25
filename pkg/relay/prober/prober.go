@@ -52,46 +52,114 @@ func NewProber(agentID, subdomain string, onTelemetry func(relay.ServiceTelemetr
 	p := &Prober{
 		services:    make(map[string]relay.ServiceDefinition),
 		results:     make(map[string]relay.HealthProbe),
-		httpClient:  &http.Client{Transport: transport, Timeout: 4 * time.Second},
+		httpClient:  &http.Client{Transport: transport, Timeout: 5 * time.Second},
 		stopCh:      make(chan struct{}),
 		onTelemetry: onTelemetry,
 		agentID:     agentID,
 		subdomain:   subdomain,
-		wanCountry:  "IQ",
-		wanISP:      "Local Iraqi ISP",
-		wanASN:      "AS-Local",
+		wanCountry:  "",
+		wanISP:      "",
+		wanASN:      "",
 	}
-	go p.detectWAN()
+	go p.detectWANLoop()
 	return p
 }
 
-func (p *Prober) detectWAN() {
-	resp, err := p.httpClient.Get("https://ipinfo.io/json")
-	if err == nil && resp.StatusCode == 200 {
-		defer resp.Body.Close()
-		var data struct {
-			IP      string `json:"ip"`
-			Org     string `json:"org"`
-			Country string `json:"country"`
+func (p *Prober) detectWANLoop() {
+	// Try immediately on start with retries
+	for i := 0; i < 5; i++ {
+		if p.detectWAN() {
+			break
 		}
-		if err := json.NewDecoder(resp.Body).Decode(&data); err == nil {
-			p.mu.Lock()
-			if data.IP != "" {
-				p.wanPublicIP = data.IP
+		time.Sleep(2 * time.Second)
+	}
+
+	// Periodic re-check every 5 minutes
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-p.stopCh:
+			return
+		case <-ticker.C:
+			p.detectWAN()
+		}
+	}
+}
+
+func (p *Prober) detectWAN() bool {
+	endpoints := []string{
+		"https://ipwhois.app/json/",
+		"https://ipapi.co/json/",
+		"https://ipinfo.io/json",
+	}
+
+	for _, ep := range endpoints {
+		req, err := http.NewRequest("GET", ep, nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; SASMAN/5.0; +https://sas-man.net)")
+
+		resp, err := p.httpClient.Do(req)
+		if err != nil || resp.StatusCode != 200 {
+			if resp != nil {
+				resp.Body.Close()
 			}
-			if data.Country != "" {
+			continue
+		}
+
+		var data struct {
+			IP          string `json:"ip"`
+			Org         string `json:"org"`
+			ISP         string `json:"isp"`
+			ASN         string `json:"asn"`
+			CountryCode string `json:"country_code"`
+			Country     string `json:"country"`
+		}
+
+		decodeErr := json.NewDecoder(resp.Body).Decode(&data)
+		resp.Body.Close()
+
+		if decodeErr == nil && data.IP != "" {
+			p.mu.Lock()
+			p.wanPublicIP = data.IP
+
+			if data.CountryCode != "" {
+				p.wanCountry = data.CountryCode
+			} else if data.Country == "Iraq" || data.Country == "IQ" {
+				p.wanCountry = "IQ"
+			} else {
 				p.wanCountry = data.Country
 			}
-			if data.Org != "" {
+
+			// ISP and Org detection
+			if data.ISP != "" {
+				p.wanISP = data.ISP
+			} else if data.Org != "" {
 				p.wanISP = data.Org
+			}
+
+			// ASN detection
+			if data.ASN != "" {
+				p.wanASN = data.ASN
+			} else if data.Org != "" {
 				parts := strings.Fields(data.Org)
 				if len(parts) > 0 && strings.HasPrefix(parts[0], "AS") {
 					p.wanASN = parts[0]
 				}
 			}
+
 			p.mu.Unlock()
+
+			// Trigger immediate telemetry push with true WAN details
+			p.runAllProbes()
+			return true
 		}
 	}
+
+	return false
 }
 
 // UpdateServices updates the list of services to probe
