@@ -153,64 +153,7 @@ func (cm *CatalogManager) loadFromDB() error {
 }
 
 func (cm *CatalogManager) seedDefaultServices() {
-	defaults := []relay.ServiceDefinition{
-		{
-			ID:          "cinemana",
-			Name:        "Shabakaty Cinemana",
-			Category:    "Streaming",
-			Domains:     []string{"cinemana.shabakaty.cc", "*.shabakaty.cc", "*.shabakaty.com"},
-			Ports:       []int{80, 443},
-			Protocols:   []string{"tcp", "tls"},
-			TargetScope: "all",
-			ProbeConfig: relay.ProbeConfig{
-				Type:        "https",
-				TargetURL:   "https://cinemana.shabakaty.cc",
-				IntervalSec: 15,
-				TimeoutSec:  3,
-			},
-			Enabled:   true,
-			CreatedAt: time.Now().UTC(),
-			UpdatedAt: time.Now().UTC(),
-		},
-		{
-			ID:          "shabakaty_tv",
-			Name:        "Shabakaty TV / Live",
-			Category:    "IPTV",
-			Domains:     []string{"tv.shabakaty.com", "*.shabakaty.tv"},
-			Ports:       []int{80, 443, 8080},
-			Protocols:   []string{"tcp", "tls"},
-			TargetScope: "all",
-			ProbeConfig: relay.ProbeConfig{
-				Type:        "https",
-				TargetURL:   "https://tv.shabakaty.com",
-				IntervalSec: 15,
-				TimeoutSec:  3,
-			},
-			Enabled:   true,
-			CreatedAt: time.Now().UTC(),
-			UpdatedAt: time.Now().UTC(),
-		},
-		{
-			ID:          "earthlink_share",
-			Name:        "EarthLink Share CDN",
-			Category:    "CDN",
-			Domains:     []string{"share.earthlink.iq", "*.earthlink.iq"},
-			Ports:       []int{80, 443},
-			Protocols:   []string{"tcp", "tls"},
-			TargetScope: "all",
-			ProbeConfig: relay.ProbeConfig{
-				Type:        "https",
-				TargetURL:   "https://share.earthlink.iq",
-				IntervalSec: 15,
-				TimeoutSec:  3,
-			},
-			Enabled:   true,
-			CreatedAt: time.Now().UTC(),
-			UpdatedAt: time.Now().UTC(),
-		},
-	}
-
-	for _, svc := range defaults {
+	for _, svc := range relay.GetDefaultServiceBundles() {
 		_ = cm.SaveService(svc)
 	}
 }

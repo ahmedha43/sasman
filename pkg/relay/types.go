@@ -105,11 +105,86 @@ type RelayControlMessage struct {
 	Payload   json.RawMessage  `json:"payload,omitempty"`
 }
 
+// NodeRole defines the operational role of a SASMAN agent
+type NodeRole string
+
+const (
+	NodeRoleExit     NodeRole = "EXIT_NODE"     // Local Iraqi ISP Node with Domestic Egress
+	NodeRoleConsumer NodeRole = "CONSUMER_NODE" // Starlink / WAN-only Node needing selective domestic proxy
+	NodeRoleHybrid   NodeRole = "HYBRID"        // Node capable of both consuming and providing egress
+)
+
 // StreamOpenPayload is the header sent when initiating a relay stream to an egress agent
 type StreamOpenPayload struct {
 	StreamID   string `json:"stream_id"`
 	ServiceID  string `json:"service_id"`
-	TargetHost string `json:"target_host"` // e.g. "cinemana.shabakaty.cc:443"
+	TargetHost string `json:"target_host"` // e.g. "ipinfo.io:443" or "speedtest.net:80"
 	SNI        string `json:"sni"`
 	ClientIP   string `json:"client_ip,omitempty"`
+	AuthToken  string `json:"auth_token,omitempty"`
+}
+
+// GetDefaultServiceBundles returns pre-configured target lists for Iraqi Domestic Relaying
+func GetDefaultServiceBundles() []ServiceDefinition {
+	now := time.Now()
+	return []ServiceDefinition{
+		{
+			ID:          "geoip_identity",
+			Name:        "GeoIP & Domestic Identity",
+			Category:    "Identity",
+			Domains:     []string{"ipinfo.io", "ifconfig.co", "ifconfig.me", "icanhazip.com", "whoer.net", "whatismyipaddress.com", "ip.sb", "myip.is", "api.ipify.org"},
+			Ports:       []int{80, 443},
+			Protocols:   []string{"tcp", "tls"},
+			TargetScope: "all",
+			Enabled:     true,
+			ProbeConfig: ProbeConfig{
+				Type:         "https",
+				TargetURL:    "https://ipinfo.io/json",
+				ExpectedCode: 200,
+				IntervalSec:  30,
+				TimeoutSec:   5,
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:          "speedtest_benchmark",
+			Name:        "Speedtest & Ookla Benchmarks",
+			Category:    "Benchmark",
+			Domains:     []string{"*.speedtest.net", "speedtest.net", "*.ooklaserver.net", "*.fast.com", "fast.com", "speed.cloudflare.com"},
+			Ports:       []int{80, 443, 8080},
+			Protocols:   []string{"tcp", "tls"},
+			TargetScope: "all",
+			Enabled:     true,
+			ProbeConfig: ProbeConfig{
+				Type:         "https",
+				TargetURL:    "https://www.speedtest.net",
+				ExpectedCode: 200,
+				IntervalSec:  30,
+				TimeoutSec:   5,
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:          "cinemana",
+			Name:        "Shabakaty Cinemana & Earthlink CDN",
+			Category:    "Streaming",
+			Domains:     []string{"cinemana.shabakaty.cc", "*.shabakaty.cc", "shabakaty.com", "*.shabakaty.com", "earthlink.iq", "*.earthlink.iq"},
+			IPRanges:    []string{"10.0.0.0/8"},
+			Ports:       []int{80, 443},
+			Protocols:   []string{"tcp", "tls"},
+			TargetScope: "all",
+			Enabled:     true,
+			ProbeConfig: ProbeConfig{
+				Type:         "https",
+				TargetURL:    "https://cinemana.shabakaty.cc",
+				ExpectedCode: 200,
+				IntervalSec:  15,
+				TimeoutSec:   3,
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
 }

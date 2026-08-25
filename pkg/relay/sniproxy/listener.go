@@ -109,15 +109,21 @@ func (l *InterceptorListener) handleClientConn(clientConn net.Conn) {
 		l.activeConns.Add(-1)
 	}()
 
+	// 1. Try Linux kernel SO_ORIGINAL_DST extraction from iptables/RouterOS REDIRECT
+	origDst, _ := GetOriginalDst(clientConn)
+
+	// 2. Peek TLS ClientHello SNI
 	_ = clientConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	sni, peeked, err := ExtractSNI(clientConn)
 	_ = clientConn.SetReadDeadline(time.Time{})
 
 	targetHost := ""
-	if err == nil && sni != "" {
+	if sni != "" {
 		targetHost = net.JoinHostPort(sni, "443")
+	} else if origDst != "" && origDst != clientConn.LocalAddr().String() {
+		targetHost = origDst
 	} else {
-		// Non-TLS or missing SNI: use original destination address
+		// Non-TLS or missing SNI: use local address as fallback
 		targetHost = clientConn.LocalAddr().String()
 	}
 

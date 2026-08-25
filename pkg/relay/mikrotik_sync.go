@@ -79,16 +79,23 @@ func SyncMikroTikRelayRules(client *routeros.Client, services []ServiceDefinitio
 			}
 		}
 
-		// Add DST-NAT Redirect Rule for port 443 to the local Agent interceptor port
-		core.SafeRun(client, "/ip/firewall/nat/add",
-			"=chain=dstnat",
-			"=protocol=tcp",
-			"=dst-port=443",
-			"=dst-address-list="+listName,
-			"=src-address-list=TM_Local_Subnets",
-			"=action=redirect",
-			fmt.Sprintf("=to-ports=%d", interceptorPort),
-			"=comment="+comment)
+		// Add DST-NAT Redirect Rule for configured ports (80, 443, etc.) to the local Agent interceptor port
+		ports := svc.Ports
+		if len(ports) == 0 {
+			ports = []int{443}
+		}
+
+		for _, p := range ports {
+			core.SafeRun(client, "/ip/firewall/nat/add",
+				"=chain=dstnat",
+				"=protocol=tcp",
+				fmt.Sprintf("=dst-port=%d", p),
+				"=dst-address-list="+listName,
+				"=src-address-list=TM_Local_Subnets",
+				"=action=redirect",
+				fmt.Sprintf("=to-ports=%d", interceptorPort),
+				"=comment="+comment)
+		}
 	}
 
 	log.Printf("[Relay MikroTik Sync] Successfully synced %d active services to RouterOS", len(services))
