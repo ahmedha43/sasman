@@ -3,6 +3,7 @@ package prober
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -28,6 +29,10 @@ type Prober struct {
 	onTelemetry func(telemetry relay.ServiceTelemetry)
 	agentID     string
 	subdomain   string
+	wanPublicIP string
+	wanISP      string
+	wanASN      string
+	wanCountry  string
 }
 
 func NewProber(agentID, subdomain string, onTelemetry func(relay.ServiceTelemetry)) *Prober {
@@ -44,7 +49,7 @@ func NewProber(agentID, subdomain string, onTelemetry func(relay.ServiceTelemetr
 		ResponseHeaderTimeout: 4 * time.Second,
 	}
 
-	return &Prober{
+	p := &Prober{
 		services:    make(map[string]relay.ServiceDefinition),
 		results:     make(map[string]relay.HealthProbe),
 		httpClient:  &http.Client{Transport: transport, Timeout: 4 * time.Second},
@@ -52,6 +57,40 @@ func NewProber(agentID, subdomain string, onTelemetry func(relay.ServiceTelemetr
 		onTelemetry: onTelemetry,
 		agentID:     agentID,
 		subdomain:   subdomain,
+		wanCountry:  "IQ",
+		wanISP:      "Local Iraqi ISP",
+		wanASN:      "AS-Local",
+	}
+	go p.detectWAN()
+	return p
+}
+
+func (p *Prober) detectWAN() {
+	resp, err := p.httpClient.Get("https://ipinfo.io/json")
+	if err == nil && resp.StatusCode == 200 {
+		defer resp.Body.Close()
+		var data struct {
+			IP      string `json:"ip"`
+			Org     string `json:"org"`
+			Country string `json:"country"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&data); err == nil {
+			p.mu.Lock()
+			if data.IP != "" {
+				p.wanPublicIP = data.IP
+			}
+			if data.Country != "" {
+				p.wanCountry = data.Country
+			}
+			if data.Org != "" {
+				p.wanISP = data.Org
+				parts := strings.Fields(data.Org)
+				if len(parts) > 0 && strings.HasPrefix(parts[0], "AS") {
+					p.wanASN = parts[0]
+				}
+			}
+			p.mu.Unlock()
+		}
 	}
 }
 
@@ -129,6 +168,10 @@ func (p *Prober) TriggerProbeNow(serviceID string) {
 			telemetry := relay.ServiceTelemetry{
 				AgentID:     p.agentID,
 				Subdomain:   p.subdomain,
+				PublicIP:    p.wanPublicIP,
+				ISPName:     p.wanISP,
+				ASN:         p.wanASN,
+				CountryCode: p.wanCountry,
 				Timestamp:   time.Now().UTC(),
 				Services:    resultsCopy,
 				NodeMetrics: p.collectNodeMetrics(),
@@ -175,6 +218,10 @@ func (p *Prober) runAllProbes() {
 		telemetry := relay.ServiceTelemetry{
 			AgentID:     p.agentID,
 			Subdomain:   p.subdomain,
+			PublicIP:    p.wanPublicIP,
+			ISPName:     p.wanISP,
+			ASN:         p.wanASN,
+			CountryCode: p.wanCountry,
 			Timestamp:   time.Now().UTC(),
 			Services:    resultsCopy,
 			NodeMetrics: p.collectNodeMetrics(),

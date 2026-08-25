@@ -12,23 +12,59 @@ import (
 
 // RouterEngine calculates optimal egress paths and manages automatic failover
 type RouterEngine struct {
-	version   atomic.Int64
-	running   atomic.Int32
-	catalog   *CatalogManager
-	telemetry *TelemetryHub
-	mu        sync.RWMutex
-	lastTable relay.AgentRoutingTable
-	onUpdate  func(table relay.AgentRoutingTable)
-	stopCh    chan struct{}
+	version      atomic.Int64
+	running      atomic.Int32
+	catalog      *CatalogManager
+	telemetry    *TelemetryHub
+	strategy     string // "lowest_latency" or "round_robin"
+	globalBypass bool   // Emergency Kill-Switch
+	rrIndex      map[string]int
+	mu           sync.RWMutex
+	lastTable    relay.AgentRoutingTable
+	onUpdate     func(table relay.AgentRoutingTable)
+	stopCh       chan struct{}
 }
 
 func NewRouterEngine(catalog *CatalogManager, telemetry *TelemetryHub, onUpdate func(relay.AgentRoutingTable)) *RouterEngine {
 	return &RouterEngine{
 		catalog:   catalog,
 		telemetry: telemetry,
+		strategy:  "lowest_latency",
+		rrIndex:   make(map[string]int),
 		onUpdate:  onUpdate,
 		stopCh:    make(chan struct{}),
 	}
+}
+
+func (re *RouterEngine) SetStrategy(strat string) {
+	re.mu.Lock()
+	if strat == "round_robin" || strat == "lowest_latency" {
+		re.strategy = strat
+	}
+	re.mu.Unlock()
+	_ = re.ComputeGlobalRoutingTable()
+}
+
+func (re *RouterEngine) GetStrategy() string {
+	re.mu.RLock()
+	defer re.mu.RUnlock()
+	return re.strategy
+}
+
+func (re *RouterEngine) SetGlobalBypass(bypass bool) {
+	re.mu.Lock()
+	re.globalBypass = bypass
+	re.mu.Unlock()
+	table := re.ComputeGlobalRoutingTable()
+	if re.onUpdate != nil {
+		re.onUpdate(table)
+	}
+}
+
+func (re *RouterEngine) IsGlobalBypass() bool {
+	re.mu.RLock()
+	defer re.mu.RUnlock()
+	return re.globalBypass
 }
 
 func (re *RouterEngine) Start() {
@@ -71,6 +107,11 @@ func (re *RouterEngine) evalLoop() {
 
 // ComputeGlobalRoutingTable evaluates all services and selects best primary/backup egress agents
 func (re *RouterEngine) ComputeGlobalRoutingTable() relay.AgentRoutingTable {
+	re.mu.Lock()
+	strategy := re.strategy
+	bypass := re.globalBypass
+	re.mu.Unlock()
+
 	services := re.catalog.GetAllServices()
 	routes := make(map[string]relay.EgressRoute)
 
@@ -128,13 +169,22 @@ func (re *RouterEngine) ComputeGlobalRoutingTable() relay.AgentRoutingTable {
 			return candidates[i].score < candidates[j].score
 		})
 
-		primary := candidates[0].provider.Subdomain
-		primaryScore := candidates[0].score
-		primaryLatency := candidates[0].provider.Probe.LatencyMs
+		primaryIdx := 0
+		if strategy == "round_robin" && len(candidates) > 1 {
+			re.mu.Lock()
+			re.rrIndex[svc.ID] = (re.rrIndex[svc.ID] + 1) % len(candidates)
+			primaryIdx = re.rrIndex[svc.ID]
+			re.mu.Unlock()
+		}
+
+		primary := candidates[primaryIdx].provider.Subdomain
+		primaryScore := candidates[primaryIdx].score
+		primaryLatency := candidates[primaryIdx].provider.Probe.LatencyMs
 
 		backup := ""
 		if len(candidates) > 1 {
-			backup = candidates[1].provider.Subdomain
+			backupIdx := (primaryIdx + 1) % len(candidates)
+			backup = candidates[backupIdx].provider.Subdomain
 		}
 
 		routes[svc.ID] = relay.EgressRoute{
@@ -150,9 +200,11 @@ func (re *RouterEngine) ComputeGlobalRoutingTable() relay.AgentRoutingTable {
 
 	newVersion := re.version.Add(1)
 	return relay.AgentRoutingTable{
-		Version:   newVersion,
-		Timestamp: time.Now().UTC(),
-		Routes:    routes,
+		Version:      newVersion,
+		Timestamp:    time.Now().UTC(),
+		GlobalBypass: bypass,
+		Strategy:     strategy,
+		Routes:       routes,
 	}
 }
 

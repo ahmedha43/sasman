@@ -448,33 +448,88 @@
 
     <!-- ================= TAB 2: SERVICE RELAY & DOMAINS ================= -->
     <div id="tab-relay" class="tab-pane">
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">
-              <i class="fa-solid fa-server" style="color:var(--primary);"></i>
-              <span>سيرفر النطاقات والخدمات الموزعة الذكي (Smart Service Relay & Multi-WAN)</span>
-            </div>
-            <p style="font-size:13px; color:#94a3b8; margin:4px 0 0 0;">
-              إضافة وإدارة خدمات ونطاقات التوجيه (مثل شبكتي، سينمانا، خوادم البث المباشر) لتحويل ترافيك الوكلاء تلقائياً لأسرع مسار وأقل بنغ.
-            </p>
+      <!-- Master Control Bar -->
+      <div style="background:#0b1329; border:1px solid #1e293b; border-radius:12px; padding:16px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:13px; color:#94a3b8; font-weight:600;">🛑 مفتاح الطوارئ (Kill-Switch):</span>
+            <button id="btn-kill-switch" class="btn btn-xs" style="background:#16a34a; color:#fff; padding:6px 14px; font-weight:bold;" onclick="toggleRelayKillSwitch()">
+              🟢 التوجيه شغال (Active)
+            </button>
           </div>
-
-          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-            <button class="btn btn-primary" onclick="openServiceModal()">
-              <i class="fa-solid fa-plus"></i> إضافة خدمة / نطاق جديد
-            </button>
-            <button class="btn btn-dark" style="background:#0284c7; color:#fff;" onclick="recalculateRelayRoutes()">
-              <i class="fa-solid fa-arrows-rotate"></i> إعادة احتساب المسارات الذكية
-            </button>
-            <button class="btn btn-dark" onclick="loadRelayServices()">
-              <i class="fa-solid fa-rotate"></i> تحديث
-            </button>
+          <div style="height:24px; width:1px; background:#334155;"></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:13px; color:#94a3b8; font-weight:600;">⚖️ استراتيجية التوجيه:</span>
+            <select id="relay-strategy-select" style="padding:4px 10px; font-size:12px; border-radius:6px; background:#0f172a; color:#f8fafc; border:1px solid #334155;" onchange="changeRelayStrategy(this.value)">
+              <option value="lowest_latency">⚡ أقل زمن استجابة (Lowest Latency)</option>
+              <option value="round_robin">🔄 موازنة حمل متساوية (Round-Robin Multi-Exit)</option>
+            </select>
           </div>
         </div>
 
-        <div id="relay-services-container">
-          <p class="text-muted" style="text-align:center; padding:20px;">جاري تحميل قائمة الخدمات والنطاقات...</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-warning btn-xs" style="padding:6px 14px;" onclick="forceSyncAllMikrotikRouters()" title="إعادة حقن قواعد المايكروتك لجميع الراوترات">
+            <i class="fa-solid fa-sync"></i> 🔄 مزامنة المايكروتك الفورية
+          </button>
+          <button class="btn btn-primary btn-xs" style="padding:6px 14px;" onclick="openServiceModal()">
+            <i class="fa-solid fa-plus"></i> إضافة خدمة / دومين جديد
+          </button>
+        </div>
+      </div>
+
+      <!-- Sub-Tabs: Services vs Live Nodes -->
+      <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid #334155; padding-bottom:8px;">
+        <button id="subtab-btn-services" class="btn btn-xs btn-primary" onclick="switchRelaySubTab('services')">
+          <i class="fa-solid fa-list-check"></i> 📦 الخدمات والنطاقات المسجلة
+        </button>
+        <button id="subtab-btn-nodes" class="btn btn-xs btn-dark" onclick="switchRelaySubTab('nodes')">
+          <i class="fa-solid fa-tower-broadcast"></i> 🛰️ إدارة وتصنيف العقد الحية (Live Nodes & Roles)
+        </button>
+      </div>
+
+      <!-- View 1: Services List -->
+      <div id="relay-subview-services">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                <i class="fa-solid fa-server" style="color:var(--primary);"></i>
+                <span>قائمة النطاقات والخدمات الموجهة للمصدر العراقي</span>
+              </div>
+              <p style="font-size:13px; color:#94a3b8; margin:4px 0 0 0;">
+                أي طلبات لهذه النطاقات والـ IPs من مشتركي الـ Starlink يتم تحويلها تلقائياً للخروج عبر مصدر عراقي.
+              </p>
+            </div>
+            <button class="btn btn-dark btn-xs" onclick="loadRelayServices()">
+              <i class="fa-solid fa-rotate"></i> تحديث القائمة
+            </button>
+          </div>
+          <div id="relay-services-container">
+            <p class="text-muted" style="text-align:center; padding:20px;">جاري تحميل قائمة الخدمات والنطاقات...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- View 2: Live Nodes & Roles -->
+      <div id="relay-subview-nodes" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                <i class="fa-solid fa-network-wired" style="color:#38bdf8;"></i>
+                <span>العقد المتصلة وإدارة أدوار الخروج (Exit vs Consumer Nodes)</span>
+              </div>
+              <p style="font-size:13px; color:#94a3b8; margin:4px 0 0 0;">
+                حدد دور كل راوتر (مصدر خروج عراقي 🇮🇶 أو مستهلك ستارلنك 🛰️) وافحص الآيبي الفعلي لكل راوتر لحظياً.
+              </p>
+            </div>
+            <button class="btn btn-dark btn-xs" onclick="loadRelayNodes()">
+              <i class="fa-solid fa-rotate"></i> تحديث العقد
+            </button>
+          </div>
+          <div id="relay-nodes-container">
+            <p class="text-muted" style="text-align:center; padding:20px;">جاري فحص حالة العقد المتصلة...</p>
+          </div>
         </div>
       </div>
     </div>
@@ -794,6 +849,24 @@
       <!-- Live Agents Table -->
       <div id="live-probe-table-container">
         <p class="text-muted" style="text-align:center; padding:20px;">جاري جلب نتائج الفحص...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Egress IP Live Diagnostic Modal -->
+  <div id="egress-test-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:600px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0;"><i class="fa-solid fa-earth-americas" style="color:var(--primary);"></i> فحص الآيبي ومصدر الخروج للراوتر</h3>
+        <button class="btn btn-dark btn-xs" onclick="closeEgressTestModal()">✕</button>
+      </div>
+
+      <div id="egress-test-content">
+        <p class="text-muted" style="text-align:center; padding:20px;">جاري فحص الآيبي الفعلي عبر النفق...</p>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+        <button class="btn btn-dark" onclick="closeEgressTestModal()">إغلاق</button>
       </div>
     </div>
   </div>
@@ -2136,6 +2209,244 @@ ${setupCmd}`;
           btn.disabled = false;
           btn.innerHTML = '<i class="fa-solid fa-bolt"></i> ⚡ إعادة الفحص الفوري الآن';
         }, 2000);
+      }
+    }
+
+    // ─── RELAY COMMAND & CONTROL SUITE ───────────────────────────────────────
+    let isRelayBypassActive = false;
+
+    function switchRelaySubTab(tab) {
+      const btnServices = document.getElementById('subtab-btn-services');
+      const btnNodes = document.getElementById('subtab-btn-nodes');
+      const viewServices = document.getElementById('relay-subview-services');
+      const viewNodes = document.getElementById('relay-subview-nodes');
+
+      if (tab === 'services') {
+        btnServices.className = 'btn btn-xs btn-primary';
+        btnNodes.className = 'btn btn-xs btn-dark';
+        viewServices.style.display = 'block';
+        viewNodes.style.display = 'none';
+        loadRelayServices();
+      } else {
+        btnServices.className = 'btn btn-xs btn-dark';
+        btnNodes.className = 'btn btn-xs btn-primary';
+        viewServices.style.display = 'none';
+        viewNodes.style.display = 'block';
+        loadRelayNodes();
+      }
+    }
+
+    async function loadRelayNodes() {
+      const container = document.getElementById('relay-nodes-container');
+      try {
+        const res = await fetch('/api/relay/nodes');
+        if (!res.ok) throw new Error('فشل جلب بيانات العقد والراوترات');
+        const data = await res.json();
+        
+        isRelayBypassActive = !!data.global_bypass;
+        updateKillSwitchUI(isRelayBypassActive);
+
+        const select = document.getElementById('relay-strategy-select');
+        if (select && data.strategy) select.value = data.strategy;
+
+        renderRelayNodesTable(data.nodes || []);
+      } catch (err) {
+        container.innerHTML = `<p style="color:var(--danger); text-align:center; padding:20px;">❌ ${err.message}</p>`;
+      }
+    }
+
+    function renderRelayNodesTable(nodes) {
+      const container = document.getElementById('relay-nodes-container');
+      if (!nodes || !nodes.length) {
+        container.innerHTML = '<p class="text-muted" style="text-align:center; padding:30px;">لا يوجد عقد أو راوترات متصلة حالياً.</p>';
+        return;
+      }
+
+      let html = '<div class="table-wrap"><table><thead><tr>' +
+        '<th>🏢 اسم الراوتر / النطاق</th>' +
+        '<th>🌐 الآيبي العام (Public WAN)</th>' +
+        '<th>📡 شركة الإنترنت ورقم المزود (ISP / ASN)</th>' +
+        '<th>🏳️ الدولة</th>' +
+        '<th>⚙️ دور العقدة (Operational Role)</th>' +
+        '<th>إجراءات وفحص</th>' +
+        '</tr></thead><tbody>';
+
+      nodes.forEach(n => {
+        const ip = n.public_ip || 'جاري الكشف...';
+        const isp = n.isp_name || 'مزود محلي';
+        const asn = n.asn ? `<code style="font-size:11px; color:#38bdf8;">${escapeHtml(n.asn)}</code>` : '';
+        const country = n.country_code || 'IQ';
+        const flag = country === 'IQ' ? '🇮🇶 العراق' : `🌍 ${escapeHtml(country)}`;
+        const role = n.assigned_role || 'HYBRID';
+
+        html += `<tr>
+          <td>
+            <div style="font-weight:bold; color:#38bdf8; font-family:monospace; font-size:14px;">${escapeHtml(n.subdomain)}</div>
+            <div style="font-size:11px; color:#94a3b8;">${escapeHtml(n.agent_id || '')}</div>
+          </td>
+          <td><code style="color:#22c55e; font-family:monospace; font-size:13px; font-weight:bold;">${escapeHtml(ip)}</code></td>
+          <td>
+            <div style="font-size:13px; color:#f8fafc; font-weight:500;">${escapeHtml(isp)}</div>
+            <div>${asn}</div>
+          </td>
+          <td><span class="badge" style="background:#1e293b; color:#f8fafc; font-size:12px;">${flag}</span></td>
+          <td>
+            <select style="padding:4px 8px; font-size:12px; border-radius:6px; background:#0f172a; color:#f8fafc; border:1px solid #334155;" onchange="setNodeRole('${escapeHtml(n.subdomain)}', this.value)">
+              <option value="EXIT_NODE" ${role === 'EXIT_NODE' ? 'selected' : ''}>🇮🇶 مصدر خروج عراقي (Exit Node)</option>
+              <option value="CONSUMER_NODE" ${role === 'CONSUMER_NODE' ? 'selected' : ''}>🛰️ مستهلك ستارلنك (Consumer Node)</option>
+              <option value="HYBRID" ${role === 'HYBRID' ? 'selected' : ''}>🔄 عقدة هجينة (Hybrid)</option>
+            </select>
+          </td>
+          <td>
+            <button class="btn btn-primary btn-xs" style="padding:5px 12px; font-size:12px;" onclick="testNodeEgressIP('${escapeHtml(n.subdomain)}')">
+              <i class="fa-solid fa-earth-americas"></i> 🔍 فحص الآيبي
+            </button>
+          </td>
+        </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    async function setNodeRole(agentId, role) {
+      try {
+        const res = await fetch(`/api/relay/nodes/${encodeURIComponent(agentId)}/role`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ تم تحديث دور العقدة "${agentId}" إلى (${role}) بنجاح!`);
+          loadRelayNodes();
+        } else {
+          alert(`❌ ${data.error || 'فشل تغيير دور العقدة'}`);
+        }
+      } catch(e) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    async function testNodeEgressIP(agentId) {
+      document.getElementById('egress-test-modal').classList.add('active');
+      const content = document.getElementById('egress-test-content');
+      content.innerHTML = '<p class="text-muted" style="text-align:center; padding:30px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--primary); margin-bottom:10px; display:block;"></i> جاري فحص الآيبي ومصدر الخروج الفعلي عبر النفق...</p>';
+
+      try {
+        const res = await fetch(`/api/relay/nodes/${encodeURIComponent(agentId)}/test-ip`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'فشل الفحص');
+
+        const r = data.result;
+        const isIraqi = r.is_iraqi_ip || r.country === 'IQ';
+
+        content.innerHTML = `
+          <div style="background:#0b1329; border:1.5px solid ${isIraqi ? '#22c55e' : '#eab308'}; border-radius:12px; padding:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <div>
+                <div style="font-size:12px; color:#94a3b8;">الراوتر المستعلم:</div>
+                <strong style="font-size:16px; color:#38bdf8; font-family:monospace;">${escapeHtml(r.subdomain)}</strong>
+              </div>
+              <span class="badge" style="background:${isIraqi ? '#14532d' : '#713f12'}; color:${isIraqi ? '#86efac' : '#fde047'}; font-size:13px; padding:6px 12px;">
+                ${isIraqi ? '✅ IP عراقي محلي 100%' : '⚠️ IP أجنبي / Starlink'}
+              </span>
+            </div>
+
+            <table style="width:100%; font-size:13.5px; border-collapse:collapse;">
+              <tr>
+                <td style="border:none; padding:8px 0; color:#94a3b8; width:35%;">🌐 الآيبي الظاهر للمواقع:</td>
+                <td style="border:none; padding:8px 0;"><code style="font-size:15px; font-weight:bold; color:#22c55e;">${escapeHtml(r.public_ip)}</code></td>
+              </tr>
+              <tr>
+                <td style="border:none; padding:8px 0; color:#94a3b8;">🏢 مزود الإنترنت (ISP / Org):</td>
+                <td style="border:none; padding:8px 0; font-weight:600; color:#f8fafc;">${escapeHtml(r.org || 'EarthLink / ScopeSky')}</td>
+              </tr>
+              <tr>
+                <td style="border:none; padding:8px 0; color:#94a3b8;">📍 الموقع الجغرافي:</td>
+                <td style="border:none; padding:8px 0; color:#f8fafc;">${escapeHtml(r.city || 'Baghdad')}, ${escapeHtml(r.country || 'IQ')} 🇮🇶</td>
+              </tr>
+              <tr>
+                <td style="border:none; padding:8px 0; color:#94a3b8;">🕒 وقت الفحص:</td>
+                <td style="border:none; padding:8px 0; font-size:12px; color:#94a3b8;">${new Date().toLocaleTimeString('ar-IQ')}</td>
+              </tr>
+            </table>
+          </div>
+        `;
+      } catch(err) {
+        content.innerHTML = `<p style="color:var(--danger); text-align:center; padding:20px;">❌ ${err.message}</p>`;
+      }
+    }
+
+    function closeEgressTestModal() {
+      document.getElementById('egress-test-modal').classList.remove('active');
+    }
+
+    function updateKillSwitchUI(isBypass) {
+      const btn = document.getElementById('btn-kill-switch');
+      if (!btn) return;
+      if (isBypass) {
+        btn.style.background = '#dc2626';
+        btn.innerHTML = '🛑 الطوارئ مفعّل (Starlink Direct)';
+      } else {
+        btn.style.background = '#16a34a';
+        btn.innerHTML = '🟢 التوجيه شغال (Active)';
+      }
+    }
+
+    async function toggleRelayKillSwitch() {
+      const newBypassState = !isRelayBypassActive;
+      const promptMsg = newBypassState ? 
+        '⚠️ هل أنت متأكد من تفعيل مفتاح الطوارئ؟ سيتم تحويل ترافيك جميع المشتركين إلى Starlink المباشر فوراً.' :
+        'هل تريد إعادة تفعيل توجيه الترافيك عبر المصادر العراقية؟';
+
+      if (!confirm(promptMsg)) return;
+
+      try {
+        const res = await fetch('/api/relay/kill-switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bypass: newBypassState })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          isRelayBypassActive = !!data.global_bypass;
+          updateKillSwitchUI(isRelayBypassActive);
+          alert(isRelayBypassActive ? '🛑 تم تفعيل مفتاح الطوارئ بنجاح!' : '🟢 تم إعادة تشغيل التوجيه الذكي بنجاح!');
+        }
+      } catch(e) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    async function changeRelayStrategy(strategy) {
+      try {
+        const res = await fetch('/api/relay/strategy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ strategy })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ تم تحديث استراتيجية التوجيه إلى (${strategy}) بنجاح!`);
+        }
+      } catch(e) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    async function forceSyncAllMikrotikRouters() {
+      if (!confirm('هل تريد إعادة حقن ومزامنة قواعد الـ Address-List والـ NAT على جميع أجهزة المايكروتك الآن؟')) return;
+      try {
+        const res = await fetch('/api/relay/sync-all', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ تم إرسال أمر المزامنة الفورية لكافة أجهزة المايكروتك المتصلة بنجاح!');
+        } else {
+          alert(`❌ ${data.error || 'فشل إرسال أمر المزامنة'}`);
+        }
+      } catch(e) {
+        alert('خطأ في الاتصال بالسيرفر');
       }
     }
 

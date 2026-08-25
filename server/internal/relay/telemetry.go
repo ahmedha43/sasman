@@ -12,15 +12,48 @@ type TelemetryHub struct {
 	mu           sync.RWMutex
 	reports      map[string]relay.ServiceTelemetry // Key: Subdomain or AgentID
 	lastReportAt map[string]time.Time
+	agentRoles   map[string]relay.NodeRole // Key: Subdomain or AgentID
 }
 
 func NewTelemetryHub() *TelemetryHub {
 	hub := &TelemetryHub{
 		reports:      make(map[string]relay.ServiceTelemetry),
 		lastReportAt: make(map[string]time.Time),
+		agentRoles:   make(map[string]relay.NodeRole),
 	}
 	go hub.staleCleanerLoop()
 	return hub
+}
+
+// SetAgentRole assigns an operational role to an agent
+func (th *TelemetryHub) SetAgentRole(agentKey string, role relay.NodeRole) {
+	th.mu.Lock()
+	defer th.mu.Unlock()
+	th.agentRoles[agentKey] = role
+	if tel, exists := th.reports[agentKey]; exists {
+		tel.AssignedRole = role
+		th.reports[agentKey] = tel
+	}
+}
+
+// GetAgentRole returns the assigned or auto-detected role of an agent
+func (th *TelemetryHub) GetAgentRole(agentKey string) relay.NodeRole {
+	th.mu.RLock()
+	defer th.mu.RUnlock()
+	if role, exists := th.agentRoles[agentKey]; exists && role != "" {
+		return role
+	}
+
+	// Auto-detect role from telemetry
+	if tel, exists := th.reports[agentKey]; exists {
+		if tel.CountryCode == "IQ" || (tel.Services["cinemana"].Available) {
+			return relay.NodeRoleExit
+		}
+		if tel.ASN == "AS14593" || tel.CountryCode != "IQ" && tel.CountryCode != "" {
+			return relay.NodeRoleConsumer
+		}
+	}
+	return relay.NodeRoleHybrid
 }
 
 // IngestTelemetry saves a new telemetry report from an agent
@@ -31,6 +64,16 @@ func (th *TelemetryHub) IngestTelemetry(t relay.ServiceTelemetry) {
 	key := t.Subdomain
 	if key == "" {
 		key = t.AgentID
+	}
+
+	if role, exists := th.agentRoles[key]; exists && role != "" {
+		t.AssignedRole = role
+	} else if t.CountryCode == "IQ" || t.Services["cinemana"].Available {
+		t.AssignedRole = relay.NodeRoleExit
+	} else if t.ASN == "AS14593" {
+		t.AssignedRole = relay.NodeRoleConsumer
+	} else {
+		t.AssignedRole = relay.NodeRoleHybrid
 	}
 
 	th.reports[key] = t
@@ -58,7 +101,7 @@ func (th *TelemetryHub) GetAllTelemetry() map[string]relay.ServiceTelemetry {
 	return out
 }
 
-// GetServiceProviders returns all agents that currently report a service as available
+// GetServiceProviders returns all agents eligible as exit nodes that currently report a service as available
 func (th *TelemetryHub) GetServiceProviders(serviceID string) []AgentServiceStatus {
 	th.mu.RLock()
 	defer th.mu.RUnlock()
@@ -72,13 +115,27 @@ func (th *TelemetryHub) GetServiceProviders(serviceID string) []AgentServiceStat
 			continue // Skip stale/offline agents
 		}
 
+		// Only EXIT_NODE and HYBRID agents can serve as Egress Exit Providers
+		role := tel.AssignedRole
+		if r, ok := th.agentRoles[agentKey]; ok && r != "" {
+			role = r
+		}
+		if role == relay.NodeRoleConsumer {
+			continue // Consumer nodes (Starlink) cannot act as egress exit nodes
+		}
+
 		if probe, ok := tel.Services[serviceID]; ok && probe.Available {
 			providers = append(providers, AgentServiceStatus{
-				AgentID:     tel.AgentID,
-				Subdomain:   agentKey,
-				Probe:       probe,
-				NodeMetrics: tel.NodeMetrics,
-				LastSeen:    lastSeen,
+				AgentID:      tel.AgentID,
+				Subdomain:    agentKey,
+				AssignedRole: role,
+				PublicIP:     tel.PublicIP,
+				ISPName:      tel.ISPName,
+				ASN:          tel.ASN,
+				CountryCode:  tel.CountryCode,
+				Probe:        probe,
+				NodeMetrics:  tel.NodeMetrics,
+				LastSeen:     lastSeen,
 			})
 		}
 	}
@@ -87,11 +144,16 @@ func (th *TelemetryHub) GetServiceProviders(serviceID string) []AgentServiceStat
 }
 
 type AgentServiceStatus struct {
-	AgentID     string            `json:"agent_id"`
-	Subdomain   string            `json:"subdomain"`
-	Probe       relay.HealthProbe `json:"probe"`
-	NodeMetrics relay.NodeMetrics `json:"node_metrics"`
-	LastSeen    time.Time         `json:"last_seen"`
+	AgentID      string            `json:"agent_id"`
+	Subdomain    string            `json:"subdomain"`
+	AssignedRole relay.NodeRole    `json:"assigned_role"`
+	PublicIP     string            `json:"public_ip,omitempty"`
+	ISPName      string            `json:"isp_name,omitempty"`
+	ASN          string            `json:"asn,omitempty"`
+	CountryCode  string            `json:"country_code,omitempty"`
+	Probe        relay.HealthProbe `json:"probe"`
+	NodeMetrics  relay.NodeMetrics `json:"node_metrics"`
+	LastSeen     time.Time         `json:"last_seen"`
 }
 
 func (th *TelemetryHub) staleCleanerLoop() {

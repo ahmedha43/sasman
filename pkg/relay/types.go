@@ -55,11 +55,16 @@ type NodeMetrics struct {
 
 // ServiceTelemetry is sent periodically from Agent to Cloud
 type ServiceTelemetry struct {
-	AgentID     string                 `json:"agent_id"`
-	Subdomain   string                 `json:"subdomain"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Services    map[string]HealthProbe `json:"services"` // ServiceID -> HealthProbe
-	NodeMetrics NodeMetrics            `json:"node_metrics"`
+	AgentID      string                 `json:"agent_id"`
+	Subdomain    string                 `json:"subdomain"`
+	PublicIP     string                 `json:"public_ip,omitempty"`
+	ISPName      string                 `json:"isp_name,omitempty"`
+	ASN          string                 `json:"asn,omitempty"`
+	CountryCode  string                 `json:"country_code,omitempty"`
+	AssignedRole NodeRole               `json:"assigned_role,omitempty"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Services     map[string]HealthProbe `json:"services"` // ServiceID -> HealthProbe
+	NodeMetrics  NodeMetrics            `json:"node_metrics"`
 }
 
 // EgressRoute contains the assigned egress path for a service
@@ -76,24 +81,29 @@ type EgressRoute struct {
 
 // AgentRoutingTable is distributed by Cloud to Agents
 type AgentRoutingTable struct {
-	Version   int64                  `json:"version"`
-	Timestamp time.Time              `json:"timestamp"`
-	Routes    map[string]EgressRoute `json:"routes"` // ServiceID -> EgressRoute
+	Version      int64                  `json:"version"`
+	Timestamp    time.Time              `json:"timestamp"`
+	GlobalBypass bool                   `json:"global_bypass,omitempty"` // Emergency Kill-Switch
+	Strategy     string                 `json:"strategy,omitempty"`      // "lowest_latency" or "round_robin"
+	Routes       map[string]EgressRoute `json:"routes"`                  // ServiceID -> EgressRoute
 }
 
 // SignalingMsgType defines types of P2P / Relay control messages
 type SignalingMsgType string
 
 const (
-	MsgCatalogSync    SignalingMsgType = "catalog_sync"
-	MsgTelemetryPush  SignalingMsgType = "telemetry_push"
-	MsgRouteTablePush SignalingMsgType = "route_table_push"
-	MsgP2POffer       SignalingMsgType = "p2p_offer"
-	MsgP2PAnswer      SignalingMsgType = "p2p_answer"
-	MsgP2PCandidate   SignalingMsgType = "p2p_candidate"
-	MsgRelayOpen      SignalingMsgType = "relay_open"
-	MsgRelayData      SignalingMsgType = "relay_data"
-	MsgRelayClose     SignalingMsgType = "relay_close"
+	MsgCatalogSync      SignalingMsgType = "catalog_sync"
+	MsgTelemetryPush    SignalingMsgType = "telemetry_push"
+	MsgRouteTablePush   SignalingMsgType = "route_table_push"
+	MsgForceSync        SignalingMsgType = "force_sync"
+	MsgTestEgressIPReq  SignalingMsgType = "test_egress_ip_req"
+	MsgTestEgressIPResp SignalingMsgType = "test_egress_ip_resp"
+	MsgP2POffer         SignalingMsgType = "p2p_offer"
+	MsgP2PAnswer        SignalingMsgType = "p2p_answer"
+	MsgP2PCandidate     SignalingMsgType = "p2p_candidate"
+	MsgRelayOpen        SignalingMsgType = "relay_open"
+	MsgRelayData        SignalingMsgType = "relay_data"
+	MsgRelayClose       SignalingMsgType = "relay_close"
 )
 
 // RelayControlMessage is the envelope for Control Plane messages over WebSocket
@@ -103,6 +113,25 @@ type RelayControlMessage struct {
 	TargetID  string           `json:"target_id,omitempty"`
 	SessionID string           `json:"session_id,omitempty"`
 	Payload   json.RawMessage  `json:"payload,omitempty"`
+}
+
+// EgressProbeResult contains the output of a remote GeoIP diagnostic check
+type EgressProbeResult struct {
+	AgentID     string    `json:"agent_id"`
+	Subdomain   string    `json:"subdomain"`
+	EgressAgent string    `json:"egress_agent"`
+	PublicIP    string    `json:"public_ip"`
+	Hostname    string    `json:"hostname"`
+	City        string    `json:"city"`
+	Region      string    `json:"region"`
+	Country     string    `json:"country"`
+	Org         string    `json:"org"`
+	Postal      string    `json:"postal"`
+	Timezone    string    `json:"timezone"`
+	LatencyMs   float64   `json:"latency_ms"`
+	IsIraqiIP   bool      `json:"is_iraqi_ip"`
+	CheckedAt   time.Time `json:"checked_at"`
+	Error       string    `json:"error,omitempty"`
 }
 
 // NodeRole defines the operational role of a SASMAN agent
