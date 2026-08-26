@@ -3,6 +3,7 @@ package relay
 import (
 	"fmt"
 	"log"
+	"net"
 	"strings"
 
 	"mikrotik-manager/pkg/core"
@@ -267,20 +268,24 @@ func reconcileServiceRules(client *routeros.Client, svc ServiceDefinition, inter
 		desiredNAT[key] = true
 	}
 
+	agentIP := detectAgentTargetAddress(client)
+
 	existingNAT := make(map[string]string) // "dstPort->toPorts" -> first .id seen
 	natReply, err := client.Run("/ip/firewall/nat/print", "?comment="+comment)
 	if err == nil && natReply != nil {
 		for _, re := range natReply.Re {
 			dstPort := re.Map["dst-port"]
 			toPorts := re.Map["to-ports"]
+			toAddresses := re.Map["to-addresses"]
+			action := re.Map["action"]
 			id := re.Map[".id"]
 			if dstPort == "" || id == "" {
 				continue
 			}
 
 			key := fmt.Sprintf("%s->%s", dstPort, toPorts)
-			// If duplicate or not desired, remove it
-			if _, exists := existingNAT[key]; exists || !desiredNAT[key] {
+			// If duplicate, not desired, or old 'redirect' without to-addresses, remove it
+			if _, exists := existingNAT[key]; exists || !desiredNAT[key] || action == "redirect" || (agentIP != "" && toAddresses != agentIP) {
 				_, _ = client.Run("/ip/firewall/nat/remove", "=.id="+id)
 			} else {
 				existingNAT[key] = id
@@ -288,19 +293,32 @@ func reconcileServiceRules(client *routeros.Client, svc ServiceDefinition, inter
 		}
 	}
 
-	// Add missing NAT redirect rules
+	// Add missing NAT redirect/dst-nat rules pointing to container/agent IP
 	for _, p := range ports {
 		key := fmt.Sprintf("%d->%d", p, interceptorPort)
 		if _, exists := existingNAT[key]; !exists {
-			core.SafeRun(client, "/ip/firewall/nat/add",
-				"=chain=dstnat",
-				"=protocol=tcp",
-				fmt.Sprintf("=dst-port=%d", p),
-				"=dst-address-list="+listName,
-				"=src-address-list=TM_Local_Subnets",
-				"=action=redirect",
-				fmt.Sprintf("=to-ports=%d", interceptorPort),
-				"=comment="+comment)
+			if agentIP != "" && agentIP != "127.0.0.1" {
+				core.SafeRun(client, "/ip/firewall/nat/add",
+					"=chain=dstnat",
+					"=protocol=tcp",
+					fmt.Sprintf("=dst-port=%d", p),
+					"=dst-address-list="+listName,
+					"=src-address-list=TM_Local_Subnets",
+					"=action=dst-nat",
+					"=to-addresses="+agentIP,
+					fmt.Sprintf("=to-ports=%d", interceptorPort),
+					"=comment="+comment)
+			} else {
+				core.SafeRun(client, "/ip/firewall/nat/add",
+					"=chain=dstnat",
+					"=protocol=tcp",
+					fmt.Sprintf("=dst-port=%d", p),
+					"=dst-address-list="+listName,
+					"=src-address-list=TM_Local_Subnets",
+					"=action=redirect",
+					fmt.Sprintf("=to-ports=%d", interceptorPort),
+					"=comment="+comment)
+			}
 		}
 	}
 }
@@ -330,4 +348,33 @@ func RemoveMikroTikRelayRules(client *routeros.Client, serviceID string) {
 	removeWithComment("/ip/firewall/raw")
 	removeWithComment("/ip/dns/static")
 	removeWithComment("/ip/firewall/address-list")
+}
+
+func detectAgentTargetAddress(client *routeros.Client) string {
+	// 1. Check local network interfaces for active container / LAN IP
+	addrs, err := net.InterfaceAddrs()
+	if err == nil {
+		for _, a := range addrs {
+			if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+				ipStr := ipnet.IP.String()
+				// Match Container VETH (172.17.0.X) or local router subnet (192.168.X.X / 10.X.X.X)
+				if strings.HasPrefix(ipStr, "172.17.0.") || strings.HasPrefix(ipStr, "192.168.10.") || strings.HasPrefix(ipStr, "192.168.") || strings.HasPrefix(ipStr, "10.") {
+					return ipStr
+				}
+			}
+		}
+	}
+
+	// 2. Query router for veth-sasman address
+	reply, err := client.Run("/interface/veth/print")
+	if err == nil && reply != nil {
+		for _, re := range reply.Re {
+			addr := re.Map["address"]
+			if addr != "" {
+				return strings.Split(addr, "/")[0]
+			}
+		}
+	}
+
+	return "172.17.0.2"
 }
