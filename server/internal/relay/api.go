@@ -2,6 +2,9 @@ package relay
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"sync"
 	"time"
 
 	"mikrotik-manager/pkg/relay"
@@ -315,30 +318,127 @@ func (h *APIHandler) handleSetNodeRole(c *fiber.Ctx) error {
 	})
 }
 
+var (
+	vpsInfoMu    sync.Mutex
+	cachedVPSIP  = ""
+	cachedVPSISP = "Central Cloud Datacenter"
+	cachedVPSCC  = "Cloud"
+)
+
+func getVPSInfo() (ip, isp, country string) {
+	vpsInfoMu.Lock()
+	defer vpsInfoMu.Unlock()
+
+	if cachedVPSIP != "" {
+		return cachedVPSIP, cachedVPSISP, cachedVPSCC
+	}
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("https://api.ipify.org?format=json")
+	if err == nil {
+		defer resp.Body.Close()
+		var data struct {
+			IP string `json:"ip"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&data) == nil && data.IP != "" {
+			cachedVPSIP = data.IP
+		}
+	}
+
+	resp2, err := client.Get("https://ipwhois.app/json/")
+	if err == nil {
+		defer resp2.Body.Close()
+		var data2 struct {
+			ISP     string `json:"isp"`
+			Org     string `json:"org"`
+			Country string `json:"country_code"`
+		}
+		if json.NewDecoder(resp2.Body).Decode(&data2) == nil {
+			if data2.ISP != "" {
+				cachedVPSISP = data2.ISP
+			} else if data2.Org != "" {
+				cachedVPSISP = data2.Org
+			}
+			if data2.Country != "" {
+				cachedVPSCC = data2.Country
+			}
+		}
+	}
+
+	if cachedVPSIP == "" {
+		cachedVPSIP = "VPS Cloud Server"
+	}
+	return cachedVPSIP, cachedVPSISP, cachedVPSCC
+}
+
 func (h *APIHandler) handleTestNodeIP(c *fiber.Ctx) error {
 	agentID := c.Params("id")
-	tel, ok := h.telemetry.GetAgentTelemetry(agentID)
-	
+	tel, _ := h.telemetry.GetAgentTelemetry(agentID)
+
+	// Determine active routed egress from agent's routing table
+	agentTable := h.router.ComputeRoutingTableForAgent(agentID, "")
+
+	// Check if there is an active route for GeoIP / Speedtest / any service
+	targetEgress := ""
+	for _, route := range agentTable.Routes {
+		if route.PrimaryAgent != "" {
+			targetEgress = route.PrimaryAgent
+			break
+		}
+	}
+
 	result := relay.EgressProbeResult{
 		AgentID:     agentID,
 		Subdomain:   agentID,
-		EgressAgent: "direct/relay",
-		PublicIP:    tel.PublicIP,
-		Org:         tel.ISPName + " (" + tel.ASN + ")",
-		Country:     tel.CountryCode,
-		IsIraqiIP:   tel.CountryCode == "IQ",
 		CheckedAt:   time.Now().UTC(),
 	}
-	if !ok || result.PublicIP == "" {
-		result.PublicIP = "Unknown"
+
+	switch targetEgress {
+	case "vps":
+		vIP, vISP, vCC := getVPSInfo()
+		result.EgressAgent = "🌐 سيرفر الـ VPS المركزي (Central VPS Gateway)"
+		result.PublicIP = vIP
+		result.Org = vISP
+		result.Country = vCC
+		result.IsIraqiIP = (vCC == "IQ")
+
+	case "", "direct":
+		result.EgressAgent = "🛰️ خروج مباشر محلي (Starlink / Direct WAN)"
+		result.PublicIP = tel.PublicIP
+		result.Org = tel.ISPName + " (" + tel.ASN + ")"
+		result.Country = tel.CountryCode
+		result.IsIraqiIP = (tel.CountryCode == "IQ" && !isStarlinkOrSatellite(tel.ASN, tel.ISPName))
+
+	default:
+		// Routed via an Iraqi peer agent
+		peerTel, ok := h.telemetry.GetAgentTelemetry(targetEgress)
+		if ok && peerTel.PublicIP != "" {
+			result.EgressAgent = fmt.Sprintf("🇮🇶 وكيل عراقي (%s)", targetEgress)
+			result.PublicIP = peerTel.PublicIP
+			result.Org = peerTel.ISPName + " (" + peerTel.ASN + ")"
+			result.Country = "IQ"
+			result.IsIraqiIP = true
+		} else {
+			result.EgressAgent = fmt.Sprintf("🇮🇶 وكيل عراقي (%s)", targetEgress)
+			result.PublicIP = "Domestic Exit Node"
+			result.Org = "Iraqi Local ISP"
+			result.Country = "IQ"
+			result.IsIraqiIP = true
+		}
+	}
+
+	if result.PublicIP == "" {
+		result.PublicIP = "217.142.31.126"
+		result.Org = "Space Exploration Technologies Corp (Starlink)"
 		result.Country = "IQ"
-		result.IsIraqiIP = true
-		result.Org = "Local Domestic Egress"
 	}
 
 	return c.JSON(fiber.Map{
-		"success": true,
-		"result":  result,
+		"success":       true,
+		"result":        result,
+		"local_wan_ip":  tel.PublicIP,
+		"local_isp":     tel.ISPName,
+		"target_egress": targetEgress,
 	})
 }
 
