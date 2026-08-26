@@ -12,28 +12,78 @@ import (
 
 // RouterEngine calculates optimal egress paths and manages automatic failover
 type RouterEngine struct {
-	version      atomic.Int64
-	running      atomic.Int32
-	catalog      *CatalogManager
-	telemetry    *TelemetryHub
-	strategy     string // "lowest_latency" or "round_robin"
-	globalBypass bool   // Emergency Kill-Switch
-	rrIndex      map[string]int
-	mu           sync.RWMutex
-	lastTable    relay.AgentRoutingTable
-	onUpdate     func(table relay.AgentRoutingTable)
-	stopCh       chan struct{}
+	version        atomic.Int64
+	running        atomic.Int32
+	catalog        *CatalogManager
+	telemetry      *TelemetryHub
+	strategy       string // "lowest_latency" or "round_robin"
+	globalBypass   bool   // Emergency Kill-Switch
+	rrIndex        map[string]int
+	agentOverrides map[string]map[string]string // agentSubdomain -> serviceID -> target ("vps", "auto_iraq", "direct", "<agent_name>")
+	mu             sync.RWMutex
+	lastTable      relay.AgentRoutingTable
+	onUpdate       func(table relay.AgentRoutingTable)
+	stopCh         chan struct{}
 }
 
 func NewRouterEngine(catalog *CatalogManager, telemetry *TelemetryHub, onUpdate func(relay.AgentRoutingTable)) *RouterEngine {
 	return &RouterEngine{
-		catalog:   catalog,
-		telemetry: telemetry,
-		strategy:  "lowest_latency",
-		rrIndex:   make(map[string]int),
-		onUpdate:  onUpdate,
-		stopCh:    make(chan struct{}),
+		catalog:        catalog,
+		telemetry:      telemetry,
+		strategy:       "lowest_latency",
+		rrIndex:        make(map[string]int),
+		agentOverrides: make(map[string]map[string]string),
+		onUpdate:       onUpdate,
+		stopCh:         make(chan struct{}),
 	}
+}
+
+func (re *RouterEngine) SetAgentOverride(agentKey, serviceID, target string) {
+	re.mu.Lock()
+	if re.agentOverrides[agentKey] == nil {
+		re.agentOverrides[agentKey] = make(map[string]string)
+	}
+	if target == "" || target == "auto_iraq" {
+		delete(re.agentOverrides[agentKey], serviceID)
+	} else {
+		re.agentOverrides[agentKey][serviceID] = target
+	}
+	re.mu.Unlock()
+}
+
+func (re *RouterEngine) SetAgentOverrides(agentKey string, overrides map[string]string) {
+	re.mu.Lock()
+	if overrides == nil || len(overrides) == 0 {
+		delete(re.agentOverrides, agentKey)
+	} else {
+		re.agentOverrides[agentKey] = overrides
+	}
+	re.mu.Unlock()
+}
+
+func (re *RouterEngine) GetAgentOverrides(agentKey string) map[string]string {
+	re.mu.RLock()
+	defer re.mu.RUnlock()
+	res := make(map[string]string)
+	if m, ok := re.agentOverrides[agentKey]; ok {
+		for k, v := range m {
+			res[k] = v
+		}
+	}
+	return res
+}
+
+func (re *RouterEngine) GetAllAgentOverrides() map[string]map[string]string {
+	re.mu.RLock()
+	defer re.mu.RUnlock()
+	res := make(map[string]map[string]string)
+	for agent, m := range re.agentOverrides {
+		res[agent] = make(map[string]string)
+		for k, v := range m {
+			res[agent][k] = v
+		}
+	}
+	return res
 }
 
 func (re *RouterEngine) SetStrategy(strat string) {
@@ -208,10 +258,20 @@ func (re *RouterEngine) ComputeGlobalRoutingTable() relay.AgentRoutingTable {
 	}
 }
 
-// ComputeRoutingTableForAgent filters the global routing table for services accessible by this specific agent and its group
+// ComputeRoutingTableForAgent filters the global routing table for services accessible by this specific agent and its group,
+// and applies any per-agent egress overrides (vps / direct / specific_agent)
 func (re *RouterEngine) ComputeRoutingTableForAgent(agentSubdomain, agentGroup string) relay.AgentRoutingTable {
 	global := re.ComputeGlobalRoutingTable()
 	filteredRoutes := make(map[string]relay.EgressRoute)
+
+	re.mu.RLock()
+	overrides := make(map[string]string)
+	if m, ok := re.agentOverrides[agentSubdomain]; ok {
+		for k, v := range m {
+			overrides[k] = v
+		}
+	}
+	re.mu.RUnlock()
 
 	for svcID, route := range global.Routes {
 		svc, ok := re.catalog.GetServiceByID(svcID)
@@ -219,33 +279,55 @@ func (re *RouterEngine) ComputeRoutingTableForAgent(agentSubdomain, agentGroup s
 			continue
 		}
 
+		// Check scope access
+		allowed := false
 		if svc.TargetScope == "all" || (len(svc.AllowedConsumers) == 0 && len(svc.TargetGroups) == 0) {
-			filteredRoutes[svcID] = route
-			continue
+			allowed = true
 		}
-
-		// Check if agent is in allowed consumers
-		isAllowed := false
-		for _, allowed := range svc.AllowedConsumers {
-			if allowed == agentSubdomain {
-				isAllowed = true
-				break
-			}
-		}
-
-		// Check if agent's group is in target groups
-		if !isAllowed && agentGroup != "" {
-			for _, g := range svc.TargetGroups {
-				if g == agentGroup {
-					isAllowed = true
+		if !allowed {
+			for _, a := range svc.AllowedConsumers {
+				if a == agentSubdomain {
+					allowed = true
 					break
 				}
 			}
 		}
-
-		if isAllowed {
-			filteredRoutes[svcID] = route
+		if !allowed && agentGroup != "" {
+			for _, g := range svc.TargetGroups {
+				if g == agentGroup {
+					allowed = true
+					break
+				}
+			}
 		}
+		if !allowed {
+			continue
+		}
+
+		// Apply per-agent egress override for this service
+		if target, hasOverride := overrides[svcID]; hasOverride {
+			switch target {
+			case "direct":
+				// "direct" means skip relay entirely for this service — omit from table
+				continue
+			case "vps":
+				// Route through the central server VPS egress node
+				finalRoute := route
+				finalRoute.PrimaryAgent = "vps"
+				finalRoute.BackupAgent = ""
+				filteredRoutes[svcID] = finalRoute
+				continue
+			default:
+				// Route via a specific named agent (e.g. an Iraqi exit node)
+				finalRoute := route
+				finalRoute.PrimaryAgent = target
+				finalRoute.BackupAgent = ""
+				filteredRoutes[svcID] = finalRoute
+				continue
+			}
+		}
+
+		filteredRoutes[svcID] = route
 	}
 
 	return relay.AgentRoutingTable{

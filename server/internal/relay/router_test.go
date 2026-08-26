@@ -114,3 +114,67 @@ func TestRouterEngineScoringAndFailover(t *testing.T) {
 		t.Errorf("Expected backup agent to switch to 'agent-001' (50ms), got %q", routeAfter.BackupAgent)
 	}
 }
+
+func TestAgentCustomEgressOverrides(t *testing.T) {
+	catalog, err := NewCatalogManager(nil)
+	if err != nil {
+		t.Fatalf("Failed to init catalog: %v", err)
+	}
+
+	telemetry := NewTelemetryHub()
+	router := NewRouterEngine(catalog, telemetry, nil)
+
+	// Save two services: geoip and speedtest
+	_ = catalog.SaveService(relay.ServiceDefinition{
+		ID:      "geoip_identity",
+		Name:    "GeoIP Identity",
+		Domains: []string{"ipinfo.io", "ifconfig.co"},
+		Enabled: true,
+	})
+	_ = catalog.SaveService(relay.ServiceDefinition{
+		ID:      "speedtest",
+		Name:    "Speedtest Benchmark",
+		Domains: []string{"speedtest.net", "fast.com"},
+		Enabled: true,
+	})
+
+	// Add telemetry for an Iraqi exit node: agent-iq-earthlink
+	telemetry.IngestTelemetry(relay.ServiceTelemetry{
+		AgentID:   "agent-iq-earthlink",
+		Subdomain: "agent-iq-earthlink",
+		Services: map[string]relay.HealthProbe{
+			"geoip_identity": {Available: true, LatencyMs: 15, PacketLoss: 0, LastChecked: time.Now()},
+			"speedtest":      {Available: true, LatencyMs: 20, PacketLoss: 0, LastChecked: time.Now()},
+		},
+	})
+
+	// Case 1: Agent without override -> Gets Auto Iraqi Exit (agent-iq-earthlink)
+	tableAuto := router.ComputeRoutingTableForAgent("agent-starlink-1", "default")
+	if tableAuto.Routes["geoip_identity"].PrimaryAgent != "agent-iq-earthlink" {
+		t.Errorf("Expected auto route to agent-iq-earthlink, got %s", tableAuto.Routes["geoip_identity"].PrimaryAgent)
+	}
+
+	// Case 2: Agent with VPS override on GeoIP only -> GeoIP routes via VPS, Speedtest stays auto
+	router.SetAgentOverride("agent-starlink-2", "geoip_identity", "vps")
+	tableVPS := router.ComputeRoutingTableForAgent("agent-starlink-2", "default")
+	if tableVPS.Routes["geoip_identity"].PrimaryAgent != "vps" {
+		t.Errorf("Expected GeoIP primary agent to be 'vps', got %s", tableVPS.Routes["geoip_identity"].PrimaryAgent)
+	}
+	if tableVPS.Routes["speedtest"].PrimaryAgent != "agent-iq-earthlink" {
+		t.Errorf("Expected Speedtest to stay auto agent-iq-earthlink, got %s", tableVPS.Routes["speedtest"].PrimaryAgent)
+	}
+
+	// Case 3: Agent with Direct bypass on Speedtest -> Speedtest is omitted from table
+	router.SetAgentOverride("agent-starlink-2", "speedtest", "direct")
+	tableDirect := router.ComputeRoutingTableForAgent("agent-starlink-2", "default")
+	if _, exists := tableDirect.Routes["speedtest"]; exists {
+		t.Errorf("Expected speedtest route to be omitted when override is 'direct'")
+	}
+
+	// Case 4: Clear overrides -> returns to auto
+	router.SetAgentOverrides("agent-starlink-2", nil)
+	tableCleared := router.ComputeRoutingTableForAgent("agent-starlink-2", "default")
+	if tableCleared.Routes["speedtest"].PrimaryAgent != "agent-iq-earthlink" {
+		t.Errorf("Expected cleared speedtest to be auto, got %s", tableCleared.Routes["speedtest"].PrimaryAgent)
+	}
+}

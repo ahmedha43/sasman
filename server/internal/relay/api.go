@@ -53,6 +53,12 @@ func (h *APIHandler) RegisterRoutes(router fiber.Router) {
 	group.Post("/sync-all", h.handleForceSyncAll)
 	group.Post("/kill-switch", h.handleToggleKillSwitch)
 	group.Post("/strategy", h.handleSetStrategy)
+
+	// Per-Agent Egress Override APIs
+	group.Get("/agents/:id/overrides", h.handleGetAgentOverrides)
+	group.Post("/agents/:id/overrides", h.handleSetAgentOverrides)
+	group.Delete("/agents/:id/overrides", h.handleClearAgentOverrides)
+	group.Get("/agents/all-overrides", h.handleGetAllOverrides)
 }
 
 func (h *APIHandler) handleListServices(c *fiber.Ctx) error {
@@ -376,6 +382,70 @@ func (h *APIHandler) handleSetStrategy(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success":  true,
 		"strategy": h.router.GetStrategy(),
+	})
+}
+
+func (h *APIHandler) handleGetAgentOverrides(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	overrides := h.router.GetAgentOverrides(agentID)
+	return c.JSON(fiber.Map{
+		"success":   true,
+		"agent_id":  agentID,
+		"overrides": overrides,
+	})
+}
+
+func (h *APIHandler) handleSetAgentOverrides(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	var req struct {
+		ServiceID string            `json:"service_id"`
+		Target    string            `json:"target"`    // "vps", "auto_iraq", "direct", "<agent_subdomain>"
+		Overrides map[string]string `json:"overrides"` // optional full map: serviceID -> target
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if len(req.Overrides) > 0 {
+		h.router.SetAgentOverrides(agentID, req.Overrides)
+	} else if req.ServiceID != "" {
+		h.router.SetAgentOverride(agentID, req.ServiceID, req.Target)
+	}
+
+	// Trigger recalculation and sync
+	if h.broadcastCatalogSync != nil {
+		h.broadcastCatalogSync(h.catalog.GetAllServices())
+	}
+
+	return c.JSON(fiber.Map{
+		"success":   true,
+		"agent_id":  agentID,
+		"overrides": h.router.GetAgentOverrides(agentID),
+		"message":   "تم حفظ وتحديث مسارات الخروج المخصصة للوكيل بنجاح",
+	})
+}
+
+func (h *APIHandler) handleClearAgentOverrides(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	h.router.SetAgentOverrides(agentID, nil)
+
+	if h.broadcastCatalogSync != nil {
+		h.broadcastCatalogSync(h.catalog.GetAllServices())
+	}
+
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"agent_id": agentID,
+		"message":  "تمت استعادة التوجيه التلقائي للوكيل بنجاح",
+	})
+}
+
+func (h *APIHandler) handleGetAllOverrides(c *fiber.Ctx) error {
+	all := h.router.GetAllAgentOverrides()
+	return c.JSON(fiber.Map{
+		"success":   true,
+		"overrides": all,
 	})
 }
 

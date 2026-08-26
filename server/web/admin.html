@@ -885,6 +885,30 @@
     </div>
   </div>
 
+  <!-- Per-Agent Custom Egress Steering Modal -->
+  <div id="agent-egress-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:750px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div>
+          <h3 style="margin:0;"><i class="fa-solid fa-route" style="color:var(--primary);"></i> تخصيص مسار وخروج الراوتر (Per-Agent Egress Steering)</h3>
+          <p style="font-size:12px; color:#94a3b8; margin:4px 0 0 0;">حدد من أين يخرج هذا الراوتر لكل خدمة (سيرفر الـ VPS، راوتر عراقي، أو خروج مباشر محلي).</p>
+        </div>
+        <button class="btn btn-dark btn-xs" onclick="closeAgentEgressModal()">✕</button>
+      </div>
+
+      <div id="agent-egress-content">
+        <p class="text-muted" style="text-align:center; padding:20px;">جاري تحميل إعدادات التوجيه...</p>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+        <button type="button" class="btn btn-dark" onclick="closeAgentEgressModal()">إلغاء</button>
+        <button type="button" class="btn btn-primary" onclick="saveAgentEgressOverrides()">
+          <i class="fa-solid fa-floppy-disk"></i> حفظ وتطبيق التوجيه فوراً
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Subdomain Takeover Requests Modal -->
   <div id="takeovers-modal" class="modal-overlay">
     <div class="modal-card" style="max-width:960px;">
@@ -2316,8 +2340,9 @@ ${setupCmd}`;
         '<th>🌐 الآيبي العام (Public WAN)</th>' +
         '<th>📡 شركة الإنترنت ورقم المزود (ISP / ASN)</th>' +
         '<th>🏳️ الدولة</th>' +
-        '<th>⚙️ دور العقدة (Operational Role)</th>' +
-        '<th>إجراءات وفحص</th>' +
+        '<th>⚙️ دور العقدة (Role)</th>' +
+        '<th>🎯 مسار الخروج (Egress Source)</th>' +
+        '<th>فحص حي</th>' +
         '</tr></thead><tbody>';
 
       nodes.forEach(n => {
@@ -2345,6 +2370,11 @@ ${setupCmd}`;
               <option value="CONSUMER_NODE" ${role === 'CONSUMER_NODE' ? 'selected' : ''}>🛰️ مستهلك ستارلنك (Consumer Node)</option>
               <option value="HYBRID" ${role === 'HYBRID' ? 'selected' : ''}>🔄 عقدة هجينة (Hybrid)</option>
             </select>
+          </td>
+          <td>
+            <button class="btn btn-warning btn-xs" style="padding:5px 10px; font-size:12px;" onclick="openAgentEgressModal('${escapeHtml(n.subdomain)}')">
+              <i class="fa-solid fa-route"></i> 🎯 تخصيص الخروج
+            </button>
           </td>
           <td>
             <button class="btn btn-primary btn-xs" style="padding:5px 12px; font-size:12px;" onclick="testNodeEgressIP('${escapeHtml(n.subdomain)}')">
@@ -2429,6 +2459,147 @@ ${setupCmd}`;
 
     function closeEgressTestModal() {
       document.getElementById('egress-test-modal').classList.remove('active');
+    }
+
+    // ─── PER-AGENT EGRESS STEERING MODAL & LOGIC ────────────────────────────
+    let currentEgressAgent = '';
+    let currentAvailableNodes = [];
+    let currentServicesList = [];
+
+    async function openAgentEgressModal(agentSubdomain) {
+      currentEgressAgent = agentSubdomain;
+      document.getElementById('agent-egress-modal').classList.add('active');
+      const content = document.getElementById('agent-egress-content');
+      content.innerHTML = '<p class="text-muted" style="text-align:center; padding:30px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--primary); margin-bottom:10px; display:block;"></i> جاري تحميل الخدمات والعقد المتاحة...</p>';
+
+      try {
+        const [servicesRes, nodesRes, overridesRes] = await Promise.all([
+          fetch('/api/relay/services').then(r => r.json()),
+          fetch('/api/relay/nodes').then(r => r.json()),
+          fetch(`/api/relay/agents/${encodeURIComponent(agentSubdomain)}/overrides`).then(r => r.json())
+        ]);
+
+        currentServicesList = servicesRes.services || [];
+        currentAvailableNodes = nodesRes.nodes || [];
+        const overrides = overridesRes.overrides || {};
+
+        const exitNodes = currentAvailableNodes.filter(n => n.assigned_role === 'EXIT_NODE' || (n.country_code === 'IQ' && n.assigned_role !== 'CONSUMER_NODE'));
+
+        let html = `
+          <div style="background:#0f172a; border-radius:10px; padding:14px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+              <div style="font-size:12px; color:#94a3b8;">الراوتر المستهدف للتخصيص:</div>
+              <div style="font-size:16px; font-weight:bold; color:#38bdf8; font-family:monospace;">${escapeHtml(agentSubdomain)}</div>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-xs btn-primary" onclick="applyQuickEgress('vps')">
+                <i class="fa-solid fa-cloud"></i> 🌐 الكل عبر الـ VPS
+              </button>
+              <button type="button" class="btn btn-xs btn-success" onclick="applyQuickEgress('auto_iraq')">
+                <i class="fa-solid fa-bolt"></i> 🇮🇶 الكل عبر أسرع عراقي
+              </button>
+              <button type="button" class="btn btn-xs btn-dark" onclick="applyQuickEgress('direct')">
+                <i class="fa-solid fa-satellite-dish"></i> 🛰️ الكل خروج مباشر
+              </button>
+            </div>
+          </div>
+
+          <div class="table-wrap" style="max-height:360px; overflow-y:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>📦 الخدمة المستهدفة</th>
+                  <th>التصنيف</th>
+                  <th>🎯 مصدر الخروج المخصص (Egress Target)</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        currentServicesList.forEach(svc => {
+          const currentTarget = overrides[svc.id] || 'auto_iraq';
+
+          let options = `
+            <option value="auto_iraq" ${currentTarget === 'auto_iraq' ? 'selected' : ''}>🇮🇶 أفضل مصدر عراقي تلقائي (Auto Best)</option>
+            <option value="vps" ${currentTarget === 'vps' ? 'selected' : ''}>🌐 سيرفر الـ VPS المركزي (Central VPS IP)</option>
+            <option value="direct" ${currentTarget === 'direct' ? 'selected' : ''}>🛰️ خروج مباشر محلي (Direct / Bypass)</option>
+          `;
+
+          if (exitNodes.length > 0) {
+            options += `<optgroup label="🏢 وكلاء عراقيين محددين">`;
+            exitNodes.forEach(node => {
+              const nodeLabel = `${node.subdomain} (${node.isp_name || 'مزود عراقي'})`;
+              options += `<option value="${escapeHtml(node.subdomain)}" ${currentTarget === node.subdomain ? 'selected' : ''}>📍 ${escapeHtml(nodeLabel)}</option>`;
+            });
+            options += `</optgroup>`;
+          }
+
+          let catBadge = `<span class="badge" style="background:#1e293b; color:#94a3b8; font-size:11px;">${escapeHtml(svc.category || 'Other')}</span>`;
+          if (svc.id.includes('geoip') || svc.name.includes('IP') || svc.name.includes('موقع')) {
+            catBadge = `<span class="badge" style="background:rgba(14,165,233,0.2); color:#38bdf8; font-size:11px;">🌐 فحص الـ IP</span>`;
+          } else if (svc.id.includes('speed') || svc.name.includes('سرعة')) {
+            catBadge = `<span class="badge" style="background:rgba(234,179,8,0.2); color:#eab308; font-size:11px;">⚡ قياس السرعة</span>`;
+          }
+
+          html += `
+            <tr>
+              <td>
+                <div style="font-weight:bold; color:#f8fafc;">${escapeHtml(svc.name)}</div>
+                <div style="font-size:11px; color:#94a3b8; font-family:monospace;">${escapeHtml(svc.domains.slice(0, 2).join(', '))}${svc.domains.length > 2 ? '...' : ''}</div>
+              </td>
+              <td>${catBadge}</td>
+              <td>
+                <select id="egress-select-${escapeHtml(svc.id)}" class="agent-egress-selector" style="width:100%; font-size:12px; padding:6px 10px; background:#0b1329; border:1px solid #334155; border-radius:6px; color:#f8fafc;">
+                  ${options}
+                </select>
+              </td>
+            </tr>
+          `;
+        });
+
+        html += `</tbody></table></div>`;
+        content.innerHTML = html;
+      } catch (err) {
+        content.innerHTML = `<p style="color:var(--danger); text-align:center; padding:20px;">❌ ${err.message}</p>`;
+      }
+    }
+
+    function applyQuickEgress(target) {
+      const selects = document.querySelectorAll('.agent-egress-selector');
+      selects.forEach(s => s.value = target);
+    }
+
+    function closeAgentEgressModal() {
+      document.getElementById('agent-egress-modal').classList.remove('active');
+    }
+
+    async function saveAgentEgressOverrides() {
+      if (!currentEgressAgent) return;
+
+      const overrides = {};
+      currentServicesList.forEach(svc => {
+        const select = document.getElementById(`egress-select-${svc.id}`);
+        if (select) {
+          overrides[svc.id] = select.value;
+        }
+      });
+
+      try {
+        const res = await fetch(`/api/relay/agents/${encodeURIComponent(currentEgressAgent)}/overrides`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overrides })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ تم حفظ وتحديث مسارات الخروج للراوتر "${currentEgressAgent}" بنجاح!`);
+          closeAgentEgressModal();
+        } else {
+          alert(`❌ ${data.error || 'فشل حفظ الإعدادات'}`);
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر: ' + err.message);
+      }
     }
 
     function updateKillSwitchUI(isBypass) {
