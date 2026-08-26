@@ -17,16 +17,21 @@ type APIHandler struct {
 	catalog              *CatalogManager
 	telemetry            *TelemetryHub
 	router               *RouterEngine
+	gateway              *GatewayServer
 	broadcastCatalogSync func(catalog []relay.ServiceDefinition)
 	broadcastProbeReq    func(serviceID string)
 	getAgentList         func() []string
 }
 
 func NewAPIHandler(catalog *CatalogManager, telemetry *TelemetryHub, router *RouterEngine) *APIHandler {
+	gw := NewGatewayServer()
+	_ = gw.StartTCPListener(18444)
+
 	return &APIHandler{
 		catalog:   catalog,
 		telemetry: telemetry,
 		router:    router,
+		gateway:   gw,
 	}
 }
 
@@ -38,6 +43,11 @@ func (h *APIHandler) SetBroadcaster(syncCatalog func([]relay.ServiceDefinition),
 
 func (h *APIHandler) RegisterRoutes(router fiber.Router) {
 	group := router.Group("/api/relay")
+
+	// Register WebSocket Egress Gateway for Agents
+	if h.gateway != nil {
+		h.gateway.RegisterWebSocketGateway(group)
+	}
 
 	group.Get("/services", h.handleListServices)
 	group.Post("/services", h.handleSaveService)

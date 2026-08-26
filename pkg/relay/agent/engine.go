@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +17,8 @@ import (
 	"mikrotik-manager/pkg/relay/multiplexer"
 	"mikrotik-manager/pkg/relay/prober"
 	"mikrotik-manager/pkg/relay/sniproxy"
+
+	"github.com/gorilla/websocket"
 )
 
 // CloudSignalingClient interface for sending control/signaling messages to Cloud
@@ -236,9 +240,9 @@ func (e *Engine) getOrCreatePeerSession(ctx context.Context, targetAgent string,
 	return sess, nil
 }
 
-func (e *Engine) dialPeer(ctx context.Context, targetAgent string, route *relay.EgressRoute) (net.Conn, error) {
+func (e *Engine) dialPeer(ctx context.Context, targetAgent string, route *relay.EgressRoute) (io.ReadWriteCloser, error) {
 	// If direct address is provided and reachable, try direct connection
-	if route.DirectAddr != "" {
+	if route != nil && route.DirectAddr != "" {
 		dialer := net.Dialer{Timeout: 3 * time.Second}
 		conn, err := dialer.DialContext(ctx, "tcp", route.DirectAddr)
 		if err == nil {
@@ -248,15 +252,57 @@ func (e *Engine) dialPeer(ctx context.Context, targetAgent string, route *relay.
 		log.Printf("[Relay Engine] Direct P2P to %s failed (%v), falling back to signaling tunnel", route.DirectAddr, err)
 	}
 
-	// Fallback to Cloud Gateway Relay
+	// Connect to Central VPS Gateway (when targetAgent is "vps" or fallback)
 	if e.cfg.CloudGatewayURL != "" {
 		log.Printf("[Relay Engine] Connecting to egress %s via Cloud Relay Gateway", targetAgent)
-		dialer := net.Dialer{Timeout: 5 * time.Second}
-		conn, err := dialer.DialContext(ctx, "tcp", e.cfg.CloudGatewayURL)
-		if err != nil {
-			return nil, fmt.Errorf("cloud relay connect: %w", err)
+
+		// 1. Extract host from CloudGatewayURL
+		rawURL := e.cfg.CloudGatewayURL
+		var host string
+		if u, err := url.Parse(rawURL); err == nil && u.Host != "" {
+			host = u.Hostname()
+		} else {
+			host = rawURL
+			if strings.Contains(host, ":") {
+				if h, _, err := net.SplitHostPort(host); err == nil {
+					host = h
+				}
+			}
 		}
-		return conn, nil
+
+		// 2. Try TCP Gateway port 18444 first
+		if host != "" {
+			tcpAddr := net.JoinHostPort(host, "18444")
+			dialer := net.Dialer{Timeout: 3 * time.Second}
+			conn, err := dialer.DialContext(ctx, "tcp", tcpAddr)
+			if err == nil {
+				log.Printf("[Relay Engine] Connected to Central VPS Egress Gateway via TCP port 18444")
+				return conn, nil
+			}
+		}
+
+		// 3. Fallback to WebSocket Gateway (/api/relay/gateway)
+		wsURL := rawURL
+		if strings.HasPrefix(wsURL, "http://") {
+			wsURL = "ws://" + strings.TrimPrefix(wsURL, "http://")
+		} else if strings.HasPrefix(wsURL, "https://") {
+			wsURL = "wss://" + strings.TrimPrefix(wsURL, "https://")
+		}
+		if !strings.HasPrefix(wsURL, "ws://") && !strings.HasPrefix(wsURL, "wss://") {
+			wsURL = "ws://" + wsURL
+		}
+		if u, err := url.Parse(wsURL); err == nil {
+			u.Path = "/api/relay/gateway"
+			wsURL = u.String()
+		}
+
+		wsDialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+		wsConn, _, err := wsDialer.DialContext(ctx, wsURL, nil)
+		if err == nil {
+			log.Printf("[Relay Engine] Connected to Central VPS Egress Gateway via WebSocket: %s", wsURL)
+			return multiplexer.NewWSReadWriteCloser(wsConn), nil
+		}
+		return nil, fmt.Errorf("vps gateway connect failed: %w", err)
 	}
 
 	return nil, fmt.Errorf("unable to reach egress agent %s", targetAgent)
