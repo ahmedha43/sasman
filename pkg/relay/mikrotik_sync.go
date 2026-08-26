@@ -24,10 +24,11 @@ func SyncMikroTikRelayRules(client *routeros.Client, services []ServiceDefinitio
 	// 1. Reconcile Local Subnets (TM_Local_Subnets) without duplicates
 	reconcileLocalSubnets(client)
 
-	// 2. Ensure DNS settings allow remote requests
+	// 2. Ensure DNS settings allow remote requests & force local DNS capture for PPPoE/Broadband clients
 	core.SafeRun(client, "/ip/dns/set",
 		"=allow-remote-requests=yes",
 		"=address-list-extra-time=1w3d")
+	reconcileDNSNATRules(client)
 
 	// 3. Build active service map
 	activeServiceMap := make(map[string]ServiceDefinition)
@@ -47,6 +48,34 @@ func SyncMikroTikRelayRules(client *routeros.Client, services []ServiceDefinitio
 
 	log.Printf("[Relay MikroTik Sync] Reconciled and deduplicated %d active services on RouterOS", len(activeServiceMap))
 	return nil
+}
+
+// reconcileDNSNATRules ensures local PPPoE/Broadband users' DNS requests are captured by RouterOS DNS FWD rules
+func reconcileDNSNATRules(client *routeros.Client) {
+	comment := "SASMAN-Force-DNS"
+	desiredProtocols := []string{"udp", "tcp"}
+
+	for _, proto := range desiredProtocols {
+		reply, err := client.Run("/ip/firewall/nat/print",
+			"?chain=dstnat",
+			"?protocol="+proto,
+			"?dst-port=53",
+			"?comment="+comment,
+		)
+		if err == nil && reply != nil && len(reply.Re) > 0 {
+			continue // Already exists
+		}
+
+		core.SafeRun(client, "/ip/firewall/nat/add",
+			"=chain=dstnat",
+			"=protocol="+proto,
+			"=dst-port=53",
+			"=src-address-list=TM_Local_Subnets",
+			"=action=redirect",
+			"=to-ports=53",
+			"=comment="+comment,
+		)
+	}
 }
 
 // reconcileLocalSubnets queries existing TM_Local_Subnets entries, eliminates duplicates, and adds missing ones
@@ -196,12 +225,13 @@ func reconcileServiceRules(client *routeros.Client, svc ServiceDefinition, inter
 		for _, re := range rawReply.Re {
 			tlsHost := re.Map["tls-host"]
 			id := re.Map[".id"]
+			srcList := re.Map["src-address-list"]
 			if tlsHost == "" || id == "" {
 				continue
 			}
 
-			// If duplicate or not desired, remove it
-			if _, exists := existingRAW[tlsHost]; exists || !desiredRAW[tlsHost] {
+			// If duplicate, not desired, or has the old inverted '!TM_Local_Subnets', remove it
+			if _, exists := existingRAW[tlsHost]; exists || !desiredRAW[tlsHost] || srcList == "!TM_Local_Subnets" {
 				_, _ = client.Run("/ip/firewall/raw/remove", "=.id="+id)
 			} else {
 				existingRAW[tlsHost] = id
@@ -219,7 +249,8 @@ func reconcileServiceRules(client *routeros.Client, svc ServiceDefinition, inter
 				"=action=add-dst-to-address-list",
 				"=address-list="+listName,
 				"=tls-host="+tlsHost,
-				"=src-address-list=!TM_Local_Subnets",
+				"=src-address-list=TM_Local_Subnets",
+				"=dst-address-list=!TM_Local_Subnets",
 				"=comment="+comment)
 		}
 	}
