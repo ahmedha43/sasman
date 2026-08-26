@@ -96,6 +96,24 @@ type BroadcastLog struct {
 	Clicked        int       `json:"clicked"`
 }
 
+type SubdomainTakeoverRequest struct {
+	ID                string     `json:"id"`
+	Subdomain         string     `json:"subdomain"`
+	RequesterName     string     `json:"requester_name"`
+	RequesterPhone    string     `json:"requester_phone"`
+	RequesterSerial   string     `json:"requester_serial"`
+	RequesterNotes    string     `json:"requester_notes"`
+	RequesterAgentID  string     `json:"requester_agent_id"`
+	CurrentOwnerName  string     `json:"current_owner_name"`
+	CurrentOwnerPhone string     `json:"current_owner_phone"`
+	Status            string     `json:"status"` // 'pending', 'approved', 'rejected'
+	AdminNotes        string     `json:"admin_notes"`
+	RequestedAt       time.Time  `json:"requested_at"`
+	ResolvedAt        *time.Time `json:"resolved_at"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
 type SQLiteRepository struct {
 	db *sql.DB
 }
@@ -215,6 +233,25 @@ func (r *SQLiteRepository) CreateSchema() error {
             PRIMARY KEY (broadcast_id, agent_id, user_identifier)
         );`,
 		`CREATE INDEX IF NOT EXISTS idx_broadcast_logs_bid ON broadcast_logs(broadcast_id);`,
+		`CREATE TABLE IF NOT EXISTS subdomain_takeover_requests (
+            id TEXT PRIMARY KEY,
+            subdomain TEXT NOT NULL,
+            requester_name TEXT NOT NULL,
+            requester_phone TEXT NOT NULL,
+            requester_serial TEXT NOT NULL DEFAULT '',
+            requester_notes TEXT NOT NULL DEFAULT '',
+            requester_agent_id TEXT NOT NULL DEFAULT '',
+            current_owner_name TEXT NOT NULL DEFAULT '',
+            current_owner_phone TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'pending',
+            admin_notes TEXT NOT NULL DEFAULT '',
+            requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+		`CREATE INDEX IF NOT EXISTS idx_takeover_subdomain ON subdomain_takeover_requests(subdomain);`,
+		`CREATE INDEX IF NOT EXISTS idx_takeover_status ON subdomain_takeover_requests(status);`,
 	}
 
 	for _, q := range queries {
@@ -294,7 +331,8 @@ func (r *SQLiteRepository) SaveLicense(l License) error {
 func (r *SQLiteRepository) CreateOrGetSubdomain(customerID, licenseID, subdomain string) (*Subdomain, error) {
 	row := r.db.QueryRow(`SELECT id, customer_id, license_id, subdomain, zone_name, status, token, winbox_port, group_name, assigned_at, revoked_at, last_seen_at, created_at, updated_at FROM subdomains WHERE subdomain = ?`, subdomain)
 	var s Subdomain
-	var assignedAt, revokedAt, lastSeenAt, createdAt, updatedAt string
+	var assignedAt, createdAt, updatedAt string
+	var revokedAt, lastSeenAt sql.NullString
 	err := row.Scan(&s.ID, &s.CustomerID, &s.LicenseID, &s.Subdomain, &s.ZoneName, &s.Status, &s.Token, &s.WinboxPort, &s.GroupName, &assignedAt, &revokedAt, &lastSeenAt, &createdAt, &updatedAt)
 	if err == nil {
 		return &s, nil
@@ -1079,5 +1117,359 @@ func (r *SQLiteRepository) GetSubdomainLicensesMap() (map[string]AgentLicenseInf
 		}
 	}
 	return result, nil
+}
+
+// GetSubdomainOwnerInfo looks up the current customer name and phone of a subdomain
+func (r *SQLiteRepository) GetSubdomainOwnerInfo(subdomain string) (ownerName string, ownerPhone string, err error) {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	query := `
+		SELECT c.name, c.phone 
+		FROM subdomains s 
+		JOIN customers c ON s.customer_id = c.id 
+		WHERE LOWER(s.subdomain) = ? 
+		LIMIT 1;
+	`
+	err = r.db.QueryRow(query, subdomain).Scan(&ownerName, &ownerPhone)
+	if err == sql.ErrNoRows {
+		return "", "", nil
+	}
+	return ownerName, ownerPhone, err
+}
+
+// GetSubdomainByName retrieves a Subdomain record by its name
+func (r *SQLiteRepository) GetSubdomainByName(subdomain string) (*Subdomain, error) {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	query := `
+		SELECT id, customer_id, license_id, subdomain, zone_name, status, token, winbox_port, group_name, assigned_at, created_at, updated_at
+		FROM subdomains
+		WHERE LOWER(subdomain) = ?
+		LIMIT 1;
+	`
+	row := r.db.QueryRow(query, subdomain)
+	var s Subdomain
+	var asAtStr, crAtStr, upAtStr string
+	if err := row.Scan(&s.ID, &s.CustomerID, &s.LicenseID, &s.Subdomain, &s.ZoneName, &s.Status, &s.Token, &s.WinboxPort, &s.GroupName, &asAtStr, &crAtStr, &upAtStr); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if t, err := time.Parse(time.RFC3339, asAtStr); err == nil {
+		s.AssignedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, crAtStr); err == nil {
+		s.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, upAtStr); err == nil {
+		s.UpdatedAt = t
+	}
+	return &s, nil
+}
+
+// CreateTakeoverRequest records a new takeover request in the database
+func (r *SQLiteRepository) CreateTakeoverRequest(req SubdomainTakeoverRequest) error {
+	query := `
+		INSERT INTO subdomain_takeover_requests (
+			id, subdomain, requester_name, requester_phone, requester_serial,
+			requester_notes, requester_agent_id, current_owner_name, current_owner_phone,
+			status, admin_notes, requested_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+	`
+	now := time.Now().UTC()
+	if req.RequestedAt.IsZero() {
+		req.RequestedAt = now
+	}
+	req.CreatedAt = now
+	req.UpdatedAt = now
+	req.Status = "pending"
+
+	_, err := r.db.Exec(query,
+		req.ID, strings.ToLower(req.Subdomain), req.RequesterName, req.RequesterPhone, req.RequesterSerial,
+		req.RequesterNotes, req.RequesterAgentID, req.CurrentOwnerName, req.CurrentOwnerPhone,
+		req.Status, req.AdminNotes, req.RequestedAt.Format(time.RFC3339), req.CreatedAt.Format(time.RFC3339), req.UpdatedAt.Format(time.RFC3339),
+	)
+	return err
+}
+
+// GetTakeoverRequests lists takeover requests with optional status filter ('pending', 'approved', 'rejected', 'all')
+func (r *SQLiteRepository) GetTakeoverRequests(statusFilter string) ([]SubdomainTakeoverRequest, error) {
+	var query string
+	var rows *sql.Rows
+	var err error
+
+	if statusFilter == "" || statusFilter == "all" {
+		query = `
+			SELECT id, subdomain, requester_name, requester_phone, requester_serial,
+			       requester_notes, requester_agent_id, current_owner_name, current_owner_phone,
+			       status, admin_notes, requested_at, resolved_at, created_at, updated_at
+			FROM subdomain_takeover_requests
+			ORDER BY requested_at DESC;
+		`
+		rows, err = r.db.Query(query)
+	} else {
+		query = `
+			SELECT id, subdomain, requester_name, requester_phone, requester_serial,
+			       requester_notes, requester_agent_id, current_owner_name, current_owner_phone,
+			       status, admin_notes, requested_at, resolved_at, created_at, updated_at
+			FROM subdomain_takeover_requests
+			WHERE status = ?
+			ORDER BY requested_at DESC;
+		`
+		rows, err = r.db.Query(query, statusFilter)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []SubdomainTakeoverRequest
+	for rows.Next() {
+		var req SubdomainTakeoverRequest
+		var reqAtStr, crAtStr, upAtStr string
+		var resAtStr, serStr, notesStr, agentIDStr, curNameStr, curPhoneStr, adminNotesStr sql.NullString
+
+		if err := rows.Scan(
+			&req.ID, &req.Subdomain, &req.RequesterName, &req.RequesterPhone, &serStr,
+			&notesStr, &agentIDStr, &curNameStr, &curPhoneStr,
+			&req.Status, &adminNotesStr, &reqAtStr, &resAtStr, &crAtStr, &upAtStr,
+		); err != nil {
+			return nil, err
+		}
+
+		req.RequesterSerial = serStr.String
+		req.RequesterNotes = notesStr.String
+		req.RequesterAgentID = agentIDStr.String
+		req.CurrentOwnerName = curNameStr.String
+		req.CurrentOwnerPhone = curPhoneStr.String
+		req.AdminNotes = adminNotesStr.String
+
+		if t, err := time.Parse(time.RFC3339, reqAtStr); err == nil {
+			req.RequestedAt = t
+		}
+		if resAtStr.Valid && resAtStr.String != "" {
+			if t, err := time.Parse(time.RFC3339, resAtStr.String); err == nil {
+				req.ResolvedAt = &t
+			}
+		}
+		if t, err := time.Parse(time.RFC3339, crAtStr); err == nil {
+			req.CreatedAt = t
+		}
+		if t, err := time.Parse(time.RFC3339, upAtStr); err == nil {
+			req.UpdatedAt = t
+		}
+
+		list = append(list, req)
+	}
+
+	return list, nil
+}
+
+// GetTakeoverRequestByID retrieves a specific takeover request
+func (r *SQLiteRepository) GetTakeoverRequestByID(id string) (*SubdomainTakeoverRequest, error) {
+	query := `
+		SELECT id, subdomain, requester_name, requester_phone, requester_serial,
+		       requester_notes, requester_agent_id, current_owner_name, current_owner_phone,
+		       status, admin_notes, requested_at, resolved_at, created_at, updated_at
+		FROM subdomain_takeover_requests
+		WHERE id = ?;
+	`
+	row := r.db.QueryRow(query, id)
+
+	var req SubdomainTakeoverRequest
+	var reqAtStr, crAtStr, upAtStr string
+	var resAtStr, serStr, notesStr, agentIDStr, curNameStr, curPhoneStr, adminNotesStr sql.NullString
+
+	if err := row.Scan(
+		&req.ID, &req.Subdomain, &req.RequesterName, &req.RequesterPhone, &serStr,
+		&notesStr, &agentIDStr, &curNameStr, &curPhoneStr,
+		&req.Status, &adminNotesStr, &reqAtStr, &resAtStr, &crAtStr, &upAtStr,
+	); err != nil {
+		return nil, err
+	}
+
+	req.RequesterSerial = serStr.String
+	req.RequesterNotes = notesStr.String
+	req.RequesterAgentID = agentIDStr.String
+	req.CurrentOwnerName = curNameStr.String
+	req.CurrentOwnerPhone = curPhoneStr.String
+	req.AdminNotes = adminNotesStr.String
+
+	if t, err := time.Parse(time.RFC3339, reqAtStr); err == nil {
+		req.RequestedAt = t
+	}
+	if resAtStr.Valid && resAtStr.String != "" {
+		if t, err := time.Parse(time.RFC3339, resAtStr.String); err == nil {
+			req.ResolvedAt = &t
+		}
+	}
+	if t, err := time.Parse(time.RFC3339, crAtStr); err == nil {
+		req.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, upAtStr); err == nil {
+		req.UpdatedAt = t
+	}
+
+	return &req, nil
+}
+
+// GetPendingTakeoverCount returns the count of currently pending requests
+func (r *SQLiteRepository) GetPendingTakeoverCount() (int, error) {
+	var count int
+	err := r.db.QueryRow("SELECT COUNT(*) FROM subdomain_takeover_requests WHERE status = 'pending'").Scan(&count)
+	return count, err
+}
+
+// ApproveTakeoverRequest approves the takeover, reassigns the subdomain, and rotates the token
+func (r *SQLiteRepository) ApproveTakeoverRequest(id string, adminNotes string) (*Subdomain, error) {
+	req, err := r.GetTakeoverRequestByID(id)
+	if err != nil {
+		return nil, fmt.Errorf("request not found: %w", err)
+	}
+
+	sub := strings.ToLower(req.Subdomain)
+	now := time.Now().UTC()
+
+	// 1. Create or update customer for requester
+	customerID := fmt.Sprintf("cust-%d", now.UnixNano())
+	customer := Customer{
+		ID:          customerID,
+		Name:        req.RequesterName,
+		Phone:       req.RequesterPhone,
+		CompanyName: sub,
+		Status:      "active",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	_ = r.SaveCustomer(customer)
+
+	// 2. Generate a fresh secure token for the new owner
+	newToken := fmt.Sprintf("tok-%d-%s", now.Unix(), sub)
+
+	// 3. Update existing subdomain row or assign new
+	existingSub, _ := r.GetSubdomainByName(sub)
+	var winboxPort int
+	if existingSub != nil {
+		winboxPort = existingSub.WinboxPort
+		_, err = r.db.Exec(`
+			UPDATE subdomains 
+			SET customer_id = ?, token = ?, status = 'active', updated_at = ?
+			WHERE LOWER(subdomain) = ?;
+		`, customerID, newToken, now.Format(time.RFC3339), sub)
+		if err != nil {
+			return nil, fmt.Errorf("update subdomain failed: %w", err)
+		}
+	} else {
+		// In case it was deleted
+		winboxPort = 18291
+		subObj := Subdomain{
+			ID:         fmt.Sprintf("sub-%d", now.UnixNano()),
+			CustomerID: customerID,
+			Subdomain:  sub,
+			ZoneName:   "sas-man.net",
+			Status:     "active",
+			Token:      newToken,
+			WinboxPort: winboxPort,
+			GroupName:  "default",
+			AssignedAt: now,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		_ = r.SaveSubdomain(subObj)
+	}
+
+	// 4. Update takeover request status to 'approved'
+	_, _ = r.db.Exec(`
+		UPDATE subdomain_takeover_requests
+		SET status = 'approved', admin_notes = ?, resolved_at = ?, updated_at = ?
+		WHERE id = ?;
+	`, adminNotes, now.Format(time.RFC3339), now.Format(time.RFC3339), id)
+
+	return &Subdomain{
+		Subdomain:  sub,
+		Token:      newToken,
+		WinboxPort: winboxPort,
+		Status:     "active",
+	}, nil
+}
+
+// RejectTakeoverRequest marks the takeover request as rejected
+func (r *SQLiteRepository) RejectTakeoverRequest(id string, adminNotes string) error {
+	now := time.Now().UTC()
+	_, err := r.db.Exec(`
+		UPDATE subdomain_takeover_requests
+		SET status = 'rejected', admin_notes = ?, resolved_at = ?, updated_at = ?
+		WHERE id = ?;
+	`, adminNotes, now.Format(time.RFC3339), now.Format(time.RFC3339), id)
+	return err
+}
+
+// CheckTakeoverStatus checks if there is a pending or approved request for this subdomain and phone
+func (r *SQLiteRepository) CheckTakeoverStatus(subdomain, phone string) (*SubdomainTakeoverRequest, error) {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	phone = strings.TrimSpace(phone)
+
+	var query string
+	var row *sql.Row
+
+	if phone != "" {
+		query = `
+			SELECT id, subdomain, requester_name, requester_phone, requester_serial,
+			       requester_notes, requester_agent_id, current_owner_name, current_owner_phone,
+			       status, admin_notes, requested_at, resolved_at, created_at, updated_at
+			FROM subdomain_takeover_requests
+			WHERE LOWER(subdomain) = ? AND requester_phone = ?
+			ORDER BY requested_at DESC
+			LIMIT 1;
+		`
+		row = r.db.QueryRow(query, sub, phone)
+	} else {
+		query = `
+			SELECT id, subdomain, requester_name, requester_phone, requester_serial,
+			       requester_notes, requester_agent_id, current_owner_name, current_owner_phone,
+			       status, admin_notes, requested_at, resolved_at, created_at, updated_at
+			FROM subdomain_takeover_requests
+			WHERE LOWER(subdomain) = ?
+			ORDER BY requested_at DESC
+			LIMIT 1;
+		`
+		row = r.db.QueryRow(query, sub)
+	}
+
+	var req SubdomainTakeoverRequest
+	var reqAtStr, crAtStr, upAtStr string
+	var resAtStr, serStr, notesStr, agentIDStr, curNameStr, curPhoneStr, adminNotesStr sql.NullString
+
+	if err := row.Scan(
+		&req.ID, &req.Subdomain, &req.RequesterName, &req.RequesterPhone, &serStr,
+		&notesStr, &agentIDStr, &curNameStr, &curPhoneStr,
+		&req.Status, &adminNotesStr, &reqAtStr, &resAtStr, &crAtStr, &upAtStr,
+	); err != nil {
+		return nil, err
+	}
+
+	req.RequesterSerial = serStr.String
+	req.RequesterNotes = notesStr.String
+	req.RequesterAgentID = agentIDStr.String
+	req.CurrentOwnerName = curNameStr.String
+	req.CurrentOwnerPhone = curPhoneStr.String
+	req.AdminNotes = adminNotesStr.String
+
+	if t, err := time.Parse(time.RFC3339, reqAtStr); err == nil {
+		req.RequestedAt = t
+	}
+	if resAtStr.Valid && resAtStr.String != "" {
+		if t, err := time.Parse(time.RFC3339, resAtStr.String); err == nil {
+			req.ResolvedAt = &t
+		}
+	}
+	if t, err := time.Parse(time.RFC3339, crAtStr); err == nil {
+		req.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, upAtStr); err == nil {
+		req.UpdatedAt = t
+	}
+
+	return &req, nil
 }
 

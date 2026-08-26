@@ -862,12 +862,129 @@ async function handleSubdomainLiveCheck(subdomain) {
             if (data.available) {
                 statusEl.innerHTML = `<span style="color:#16a34a; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> النطاق <code>${data.full_domain}</code> متاح وجاهز للاستخدام!</span>`;
             } else {
-                statusEl.innerHTML = `<span style="color:#dc2626; font-weight:bold;"><i class="fa-solid fa-circle-xmark"></i> ${data.error || 'هذا النطاق مستخدم بالفعل، يرجى اختيار اسم آخر'}</span>`;
+                let takeoverHTML = '';
+                if (data.can_takeover) {
+                    const ownerHint = data.owner_name ? `<div style="font-size:12px; color:#cbd5e1; margin-bottom:6px;">المالك الحالي المسجل: <strong>${escapeHtml(data.owner_name)}</strong> (${escapeHtml(data.owner_phone_masked || '***')})</div>` : '';
+                    takeoverHTML = `
+                        <div style="background:rgba(239, 68, 68, 0.1); border:1px solid #ef4444; border-radius:8px; padding:10px; margin-top:8px;">
+                            <div style="color:#ef4444; font-weight:bold; font-size:13px; margin-bottom:4px;">
+                                <i class="fa-solid fa-circle-xmark"></i> ${escapeHtml(data.error || 'هذا النطاق محجوز مسبقاً')}
+                            </div>
+                            ${ownerHint}
+                            <button type="button" class="btn btn-warning btn-xs" style="margin-top:4px;" onclick="requestTakeoverFlow('${escapeHtml(subdomain)}')">
+                                <i class="fa-solid fa-handshake"></i> 📤 إرسال طلب استحواذ / نقل ملكية النطاق
+                            </button>
+                        </div>
+                    `;
+                    statusEl.innerHTML = takeoverHTML;
+                } else {
+                    statusEl.innerHTML = `<span style="color:#dc2626; font-weight:bold;"><i class="fa-solid fa-circle-xmark"></i> ${data.error || 'هذا النطاق مستخدم بالفعل، يرجى اختيار اسم آخر'}</span>`;
+                }
             }
         } catch (e) {
             statusEl.innerHTML = '<span style="color:#f59e0b;">تعذر التحقق الآن، سيتم التحقق عند الإرسال</span>';
         }
     }, 350);
+}
+
+let takeoverPollTimer = null;
+
+async function requestTakeoverFlow(subdomain) {
+    const nameInput = document.getElementById('ob-name');
+    const phoneInput = document.getElementById('ob-phone');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+
+    if (!name || !phone) {
+        alert('يرجى إدخال اسمك الكامل ورقم هاتفك في الحقول أعلاه أولاً لإرسال طلب الاستحواذ.');
+        if (!name && nameInput) nameInput.focus();
+        else if (!phone && phoneInput) phoneInput.focus();
+        return;
+    }
+
+    const notes = prompt(`📝 سبب طلب الاستحواذ على النطاق "${subdomain}":\n(مثال: إعادة تثبيت السوفتوير على راوتر جديد / تم شراء الراوتر)`, 'إعادة تثبيت المنظومة على راوتر جديد');
+    if (notes === null) return; // User cancelled
+
+    const statusEl = document.getElementById('ob-subdomain-status');
+    if (statusEl) {
+        statusEl.innerHTML = '<span style="color:#f59e0b;"><i class="fa-solid fa-spinner fa-spin"></i> جاري إرسال طلب الاستحواذ للسيرفر...</span>';
+    }
+
+    try {
+        const res = await apiFetch('/radius/api/setup/request-takeover', {
+            method: 'POST',
+            body: JSON.stringify({
+                subdomain: subdomain,
+                name: name,
+                phone: phone,
+                notes: notes
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'فشل إرسال الطلب');
+
+        alert(`✅ ${data.message || 'تم إرسال طلب الاستحواذ بنجاح!'}\nسيتم إشعار مدير السيرفر لمراجعة الطلب والموافقة عليه.`);
+
+        if (statusEl) {
+            statusEl.innerHTML = `
+                <div style="background:rgba(245, 158, 11, 0.15); border:1px solid #f59e0b; border-radius:8px; padding:12px; margin-top:8px;">
+                    <div style="color:#f59e0b; font-weight:bold; font-size:13px; margin-bottom:6px;">
+                        <i class="fa-solid fa-clock"></i> طلب الاستحواذ على <code>${escapeHtml(subdomain)}</code> قيد مراجعة وموافقة مدير السيرفر...
+                    </div>
+                    <p style="font-size:12px; color:#cbd5e1; margin:0 0 8px 0;">بمجرد موافقة الإدارة من لوحة السيرفر، سيتم تفعيل النطاق والاتصال تلقائياً.</p>
+                    <button type="button" class="btn btn-primary btn-xs" onclick="checkTakeoverApprovalNow('${escapeHtml(subdomain)}', '${escapeHtml(phone)}')">
+                        <i class="fa-solid fa-rotate"></i> 🔄 فحص حالة الموافقة الآن
+                    </button>
+                </div>
+            `;
+        }
+
+        // Start background polling every 6 seconds
+        clearInterval(takeoverPollTimer);
+        takeoverPollTimer = setInterval(() => {
+            checkTakeoverApprovalNow(subdomain, phone, true);
+        }, 6000);
+
+    } catch (err) {
+        alert('❌ ' + err.message);
+        if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626;">❌ ${escapeHtml(err.message)}</span>`;
+    }
+}
+
+async function checkTakeoverApprovalNow(subdomain, phone, isAutoPoll = false) {
+    try {
+        const res = await apiFetch('/radius/api/setup/check-takeover-status', {
+            method: 'POST',
+            body: JSON.stringify({ subdomain, phone })
+        });
+        const data = await res.json();
+        if (data.found) {
+            if (data.status === 'approved') {
+                clearInterval(takeoverPollTimer);
+                alert(`🎉 مبروك! تمت موافقة مدير السيرفر على نقل ملكية النطاق "${subdomain}" لك بنجاح!\nسيتم تفعيل الاتصال الآن.`);
+
+                isFreshInstall = false;
+                const obGate = document.getElementById('onboarding-gate');
+                if (obGate) obGate.style.display = 'none';
+
+                await loadLicenseStatus();
+                loadTunnelCardInfo();
+            } else if (data.status === 'rejected') {
+                clearInterval(takeoverPollTimer);
+                alert(`❌ عذراً، تم رفض طلب الاستحواذ من قبل مدير السيرفر.\nالسبب: ${data.admin_notes || 'النطاق مخصص لمشترك آخر'}`);
+                const statusEl = document.getElementById('ob-subdomain-status');
+                if (statusEl) {
+                    statusEl.innerHTML = `<span style="color:#dc2626; font-weight:bold;">❌ تم رفض طلب الاستحواذ (${escapeHtml(data.admin_notes || 'يرجى اختيار اسم آخر')})</span>`;
+                }
+            } else if (!isAutoPoll) {
+                alert('⏳ الطلب لا يزال قيد الانتظار والمراجعة لدى مدير السيرفر.');
+            }
+        } else if (!isAutoPoll) {
+            alert('لم يتم العثور على طلب معلق لهذا النطاق.');
+        }
+    } catch(e) {
+        if (!isAutoPoll) alert('تعذر التحقق من السيرفر حالياً');
+    }
 }
 
 async function submitOnboarding(e) {
@@ -1046,6 +1163,8 @@ window.exportAuditLogsCSV = exportAuditLogsCSV;
 window.clearAuditLogsModal = clearAuditLogsModal;
 window.handleSubdomainLiveCheck = handleSubdomainLiveCheck;
 window.submitOnboarding = submitOnboarding;
+window.requestTakeoverFlow = requestTakeoverFlow;
+window.checkTakeoverApprovalNow = checkTakeoverApprovalNow;
 window.loadTunnelCardInfo = loadTunnelCardInfo;
 window.copyTunnelDomain = copyTunnelDomain;
 window.copyTunnelWinbox = copyTunnelWinbox;

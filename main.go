@@ -514,6 +514,9 @@ func main() {
 	radiusAPI.Get("/setup/status", getSetupStatusHandler)
 	radiusAPI.Post("/setup/check-subdomain", checkSubdomainProxyHandler)
 	radiusAPI.Post("/setup/self-register", selfRegisterAgentHandler)
+	radiusAPI.Post("/setup/request-takeover", requestTakeoverProxyHandler)
+	radiusAPI.Post("/setup/check-takeover-status", checkTakeoverStatusProxyHandler)
+	radiusAPI.Post("/tunnel/check-subdomain", checkSubdomainProxyHandler)
 
 	// User Portal (Public login for subscribers)
 	radiusAPI.Post("/portal/login", radius.PortalLoginHandler)
@@ -1792,6 +1795,100 @@ func selfRegisterAgentHandler(c *fiber.Ctx) error {
 		"web_url":        centralResp.WebURL,
 		"message":        "تم إعداد النطاق وبدء الاتصال السحابي بنجاح!",
 	})
+}
+
+func requestTakeoverProxyHandler(c *fiber.Ctx) error {
+	var req struct {
+		Subdomain string `json:"subdomain"`
+		Name      string `json:"name"`
+		Phone     string `json:"phone"`
+		Notes     string `json:"notes"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+	}
+
+	serial := shared.RouterConfigState.Serial
+	if serial == "" {
+		rClient, err := core.Connect()
+		if err == nil && rClient != nil {
+			serial, _ = core.GetRouterSerial(rClient)
+			shared.RouterConfigState.Serial = serial
+			rClient.Close()
+		}
+	}
+
+	payload := map[string]string{
+		"subdomain": strings.ToLower(strings.TrimSpace(req.Subdomain)),
+		"name":      strings.TrimSpace(req.Name),
+		"phone":     strings.TrimSpace(req.Phone),
+		"serial":    serial,
+		"notes":     strings.TrimSpace(req.Notes),
+	}
+	jsonBody, _ := json.Marshal(payload)
+	resp, err := postToCentralServer("/api/agents/request-takeover", jsonBody)
+	if err != nil {
+		log.Printf("[Central API] request-takeover failed: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "تعذر الاتصال بالسيرفر المركزي لإرسال طلب الاستحواذ (" + err.Error() + ")"})
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	c.Set("Content-Type", "application/json")
+	return c.Status(resp.StatusCode).Send(body)
+}
+
+func checkTakeoverStatusProxyHandler(c *fiber.Ctx) error {
+	var req struct {
+		Subdomain string `json:"subdomain"`
+		Phone     string `json:"phone"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+	}
+
+	jsonBody, _ := json.Marshal(req)
+	resp, err := postToCentralServer("/api/agents/check-takeover-status", jsonBody)
+	if err != nil {
+		log.Printf("[Central API] check-takeover-status failed: %v", err)
+		return c.Status(500).JSON(fiber.Map{"error": "تعذر الاتصال بالسيرفر المركزي (" + err.Error() + ")"})
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		Found         bool   `json:"found"`
+		Status        string `json:"status"` // 'pending', 'approved', 'rejected'
+		Subdomain     string `json:"subdomain"`
+		Token         string `json:"token"`
+		WinboxPort    int    `json:"winbox_port"`
+		CentralDomain string `json:"central_domain"`
+		FullDomain    string `json:"full_domain"`
+		AdminNotes    string `json:"admin_notes"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "استجابة غير صالحة من السيرفر المركزي"})
+	}
+
+	// If approved, update local config and connect tunnel immediately!
+	if data.Found && data.Status == "approved" && data.Token != "" {
+		shared.RouterConfigState.TunnelMode = "agent"
+		shared.RouterConfigState.TunnelSubdomain = data.Subdomain
+		shared.RouterConfigState.TunnelToken = data.Token
+		shared.RouterConfigState.WinboxPort = data.WinboxPort
+		if data.CentralDomain != "" {
+			shared.RouterConfigState.CentralDomain = data.CentralDomain
+		}
+		shared.SaveConfig()
+
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "80"
+		}
+		go startSasmanTunnel(port)
+	}
+
+	return c.JSON(data)
 }
 
 // Global cancellation for Ngrok

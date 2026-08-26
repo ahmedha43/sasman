@@ -468,11 +468,124 @@ func main() {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
 		}
 
+		if !available {
+			ownerName, ownerPhone, _ := repo.GetSubdomainOwnerInfo(sub)
+			maskedPhone := ""
+			if len(ownerPhone) > 6 {
+				maskedPhone = ownerPhone[:4] + "****" + ownerPhone[len(ownerPhone)-3:]
+			} else if ownerPhone != "" {
+				maskedPhone = ownerPhone
+			}
+			return c.JSON(fiber.Map{
+				"subdomain":          sub,
+				"available":          false,
+				"taken":              true,
+				"can_takeover":       true,
+				"owner_name":         ownerName,
+				"owner_phone_masked": maskedPhone,
+				"error":              "هذا النطاق محجوز مسبقاً، يمكنك إرسال طلب استحواذ / نقل ملكية",
+				"full_url":           fmt.Sprintf("http://%s.%s", sub, centralDomain),
+			})
+		}
+
 		return c.JSON(fiber.Map{
 			"subdomain": sub,
-			"available": available,
+			"available": true,
 			"full_url":  fmt.Sprintf("http://%s.%s", sub, centralDomain),
 		})
+	})
+
+	app.Post("/api/agents/request-takeover", func(c *fiber.Ctx) error {
+		var req struct {
+			Subdomain string `json:"subdomain"`
+			Name      string `json:"name"`
+			Phone     string `json:"phone"`
+			Serial    string `json:"serial"`
+			Notes     string `json:"notes"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+		}
+
+		sub := strings.ToLower(strings.TrimSpace(req.Subdomain))
+		name := strings.TrimSpace(req.Name)
+		phone := strings.TrimSpace(req.Phone)
+
+		if sub == "" || name == "" || phone == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "الاسم ورقم الهاتف واسم النطاق هي حقول مطلوبة"})
+		}
+
+		available, _ := repo.IsSubdomainAvailable(sub)
+		if available {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "هذا النطاق متاح بالفعل ويمكنك تسجيله مباشرة دون الحاجة لطلب استحواذ"})
+		}
+
+		ownerName, ownerPhone, _ := repo.GetSubdomainOwnerInfo(sub)
+
+		takeoverReq := storage.SubdomainTakeoverRequest{
+			ID:                fmt.Sprintf("req-%d", time.Now().UnixNano()),
+			Subdomain:         sub,
+			RequesterName:     name,
+			RequesterPhone:    phone,
+			RequesterSerial:   strings.TrimSpace(req.Serial),
+			RequesterNotes:    strings.TrimSpace(req.Notes),
+			RequesterAgentID:  c.IP(),
+			CurrentOwnerName:  ownerName,
+			CurrentOwnerPhone: ownerPhone,
+			Status:            "pending",
+			RequestedAt:       time.Now().UTC(),
+		}
+
+		if err := repo.CreateTakeoverRequest(takeoverReq); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل حفظ طلب الاستحواذ: " + err.Error()})
+		}
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "تم إرسال طلب الاستحواذ بنجاح، بانتظار مراجعة وموافقة مدير السيرفر",
+			"request_id": takeoverReq.ID,
+			"subdomain": sub,
+		})
+	})
+
+	app.Post("/api/agents/check-takeover-status", func(c *fiber.Ctx) error {
+		var req struct {
+			Subdomain string `json:"subdomain"`
+			Phone     string `json:"phone"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+		}
+
+		sub := strings.ToLower(strings.TrimSpace(req.Subdomain))
+		takeover, err := repo.CheckTakeoverStatus(sub, req.Phone)
+		if err != nil || takeover == nil {
+			return c.JSON(fiber.Map{
+				"found":  false,
+				"status": "not_found",
+			})
+		}
+
+		respMap := fiber.Map{
+			"found":        true,
+			"request_id":   takeover.ID,
+			"subdomain":    takeover.Subdomain,
+			"status":       takeover.Status, // 'pending', 'approved', 'rejected'
+			"admin_notes":  takeover.AdminNotes,
+			"requested_at": takeover.RequestedAt,
+		}
+
+		if takeover.Status == "approved" {
+			subObj, _ := repo.GetSubdomainByName(sub)
+			if subObj != nil {
+				respMap["token"] = subObj.Token
+				respMap["winbox_port"] = subObj.WinboxPort
+				respMap["central_domain"] = centralDomain
+				respMap["full_domain"] = fmt.Sprintf("%s.%s", sub, centralDomain)
+			}
+		}
+
+		return c.JSON(respMap)
 	})
 
 	app.Post("/api/agents/self-register", func(c *fiber.Ctx) error {
@@ -954,6 +1067,75 @@ func main() {
 			"central_domain":   centralDomain,
 			"tunnel_mode":      "agent",
 			"setup_instructions": fmt.Sprintf("الإعداد على النظام المحلي:\n1. وضع التوصيل: Agent\n2. الدومين الفرعي: %s\n3. رابط اللوحة الكامل: %s\n4. رقم منفذ Winbox: %d\n5. عنوان Winbox المباشر: %s\n6. التوكن: %s\n7. بوابة السيرفر: %s", agent.Subdomain, webURL, agent.WinboxPort, winboxAddress, agent.Token, gatewayURL),
+		})
+	})
+
+	// ─── Subdomain Takeover & Ownership Transfer Admin APIs ─────────────────────
+
+	app.Get("/api/admin/takeovers", func(c *fiber.Ctx) error {
+		status := c.Query("status", "all")
+		list, err := repo.GetTakeoverRequests(status)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		pendingCount, _ := repo.GetPendingTakeoverCount()
+		return c.JSON(fiber.Map{
+			"success":       true,
+			"requests":      list,
+			"pending_count": pendingCount,
+		})
+	})
+
+	app.Get("/api/admin/takeovers/count", func(c *fiber.Ctx) error {
+		count, err := repo.GetPendingTakeoverCount()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"count":   count,
+		})
+	})
+
+	app.Post("/api/admin/takeovers/:id/approve", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		var body struct {
+			AdminNotes string `json:"admin_notes"`
+		}
+		_ = c.BodyParser(&body)
+
+		subRecord, err := repo.ApproveTakeoverRequest(id, body.AdminNotes)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		// Re-register in active tunnel service memory so old connections are reset with the new token
+		if subRecord != nil {
+			svc.RegisterAgent(subRecord.Subdomain, subRecord.Token)
+		}
+
+		return c.JSON(fiber.Map{
+			"success":   true,
+			"message":   "تمت الموافقة ونقل ملكية النطاق بنجاح وتوليد توكن جديد للمستخدم",
+			"subdomain": subRecord.Subdomain,
+			"token":     subRecord.Token,
+		})
+	})
+
+	app.Post("/api/admin/takeovers/:id/reject", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		var body struct {
+			AdminNotes string `json:"admin_notes"`
+		}
+		_ = c.BodyParser(&body)
+
+		if err := repo.RejectTakeoverRequest(id, body.AdminNotes); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "تم رفض طلب الاستحواذ بنجاح",
 		})
 	})
 

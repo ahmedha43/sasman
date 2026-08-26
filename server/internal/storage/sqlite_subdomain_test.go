@@ -7,6 +7,7 @@ import (
 
 func TestSubdomainAvailability(t *testing.T) {
 	tempDB := "test_subdomain_" + t.Name() + ".db"
+	_ = os.Remove(tempDB)
 	defer os.Remove(tempDB)
 
 	repo, err := NewSQLiteRepository(tempDB)
