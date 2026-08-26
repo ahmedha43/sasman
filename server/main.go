@@ -71,13 +71,31 @@ func main() {
 	})
 	relayRouter.Start()
 	relayAPI := relayinternal.NewAPIHandler(relayCatalog, relayTelemetry, relayRouter)
+	syncSingleAgentFunc := func(agentSubdomain string) error {
+		if relayRouter == nil {
+			return nil
+		}
+		services := relayRouter.GetServicesForAgent(agentSubdomain)
+		if services == nil {
+			services = []relay.ServiceDefinition{} // Send empty slice to clean up router rules
+		}
+		_ = svc.SendTunnelMessage(agentSubdomain, "catalog_sync", services)
+
+		routes := relayRouter.GetCurrentRoutingTable()
+		if len(routes.Routes) > 0 {
+			_ = svc.SendTunnelMessage(agentSubdomain, "route_table_push", routes)
+		}
+		return nil
+	}
+
 	relayAPI.SetBroadcaster(
 		func(catalog []relay.ServiceDefinition) {
-			payload, _ := json.Marshal(catalog)
-			svc.BroadcastToAgents(tunnel.TunnelMessage{
-				Type:    "catalog_sync",
-				Payload: payload,
-			})
+			agents := svc.ListAgents()
+			for _, a := range agents {
+				if sub, ok := a["subdomain"].(string); ok && sub != "" {
+					_ = syncSingleAgentFunc(sub)
+				}
+			}
 		},
 		func(serviceID string) {
 			payload, _ := json.Marshal(map[string]string{"service_id": serviceID})
@@ -96,6 +114,7 @@ func main() {
 			}
 			return out
 		},
+		syncSingleAgentFunc,
 	)
 
 	// Auto-push active broadcasts, license lease, and catalog to newly registered/connected agents
@@ -133,18 +152,9 @@ func main() {
 			}
 		}
 
-		// 3. Push Service Catalog & Routes on connect for immediate MikroTik RouterOS DNS/Firewall sync
-		if relayCatalog != nil {
-			services := relayCatalog.GetAllServices()
-			if len(services) > 0 {
-				_ = svc.SendTunnelMessage(subdomain, "catalog_sync", services)
-			}
-		}
+		// 3. Push targeted Service Catalog & Routes on connect for clean MikroTik RouterOS DNS/Firewall sync
 		if relayRouter != nil {
-			routes := relayRouter.GetCurrentRoutingTable()
-			if len(routes.Routes) > 0 {
-				_ = svc.SendTunnelMessage(subdomain, "route_table_push", routes)
-			}
+			_ = syncSingleAgentFunc(subdomain)
 		}
 
 		// 4. Persist agent arch & version to DB on every connect so OTA sends the correct binary

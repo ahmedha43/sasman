@@ -21,6 +21,7 @@ type APIHandler struct {
 	broadcastCatalogSync func(catalog []relay.ServiceDefinition)
 	broadcastProbeReq    func(serviceID string)
 	getAgentList         func() []string
+	syncSingleAgent      func(agentSubdomain string) error
 }
 
 func NewAPIHandler(catalog *CatalogManager, telemetry *TelemetryHub, router *RouterEngine) *APIHandler {
@@ -35,10 +36,11 @@ func NewAPIHandler(catalog *CatalogManager, telemetry *TelemetryHub, router *Rou
 	}
 }
 
-func (h *APIHandler) SetBroadcaster(syncCatalog func([]relay.ServiceDefinition), probeReq func(string), agentList func() []string) {
+func (h *APIHandler) SetBroadcaster(syncCatalog func([]relay.ServiceDefinition), probeReq func(string), agentList func() []string, syncSingleAgent func(string) error) {
 	h.broadcastCatalogSync = syncCatalog
 	h.broadcastProbeReq = probeReq
 	h.getAgentList = agentList
+	h.syncSingleAgent = syncSingleAgent
 }
 
 func (h *APIHandler) RegisterRoutes(router fiber.Router) {
@@ -72,6 +74,12 @@ func (h *APIHandler) RegisterRoutes(router fiber.Router) {
 	group.Post("/agents/:id/overrides", h.handleSetAgentOverrides)
 	group.Delete("/agents/:id/overrides", h.handleClearAgentOverrides)
 	group.Get("/agents/all-overrides", h.handleGetAllOverrides)
+
+	// Per-Agent Selective Services APIs
+	group.Get("/agents/:id/services", h.handleGetAgentServices)
+	group.Post("/agents/:id/services", h.handleSetAgentServices)
+	group.Get("/agents/all-services", h.handleGetAllAgentServices)
+	group.Post("/agents/:id/sync", h.handleSyncSingleAgent)
 }
 
 func (h *APIHandler) handleListServices(c *fiber.Ctx) error {
@@ -453,14 +461,19 @@ func (h *APIHandler) handleTestNodeIP(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleForceSyncAll(c *fiber.Ctx) error {
-	if h.broadcastCatalogSync != nil {
+	if h.getAgentList != nil && h.syncSingleAgent != nil {
+		agents := h.getAgentList()
+		for _, a := range agents {
+			_ = h.syncSingleAgent(a)
+		}
+	} else if h.broadcastCatalogSync != nil {
 		h.broadcastCatalogSync(h.catalog.GetAllServices())
 	}
 	_ = h.router.ComputeGlobalRoutingTable()
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Force sync broadcasted to all connected MikroTik agents",
+		"message": "تمت مزامنة جميع أجهزة المايكروتك المتصلة بشكل مخصص ونظيف",
 	})
 }
 
@@ -556,6 +569,77 @@ func (h *APIHandler) handleGetAllOverrides(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success":   true,
 		"overrides": all,
+	})
+}
+
+func (h *APIHandler) handleGetAgentServices(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	if agentID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Agent ID required"})
+	}
+	services := h.router.GetAgentServices(agentID)
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"agent_id": agentID,
+		"services": services,
+	})
+}
+
+func (h *APIHandler) handleSetAgentServices(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	if agentID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Agent ID required"})
+	}
+
+	var req struct {
+		Services []string `json:"services"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": err.Error()})
+	}
+
+	h.router.SetAgentServices(agentID, req.Services)
+
+	// Immediately push targeted sync to this agent
+	if h.syncSingleAgent != nil {
+		_ = h.syncSingleAgent(agentID)
+	}
+
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"message":  "تم تحديث ومزامنة الخدمات المفعلة للراوتر بنجاح",
+		"agent_id": agentID,
+		"services": req.Services,
+	})
+}
+
+func (h *APIHandler) handleGetAllAgentServices(c *fiber.Ctx) error {
+	all := h.router.GetAllAgentServices()
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"services": all,
+	})
+}
+
+func (h *APIHandler) handleSyncSingleAgent(c *fiber.Ctx) error {
+	agentID := c.Params("id")
+	if agentID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Agent ID required"})
+	}
+
+	if h.syncSingleAgent != nil {
+		if err := h.syncSingleAgent(agentID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"error":   err.Error(),
+			})
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"message":  fmt.Sprintf("تمت مزامنة راوتر الوكيل (%s) بنجاح وبشكل نظيف", agentID),
+		"agent_id": agentID,
 	})
 }
 

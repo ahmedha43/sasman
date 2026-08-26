@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"encoding/json"
 	"log"
 	"sort"
 	"sync"
@@ -20,6 +21,7 @@ type RouterEngine struct {
 	globalBypass   bool   // Emergency Kill-Switch
 	rrIndex        map[string]int
 	agentOverrides map[string]map[string]string // agentSubdomain -> serviceID -> target ("vps", "auto_iraq", "direct", "<agent_name>")
+	agentServices  map[string][]string          // agentSubdomain -> list of enabled service IDs
 	mu             sync.RWMutex
 	lastTable      relay.AgentRoutingTable
 	onUpdate       func(table relay.AgentRoutingTable)
@@ -27,15 +29,152 @@ type RouterEngine struct {
 }
 
 func NewRouterEngine(catalog *CatalogManager, telemetry *TelemetryHub, onUpdate func(relay.AgentRoutingTable)) *RouterEngine {
-	return &RouterEngine{
+	re := &RouterEngine{
 		catalog:        catalog,
 		telemetry:      telemetry,
 		strategy:       "lowest_latency",
 		rrIndex:        make(map[string]int),
 		agentOverrides: make(map[string]map[string]string),
+		agentServices:  make(map[string][]string),
 		onUpdate:       onUpdate,
 		stopCh:         make(chan struct{}),
 	}
+	re.initSchema()
+	re.loadFromDB()
+	return re
+}
+
+func (re *RouterEngine) initSchema() {
+	if re.catalog == nil || re.catalog.db == nil {
+		return
+	}
+	_, _ = re.catalog.db.Exec(`
+		CREATE TABLE IF NOT EXISTS relay_agent_services (
+			agent_id TEXT PRIMARY KEY,
+			services TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS relay_agent_overrides (
+			agent_id TEXT PRIMARY KEY,
+			overrides TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+	`)
+}
+
+func (re *RouterEngine) loadFromDB() {
+	if re.catalog == nil || re.catalog.db == nil {
+		return
+	}
+
+	// Load services
+	rows, err := re.catalog.db.Query("SELECT agent_id, services FROM relay_agent_services")
+	if err == nil && rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var agentID, svcsJSON string
+			if err := rows.Scan(&agentID, &svcsJSON); err == nil {
+				var svcs []string
+				if err := json.Unmarshal([]byte(svcsJSON), &svcs); err == nil {
+					re.agentServices[agentID] = svcs
+				}
+			}
+		}
+	}
+
+	// Load overrides
+	oRows, oErr := re.catalog.db.Query("SELECT agent_id, overrides FROM relay_agent_overrides")
+	if oErr == nil && oRows != nil {
+		defer oRows.Close()
+		for oRows.Next() {
+			var agentID, oJSON string
+			if err := oRows.Scan(&agentID, &oJSON); err == nil {
+				var ovs map[string]string
+				if err := json.Unmarshal([]byte(oJSON), &ovs); err == nil {
+					re.agentOverrides[agentID] = ovs
+				}
+			}
+		}
+	}
+}
+
+func (re *RouterEngine) SetAgentServices(agentKey string, serviceIDs []string) {
+	re.mu.Lock()
+	clean := make([]string, 0, len(serviceIDs))
+	for _, id := range serviceIDs {
+		if id != "" {
+			clean = append(clean, id)
+		}
+	}
+	if len(clean) == 0 {
+		delete(re.agentServices, agentKey)
+	} else {
+		re.agentServices[agentKey] = clean
+	}
+	re.mu.Unlock()
+
+	// Persist to DB
+	if re.catalog != nil && re.catalog.db != nil {
+		if len(clean) == 0 {
+			_, _ = re.catalog.db.Exec("DELETE FROM relay_agent_services WHERE agent_id = ?", agentKey)
+		} else {
+			data, _ := json.Marshal(clean)
+			_, _ = re.catalog.db.Exec(`
+				INSERT INTO relay_agent_services (agent_id, services, updated_at) 
+				VALUES (?, ?, ?) 
+				ON CONFLICT(agent_id) DO UPDATE SET services = excluded.services, updated_at = excluded.updated_at
+			`, agentKey, string(data), time.Now().Format(time.RFC3339))
+		}
+	}
+}
+
+func (re *RouterEngine) GetAgentServices(agentKey string) []string {
+	re.mu.RLock()
+	defer re.mu.RUnlock()
+	if svcs, ok := re.agentServices[agentKey]; ok {
+		out := make([]string, len(svcs))
+		copy(out, svcs)
+		return out
+	}
+	return nil
+}
+
+func (re *RouterEngine) GetAllAgentServices() map[string][]string {
+	re.mu.RLock()
+	defer re.mu.RUnlock()
+	res := make(map[string][]string)
+	for agent, svcs := range re.agentServices {
+		out := make([]string, len(svcs))
+		copy(out, svcs)
+		res[agent] = out
+	}
+	return res
+}
+
+// GetServicesForAgent returns only the services specifically enabled for the agent
+func (re *RouterEngine) GetServicesForAgent(agentKey string) []relay.ServiceDefinition {
+	re.mu.RLock()
+	enabledIDs, hasConfig := re.agentServices[agentKey]
+	re.mu.RUnlock()
+
+	allServices := re.catalog.GetAllServices()
+	if !hasConfig {
+		// If agent has no specific services assigned, return empty list (clean state)
+		return nil
+	}
+
+	enabledMap := make(map[string]bool)
+	for _, id := range enabledIDs {
+		enabledMap[id] = true
+	}
+
+	var result []relay.ServiceDefinition
+	for _, svc := range allServices {
+		if enabledMap[svc.ID] && svc.Enabled {
+			result = append(result, svc)
+		}
+	}
+	return result
 }
 
 func (re *RouterEngine) SetAgentOverride(agentKey, serviceID, target string) {
@@ -49,6 +188,8 @@ func (re *RouterEngine) SetAgentOverride(agentKey, serviceID, target string) {
 		re.agentOverrides[agentKey][serviceID] = target
 	}
 	re.mu.Unlock()
+
+	re.persistOverrides(agentKey)
 }
 
 func (re *RouterEngine) SetAgentOverrides(agentKey string, overrides map[string]string) {
@@ -59,6 +200,28 @@ func (re *RouterEngine) SetAgentOverrides(agentKey string, overrides map[string]
 		re.agentOverrides[agentKey] = overrides
 	}
 	re.mu.Unlock()
+
+	re.persistOverrides(agentKey)
+}
+
+func (re *RouterEngine) persistOverrides(agentKey string) {
+	if re.catalog == nil || re.catalog.db == nil {
+		return
+	}
+	re.mu.RLock()
+	ovs := re.agentOverrides[agentKey]
+	re.mu.RUnlock()
+
+	if len(ovs) == 0 {
+		_, _ = re.catalog.db.Exec("DELETE FROM relay_agent_overrides WHERE agent_id = ?", agentKey)
+	} else {
+		data, _ := json.Marshal(ovs)
+		_, _ = re.catalog.db.Exec(`
+			INSERT INTO relay_agent_overrides (agent_id, overrides, updated_at) 
+			VALUES (?, ?, ?) 
+			ON CONFLICT(agent_id) DO UPDATE SET overrides = excluded.overrides, updated_at = excluded.updated_at
+		`, agentKey, string(data), time.Now().Format(time.RFC3339))
+	}
 }
 
 func (re *RouterEngine) GetAgentOverrides(agentKey string) map[string]string {
