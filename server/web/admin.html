@@ -2096,11 +2096,11 @@ ${setupCmd}`;
       const id = document.getElementById('svc-id').value.trim();
       const name = document.getElementById('svc-name').value.trim();
       const category = document.getElementById('svc-category').value;
-      const domainsRaw = document.getElementById('svc-domains').value.split(',').map(d => d.trim()).filter(Boolean);
-      const ipsRaw = document.getElementById('svc-ips').value.split(',').map(d => d.trim()).filter(Boolean);
-      const portsRaw = document.getElementById('svc-ports').value.split(',').map(p => parseInt(p.trim(), 10)).filter(p => !isNaN(p));
+      const domainsRaw = document.getElementById('svc-domains').value.split(/[\r\n,;\s]+/).map(d => d.trim().toLowerCase()).filter(Boolean);
+      const ipsRaw = document.getElementById('svc-ips').value.split(/[\r\n,;\s]+/).map(d => d.trim()).filter(Boolean);
+      const portsRaw = document.getElementById('svc-ports').value.split(/[\r\n,;\s]+/).map(p => parseInt(p.trim(), 10)).filter(p => !isNaN(p));
       const targetScope = document.getElementById('svc-scope').value;
-      const groupsRaw = document.getElementById('svc-groups').value.split(',').map(g => g.trim()).filter(Boolean);
+      const groupsRaw = document.getElementById('svc-groups').value.split(/[\r\n,;\s]+/).map(g => g.trim()).filter(Boolean);
       const enabled = document.getElementById('svc-enabled').checked;
 
       const payload = {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -158,11 +159,31 @@ func (cm *CatalogManager) seedDefaultServices() {
 	}
 }
 
+// normalizeDomains splits any multi-line or comma-separated strings into individual clean domains
+func normalizeDomains(raw []string) []string {
+	var result []string
+	seen := make(map[string]bool)
+	for _, d := range raw {
+		fields := strings.FieldsFunc(d, func(r rune) bool {
+			return r == '\n' || r == '\r' || r == ',' || r == ';' || r == ' ' || r == '\t'
+		})
+		for _, f := range fields {
+			clean := strings.ToLower(strings.TrimSpace(f))
+			if clean != "" && !seen[clean] {
+				seen[clean] = true
+				result = append(result, clean)
+			}
+		}
+	}
+	return result
+}
+
 // SaveService inserts or updates a service in the database and memory
 func (cm *CatalogManager) SaveService(svc relay.ServiceDefinition) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
+	svc.Domains = normalizeDomains(svc.Domains)
 	svc.UpdatedAt = time.Now().UTC()
 	if svc.CreatedAt.IsZero() {
 		svc.CreatedAt = svc.UpdatedAt

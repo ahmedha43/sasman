@@ -114,15 +114,36 @@ func cleanupOrphanedRelayRules(client *routeros.Client, activeServices map[strin
 	}
 }
 
+// normalizeDomains splits any multi-line or comma-separated strings into individual clean domains
+func normalizeDomains(raw []string) []string {
+	var result []string
+	seen := make(map[string]bool)
+	for _, d := range raw {
+		fields := strings.FieldsFunc(d, func(r rune) bool {
+			return r == '\n' || r == '\r' || r == ',' || r == ';' || r == ' ' || r == '\t'
+		})
+		for _, f := range fields {
+			clean := strings.ToLower(strings.TrimSpace(f))
+			if clean != "" && !seen[clean] {
+				seen[clean] = true
+				result = append(result, clean)
+			}
+		}
+	}
+	return result
+}
+
 // reconcileServiceRules queries existing rules for a service, compares them with desired rules,
 // and ensures exactly one valid rule exists for each domain/port without duplicates.
 func reconcileServiceRules(client *routeros.Client, svc ServiceDefinition, interceptorPort int) {
 	listName := "SASMAN_RELAY_" + strings.ToUpper(svc.ID)
 	comment := "SASMAN-Relay-" + svc.ID
 
+	cleanDomains := normalizeDomains(svc.Domains)
+
 	// ─── A. DNS Static FWD Rules Reconcile ────────────────────────────────────
 	desiredDNS := make(map[string]bool)
-	for _, domain := range svc.Domains {
+	for _, domain := range cleanDomains {
 		cleanDomain := strings.TrimPrefix(domain, "*.")
 		desiredDNS[cleanDomain] = true
 	}
@@ -161,7 +182,7 @@ func reconcileServiceRules(client *routeros.Client, svc ServiceDefinition, inter
 
 	// ─── B. RAW TLS-Host Prerouting Rules Reconcile ───────────────────────────
 	desiredRAW := make(map[string]bool)
-	for _, domain := range svc.Domains {
+	for _, domain := range cleanDomains {
 		cleanDomain := strings.TrimPrefix(domain, "*.")
 		desiredRAW[cleanDomain] = true
 		if strings.HasPrefix(domain, "*.") {
