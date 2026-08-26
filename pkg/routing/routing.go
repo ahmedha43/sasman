@@ -78,7 +78,10 @@ func ApplyRouting(c *fiber.Ctx) error {
 		// Ensure TM_Local_Subnets list exists so RAW rules don't fail silently
 		localSubnets := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
 		for _, subnet := range localSubnets {
-			core.SafeRun(client, "/ip/firewall/address-list/add", "=list=TM_Local_Subnets", "=address="+subnet, "=comment=Auto-SASMAN-Bypass")
+			reply, err := client.Run("/ip/firewall/address-list/print", "?list=TM_Local_Subnets", "?address="+subnet)
+			if err != nil || reply == nil || len(reply.Re) == 0 {
+				core.SafeRun(client, "/ip/firewall/address-list/add", "=list=TM_Local_Subnets", "=address="+subnet, "=comment=Auto-SASMAN-Bypass")
+			}
 		}
 
 		listName := "list-" + req.TargetApp
