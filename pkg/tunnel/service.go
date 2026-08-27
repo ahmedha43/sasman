@@ -542,11 +542,16 @@ func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
 
 		for k, v := range resp.Headers {
 			lk := strings.ToLower(k)
-			if lk == "connection" || lk == "content-length" || lk == "transfer-encoding" {
+			if lk == "connection" || lk == "content-length" || lk == "transfer-encoding" || lk == "cache-control" || lk == "expires" || lk == "pragma" {
 				continue
 			}
 			c.Set(k, v)
 		}
+
+		// Strictly prevent any browser/proxy caching for forwarded agent web UI
+		c.Set("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+		c.Set("Pragma", "no-cache")
+		c.Set("Expires", "0")
 
 		return c.Status(resp.Status).Send(respBody)
 
