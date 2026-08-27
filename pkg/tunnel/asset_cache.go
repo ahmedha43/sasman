@@ -45,13 +45,10 @@ func IsStaticAsset(path string) bool {
 
 	lowerPath := strings.ToLower(path)
 
-	// Explicitly ignore any API endpoints, WebSocket, and dynamic auth/login routes
+	// Explicitly ignore any API endpoints and WebSocket streams
 	if strings.Contains(lowerPath, "/api/") ||
 		strings.HasPrefix(lowerPath, "/api") ||
-		strings.Contains(lowerPath, "/ws") ||
-		strings.Contains(lowerPath, "/auth") ||
-		strings.Contains(lowerPath, "/login") ||
-		strings.Contains(lowerPath, "/logout") {
+		strings.Contains(lowerPath, "/ws") {
 		return false
 	}
 
