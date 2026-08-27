@@ -990,6 +990,83 @@ func main() {
 		return c.JSON(fiber.Map{"success": deleted, "subdomain": subdomain})
 	})
 
+	app.Post("/api/agents/:subdomain/credentials", func(c *fiber.Ctx) error {
+		subdomain := strings.ToLower(strings.TrimSpace(c.Params("subdomain")))
+		if subdomain == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+		}
+
+		var payload struct {
+			MikrotikHost string `json:"mikrotik_host"`
+			MikrotikUser string `json:"mikrotik_user"`
+			MikrotikPass string `json:"mikrotik_pass"`
+			PanelUser    string `json:"panel_user"`
+			PanelPass    string `json:"panel_pass"`
+		}
+		if err := c.BodyParser(&payload); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+		}
+
+		credsMap, _ := repo.GetSubdomainCredentialsMap()
+		currentCreds := credsMap[subdomain]
+		if currentCreds == nil {
+			currentCreds = make(map[string]interface{})
+		}
+
+		mtCreds, ok := currentCreds["mikrotik"].(map[string]interface{})
+		if !ok || mtCreds == nil {
+			mtCreds = make(map[string]interface{})
+		}
+		if payload.MikrotikHost != "" {
+			mtCreds["host"] = payload.MikrotikHost
+			mtCreds["address"] = payload.MikrotikHost
+		}
+		if payload.MikrotikUser != "" {
+			mtCreds["username"] = payload.MikrotikUser
+		}
+		if payload.MikrotikPass != "" {
+			mtCreds["password"] = payload.MikrotikPass
+		}
+		currentCreds["mikrotik"] = mtCreds
+
+		panelCreds, ok := currentCreds["panel_admin"].(map[string]interface{})
+		if !ok || panelCreds == nil {
+			panelCreds = make(map[string]interface{})
+		}
+		if payload.PanelUser != "" {
+			panelCreds["username"] = payload.PanelUser
+		}
+		if payload.PanelPass != "" {
+			panelCreds["password"] = payload.PanelPass
+		}
+		currentCreds["panel_admin"] = panelCreds
+
+		credsBytes, _ := json.Marshal(currentCreds)
+		_ = repo.UpdateSubdomainCredentials(subdomain, string(credsBytes))
+
+		// Push to live agent if connected
+		if agent := svc.GetAgentBySubdomain(subdomain); agent != nil {
+			if agent.SyncData == nil {
+				agent.SyncData = make(map[string]interface{})
+			}
+			agent.SyncData["credentials"] = currentCreds
+
+			updateBody, _ := json.Marshal(map[string]interface{}{
+				"host": payload.MikrotikHost,
+				"user": payload.MikrotikUser,
+				"pass": payload.MikrotikPass,
+			})
+			go func() {
+				_, _, _ = svc.SendAgentHTTPRequest(subdomain, "POST", "/radius/api/internal/routeros/update-creds", updateBody, nil)
+			}()
+		}
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "تم تحديث بيانات الدخول بنجاح ومزامنتها مع الراوتر",
+		})
+	})
+
 	app.Post("/api/agents/register-from-ui", func(c *fiber.Ctx) error {
 		var payload struct {
 			Name      string `json:"name"`

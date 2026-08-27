@@ -613,6 +613,28 @@ func main() {
 		return c.Status(400).JSON(fiber.Map{"error": "No command or audit specified"})
 	})
 
+	radiusAPI.Post("/internal/routeros/update-creds", func(c *fiber.Ctx) error {
+		var req struct {
+			Host string `json:"host"`
+			User string `json:"user"`
+			Pass string `json:"pass"`
+		}
+		if err := c.BodyParser(&req); err == nil {
+			if req.Host != "" {
+				shared.RouterConfigState.Address = req.Host
+			}
+			if req.User != "" {
+				shared.RouterConfigState.Username = req.User
+			}
+			if req.Pass != "" {
+				shared.RouterConfigState.Password = req.Pass
+			}
+			shared.SaveConfig()
+			core.ResetSharedClient()
+		}
+		return c.JSON(fiber.Map{"success": true})
+	})
+
 	// Licensed area (auth + license gate)
 	radiusSecure := radiusAPI.Group("", radius.RequireAdmin, radius.RequireLicense)
 

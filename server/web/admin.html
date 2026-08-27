@@ -799,27 +799,24 @@
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;">
           <div>
-            <span style="color:#94a3b8; font-size:11px; display:block;">آيبي الراوتر (Host / IP):</span>
-            <code id="cred-ros-host" style="color:#f8fafc; font-weight:bold;">-</code>
+            <span style="color:#94a3b8; font-size:11px; display:block; margin-bottom:3px;">آيبي الراوتر (Host / IP):</span>
+            <input type="text" id="cred-ros-host" placeholder="192.168.88.1" style="background:#1e293b; border:1px solid #475569; color:#f8fafc; font-family:monospace; font-size:12px; padding:4px 8px; border-radius:6px; width:100%;">
           </div>
           <div>
-            <span style="color:#94a3b8; font-size:11px; display:block;">عنوان Winbox النفق:</span>
+            <span style="color:#94a3b8; font-size:11px; display:block; margin-bottom:3px;">عنوان Winbox النفق:</span>
             <div style="display:flex; align-items:center; gap:4px;">
               <code id="cred-ros-winbox" style="color:#38bdf8; font-weight:bold;">-</code>
               <button class="btn btn-dark btn-xs" onclick="copyCredField('cred-ros-winbox')">📋</button>
             </div>
           </div>
           <div>
-            <span style="color:#94a3b8; font-size:11px; display:block;">اسم مستخدم المايكروتك (User):</span>
-            <div style="display:flex; align-items:center; gap:4px;">
-              <code id="cred-ros-user" style="color:#a78bfa; font-weight:bold;">-</code>
-              <button class="btn btn-dark btn-xs" onclick="copyCredField('cred-ros-user')">📋</button>
-            </div>
+            <span style="color:#94a3b8; font-size:11px; display:block; margin-bottom:3px;">اسم مستخدم المايكروتك (User):</span>
+            <input type="text" id="cred-ros-user" placeholder="admin" style="background:#1e293b; border:1px solid #475569; color:#a78bfa; font-family:monospace; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:6px; width:100%;">
           </div>
           <div>
-            <span style="color:#94a3b8; font-size:11px; display:block;">كلمة سر المايكروتك (Password):</span>
+            <span style="color:#94a3b8; font-size:11px; display:block; margin-bottom:3px;">كلمة سر المايكروتك (Password):</span>
             <div style="display:flex; align-items:center; gap:4px;">
-              <input type="password" id="cred-ros-pass" readonly style="background:#1e293b; border:1px solid #475569; color:#f8fafc; font-family:monospace; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:6px; width:120px;">
+              <input type="password" id="cred-ros-pass" placeholder="كلمة المرور..." style="background:#1e293b; border:1px solid #475569; color:#f8fafc; font-family:monospace; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:6px; flex:1;">
               <button class="btn btn-dark btn-xs" onclick="togglePassVisibility('cred-ros-pass', this)">👁️</button>
               <button class="btn btn-dark btn-xs" onclick="copyPassField('cred-ros-pass')">📋</button>
             </div>
@@ -839,16 +836,13 @@
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;">
           <div>
-            <span style="color:#94a3b8; font-size:11px; display:block;">اسم مستخدم اللوحة (Admin):</span>
-            <div style="display:flex; align-items:center; gap:4px;">
-              <code id="cred-panel-user" style="color:#38bdf8; font-weight:bold;">admin</code>
-              <button class="btn btn-dark btn-xs" onclick="copyCredField('cred-panel-user')">📋</button>
-            </div>
+            <span style="color:#94a3b8; font-size:11px; display:block; margin-bottom:3px;">اسم مستخدم اللوحة (Admin):</span>
+            <input type="text" id="cred-panel-user" placeholder="admin" style="background:#1e293b; border:1px solid #475569; color:#38bdf8; font-family:monospace; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:6px; width:100%;">
           </div>
           <div>
-            <span style="color:#94a3b8; font-size:11px; display:block;">كلمة سر اللوحة (Password):</span>
+            <span style="color:#94a3b8; font-size:11px; display:block; margin-bottom:3px;">كلمة سر اللوحة (Password):</span>
             <div style="display:flex; align-items:center; gap:4px;">
-              <input type="password" id="cred-panel-pass" readonly style="background:#1e293b; border:1px solid #475569; color:#f8fafc; font-family:monospace; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:6px; width:120px;">
+              <input type="password" id="cred-panel-pass" placeholder="كلمة المرور..." style="background:#1e293b; border:1px solid #475569; color:#f8fafc; font-family:monospace; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:6px; flex:1;">
               <button class="btn btn-dark btn-xs" onclick="togglePassVisibility('cred-panel-pass', this)">👁️</button>
               <button class="btn btn-dark btn-xs" onclick="copyPassField('cred-panel-pass')">📋</button>
             </div>
@@ -858,7 +852,12 @@
 
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <div id="cred-modal-updated" style="font-size:11px; color:#94a3b8;">-</div>
-        <button type="button" class="btn btn-dark" onclick="closeAgentCredentialsModal()">إغلاق</button>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-dark" onclick="closeAgentCredentialsModal()">إلغاء</button>
+          <button type="button" id="btn-save-creds" class="btn btn-primary" onclick="saveAgentCredentials()" style="background:linear-gradient(135deg, #16a34a, #059669); border:none; padding:8px 18px;">
+            <i class="fa-solid fa-save"></i> 💾 حفظ وتحديث الراوتر فوراً
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2217,7 +2216,10 @@ ${setupCmd}`;
     }
 
     // ─── AGENT CREDENTIALS MODAL ───────────────────────────────────────────
+    let currentEditingSubdomain = '';
+
     function openAgentCredentialsModal(subdomain) {
+      currentEditingSubdomain = subdomain;
       const a = (currentAgentsList || []).find(x => (x.subdomain || '').toLowerCase() === (subdomain || '').toLowerCase());
       if (!a) {
         alert('لم يتم العثور على بيانات هذا الوكيل');
@@ -2246,13 +2248,13 @@ ${setupCmd}`;
       const panelCreds = creds.panel_admin || creds.radius_admin || {};
 
       // MikroTik RouterOS fields
-      const rosHost = mikrotikCreds.host || (syncData.mikrotik && (syncData.mikrotik.address || syncData.mikrotik.host)) || '-';
+      const rosHost = mikrotikCreds.host || (syncData.mikrotik && (syncData.mikrotik.address || syncData.mikrotik.host)) || '192.168.88.1';
       const rosUser = mikrotikCreds.username || (syncData.mikrotik && syncData.mikrotik.username) || 'admin';
       const rosPass = mikrotikCreds.password || (syncData.mikrotik && syncData.mikrotik.password) || '';
 
-      document.getElementById('cred-ros-host').textContent = rosHost;
+      document.getElementById('cred-ros-host').value = rosHost;
       document.getElementById('cred-ros-winbox').textContent = winboxAddr;
-      document.getElementById('cred-ros-user').textContent = rosUser;
+      document.getElementById('cred-ros-user').value = rosUser;
       
       const rosPassInput = document.getElementById('cred-ros-pass');
       rosPassInput.value = rosPass || '';
@@ -2262,7 +2264,7 @@ ${setupCmd}`;
       const panelUser = panelCreds.username || 'admin';
       const panelPass = panelCreds.password || (panelCreds.is_default ? 'admin' : '');
 
-      document.getElementById('cred-panel-user').textContent = panelUser;
+      document.getElementById('cred-panel-user').value = panelUser;
       
       const panelPassInput = document.getElementById('cred-panel-pass');
       panelPassInput.value = panelPass || '';
@@ -2275,6 +2277,46 @@ ${setupCmd}`;
       document.getElementById('cred-modal-updated').textContent = updatedStr;
 
       document.getElementById('agent-credentials-modal').classList.add('active');
+    }
+
+    async function saveAgentCredentials() {
+      if (!currentEditingSubdomain) return;
+      const host = document.getElementById('cred-ros-host').value.trim();
+      const user = document.getElementById('cred-ros-user').value.trim();
+      const pass = document.getElementById('cred-ros-pass').value;
+      const panelUser = document.getElementById('cred-panel-user').value.trim();
+      const panelPass = document.getElementById('cred-panel-pass').value;
+
+      const btn = document.getElementById('btn-save-creds');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ والتحديث...';
+
+      try {
+        const res = await fetch(`/api/agents/${encodeURIComponent(currentEditingSubdomain)}/credentials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mikrotik_host: host,
+            mikrotik_user: user,
+            mikrotik_pass: pass,
+            panel_user: panelUser,
+            panel_pass: panelPass
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ ' + data.message);
+          closeAgentCredentialsModal();
+          loadAgents();
+        } else {
+          alert('❌ ' + (data.error || 'فشل حفظ بيانات الدخول'));
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-save"></i> 💾 حفظ وتحديث الراوتر فوراً';
+      }
     }
 
     function closeAgentCredentialsModal() {
@@ -2296,7 +2338,7 @@ ${setupCmd}`;
     function copyCredField(elemId) {
       const elem = document.getElementById(elemId);
       if (!elem) return;
-      const text = elem.textContent || elem.innerText || '';
+      const text = elem.textContent || elem.innerText || elem.value || '';
       if (!text || text === '-') {
         alert('لا توجد قيمة للنسخ');
         return;
