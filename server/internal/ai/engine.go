@@ -7,6 +7,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"mikrotik-manager/pkg/tunnel"
@@ -1287,13 +1288,18 @@ func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface
 		return nil, fmt.Errorf("اسم النطاق مطلوب")
 	}
 
-	// 1. Gather raw data via router commands
-	ifacesRes, _ := e.ExecuteRouterCommand(sub, "/interface/print")
-	addrRes, _ := e.ExecuteRouterCommand(sub, "/ip/address/print")
-	routesRes, _ := e.ExecuteRouterCommand(sub, "/ip/route/print")
-	mangleRes, _ := e.ExecuteRouterCommand(sub, "/ip/firewall/mangle/print")
-	dhcpRes, _ := e.ExecuteRouterCommand(sub, "/ip/dhcp-server/print")
-	resRes, _ := e.ExecuteRouterCommand(sub, "/system/resource/print")
+	// 1. Gather raw data concurrently via router commands
+	var wg sync.WaitGroup
+	var ifacesRes, addrRes, routesRes, mangleRes, dhcpRes, resRes map[string]interface{}
+
+	wg.Add(6)
+	go func() { defer wg.Done(); ifacesRes, _ = e.ExecuteRouterCommand(sub, "/interface/print") }()
+	go func() { defer wg.Done(); addrRes, _ = e.ExecuteRouterCommand(sub, "/ip/address/print") }()
+	go func() { defer wg.Done(); routesRes, _ = e.ExecuteRouterCommand(sub, "/ip/route/print") }()
+	go func() { defer wg.Done(); mangleRes, _ = e.ExecuteRouterCommand(sub, "/ip/firewall/mangle/print") }()
+	go func() { defer wg.Done(); dhcpRes, _ = e.ExecuteRouterCommand(sub, "/ip/dhcp-server/print") }()
+	go func() { defer wg.Done(); resRes, _ = e.ExecuteRouterCommand(sub, "/system/resource/print") }()
+	wg.Wait()
 
 	topo := map[string]interface{}{
 		"subdomain":     sub,
@@ -1455,9 +1461,13 @@ func (e *Engine) SimulatePacket(subdomain, srcIP, dstIP, protocol, dstPort, inIf
 		protocol = "tcp"
 	}
 
-	filterRes, _ := e.ExecuteRouterCommand(sub, "/ip/firewall/filter/print")
-	natRes, _ := e.ExecuteRouterCommand(sub, "/ip/firewall/nat/print")
-	routesRes, _ := e.ExecuteRouterCommand(sub, "/ip/route/print")
+	var wg sync.WaitGroup
+	var filterRes, natRes, routesRes map[string]interface{}
+	wg.Add(3)
+	go func() { defer wg.Done(); filterRes, _ = e.ExecuteRouterCommand(sub, "/ip/firewall/filter/print") }()
+	go func() { defer wg.Done(); natRes, _ = e.ExecuteRouterCommand(sub, "/ip/firewall/nat/print") }()
+	go func() { defer wg.Done(); routesRes, _ = e.ExecuteRouterCommand(sub, "/ip/route/print") }()
+	wg.Wait()
 
 	var steps []string
 	verdict := "PASS"
@@ -1565,10 +1575,14 @@ func (e *Engine) ExplainDeviceArchitecture(subdomain string) (map[string]interfa
 		return nil, err
 	}
 
-	resRes, _ := e.ExecuteRouterCommand(sub, "/system/resource/print")
-	identRes, _ := e.ExecuteRouterCommand(sub, "/system/identity/print")
-	dnsRes, _ := e.ExecuteRouterCommand(sub, "/ip/dns/print")
-	servicesRes, _ := e.ExecuteRouterCommand(sub, "/ip/service/print")
+	var wg sync.WaitGroup
+	var resRes, identRes, dnsRes, servicesRes map[string]interface{}
+	wg.Add(4)
+	go func() { defer wg.Done(); resRes, _ = e.ExecuteRouterCommand(sub, "/system/resource/print") }()
+	go func() { defer wg.Done(); identRes, _ = e.ExecuteRouterCommand(sub, "/system/identity/print") }()
+	go func() { defer wg.Done(); dnsRes, _ = e.ExecuteRouterCommand(sub, "/ip/dns/print") }()
+	go func() { defer wg.Done(); servicesRes, _ = e.ExecuteRouterCommand(sub, "/ip/service/print") }()
+	wg.Wait()
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("# 📖 التقرير المعماري الشامل لراوتر (%s)\n\n", sub))
@@ -1797,9 +1811,13 @@ func (e *Engine) DetectConfigDrift(subdomain string) (map[string]interface{}, er
 	}
 
 	mem, _ := e.repo.GetAgentMemory(sub)
-	curIfaces, _ := e.ExecuteRouterCommand(sub, "/interface/print")
-	curAddrs, _ := e.ExecuteRouterCommand(sub, "/ip/address/print")
-	curRules, _ := e.ExecuteRouterCommand(sub, "/ip/firewall/filter/print")
+	var wg sync.WaitGroup
+	var curIfaces, curAddrs, curRules map[string]interface{}
+	wg.Add(3)
+	go func() { defer wg.Done(); curIfaces, _ = e.ExecuteRouterCommand(sub, "/interface/print") }()
+	go func() { defer wg.Done(); curAddrs, _ = e.ExecuteRouterCommand(sub, "/ip/address/print") }()
+	go func() { defer wg.Done(); curRules, _ = e.ExecuteRouterCommand(sub, "/ip/firewall/filter/print") }()
+	wg.Wait()
 
 	var driftItems []string
 
@@ -1838,9 +1856,13 @@ func (e *Engine) DiagnoseL2Rescue(subdomain string) (map[string]interface{}, err
 		return nil, fmt.Errorf("اسم النطاق مطلوب")
 	}
 
-	neighRes, _ := e.ExecuteRouterCommand(sub, "/ip/neighbor/print")
-	ethRes, _ := e.ExecuteRouterCommand(sub, "/interface/ethernet/print")
-	bridgeRes, _ := e.ExecuteRouterCommand(sub, "/interface/bridge/port/print")
+	var wg sync.WaitGroup
+	var neighRes, ethRes, bridgeRes map[string]interface{}
+	wg.Add(3)
+	go func() { defer wg.Done(); neighRes, _ = e.ExecuteRouterCommand(sub, "/ip/neighbor/print") }()
+	go func() { defer wg.Done(); ethRes, _ = e.ExecuteRouterCommand(sub, "/interface/ethernet/print") }()
+	go func() { defer wg.Done(); bridgeRes, _ = e.ExecuteRouterCommand(sub, "/interface/bridge/port/print") }()
+	wg.Wait()
 
 	var neighbors []map[string]interface{}
 	if nArr, ok := neighRes["data"].([]interface{}); ok {
