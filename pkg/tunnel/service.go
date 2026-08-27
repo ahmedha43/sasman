@@ -144,6 +144,7 @@ type Service struct {
 	sessions             map[string]*AgentSession
 	pendingRequests      map[string]chan *HttpResponsePayload
 	pendingBackups       map[string]chan *BackupChunkMsg
+	assetCache           *AssetCache
 	db                   *sql.DB
 	OnRelayMessage       func(session *AgentSession, msg TunnelMessage)
 	OnBroadcastLog       func(log broadcast.BroadcastLogPayload)
@@ -156,6 +157,7 @@ func NewService(db *sql.DB) *Service {
 		sessions:        make(map[string]*AgentSession),
 		pendingRequests: make(map[string]chan *HttpResponsePayload),
 		pendingBackups:  make(map[string]chan *BackupChunkMsg),
+		assetCache:      NewAssetCache(12 * time.Hour),
 		db:              db,
 	}
 }
@@ -480,6 +482,24 @@ func (s *Service) RotateToken(subdomain string) (string, bool) {
 }
 
 func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
+	originalPath := c.OriginalURL()
+	method := c.Method()
+
+	// 1. Check Edge Static Asset Cache for GET/HEAD requests
+	if s.assetCache != nil && (method == fiber.MethodGet || method == fiber.MethodHead) && IsStaticAsset(originalPath) {
+		if cached, ok := s.assetCache.Get(originalPath); ok && cached != nil {
+			// Check client ETag for HTTP 304 Not Modified
+			if clientETag := c.Get(fiber.HeaderIfNoneMatch); clientETag != "" && clientETag == cached.ETag {
+				return c.SendStatus(fiber.StatusNotModified)
+			}
+			c.Set(fiber.HeaderContentType, cached.ContentType)
+			c.Set(fiber.HeaderETag, cached.ETag)
+			c.Set(fiber.HeaderCacheControl, "public, max-age=86400, must-revalidate")
+			c.Set("X-SASMAN-Cache", "HIT")
+			return c.Status(fiber.StatusOK).Send(cached.Body)
+		}
+	}
+
 	agent := s.GetAgentBySubdomain(subdomain)
 	if agent == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("SASMAN tunnel agent is offline")
@@ -494,8 +514,8 @@ func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
 	})
 
 	reqPayload := HttpRequestPayload{
-		Method:  c.Method(),
-		Path:    c.OriginalURL(),
+		Method:  method,
+		Path:    originalPath,
 		Headers: headers,
 		Body:    bodyBase64,
 	}
@@ -541,6 +561,16 @@ func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
 				continue
 			}
 			c.Set(k, v)
+		}
+
+		// Store in Edge Static Asset Cache if successful GET/HEAD
+		if s.assetCache != nil && (method == fiber.MethodGet || method == fiber.MethodHead) && resp.Status == fiber.StatusOK && IsStaticAsset(originalPath) {
+			contentType := resp.Headers["Content-Type"]
+			if contentType == "" {
+				contentType = resp.Headers["content-type"]
+			}
+			s.assetCache.Set(originalPath, respBody, contentType)
+			c.Set("X-SASMAN-Cache", "MISS")
 		}
 
 		return c.Status(resp.Status).Send(respBody)
