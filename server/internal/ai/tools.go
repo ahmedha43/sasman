@@ -6,6 +6,23 @@ func GetRouterOSToolDefinitions() []ToolDefinition {
 		{
 			Type: "function",
 			Function: FunctionDefinition{
+				Name:        "mikrotik_discover_topology",
+				Description: "استكشاف وتحديث الهيكلة الكاملة للشبكة: خطوط الإنترنت ومداخل الـ WAN (مثل ستارلنك، إيرثلنك، 4G)، شبكات ومنافذ الـ LAN/Bridges، سياسات التوجيه (Policy Routing & Mangle مثل توجيه الواتساب أو الألعاب)، وحفظها في ذاكرة الراوتر الدائمة",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+					},
+					"required": []string{"subdomain"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
 				Name:        "mikrotik_run_command",
 				Description: "تنفيذ أي أمر RouterOS CLI محدد على راوتر الوكيل وجلب النتيجة الحية (مثل /ip/firewall/filter/print أو /interface/print أو /ip/dns/print)",
 				Parameters: map[string]interface{}{

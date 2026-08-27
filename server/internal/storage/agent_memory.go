@@ -1,4 +1,4 @@
-﻿package storage
+package storage
 
 import (
 	"database/sql"
@@ -10,6 +10,7 @@ import (
 type AgentMemory struct {
 	Subdomain             string                 `json:"subdomain"`
 	RouterInfo            map[string]interface{} `json:"router_info"`
+	TopologyProfile       map[string]interface{} `json:"topology_profile"`
 	LastAudit             map[string]interface{} `json:"last_audit"`
 	AppliedCommands       []AppliedCommand       `json:"applied_commands"`
 	ConversationSummaries []ConversationSummary  `json:"conversation_summaries"`
@@ -34,20 +35,21 @@ type ConversationSummary struct {
 // GetAgentMemory retrieves the persistent memory for a given agent subdomain.
 func (r *SQLiteRepository) GetAgentMemory(subdomain string) (*AgentMemory, error) {
 	row := r.db.QueryRow(
-		`SELECT subdomain, router_info_json, last_audit_json,
+		`SELECT subdomain, router_info_json, topology_profile_json, last_audit_json,
 		        applied_commands_json, conversation_summaries_json, notes, updated_at
 		 FROM agent_memory WHERE subdomain = ?`, subdomain)
 
 	var (
-		sub, routerInfoRaw, lastAuditRaw string
-		appliedRaw, summariesRaw         string
-		notes, updatedAt                 string
+		sub, routerInfoRaw, topoRaw, lastAuditRaw string
+		appliedRaw, summariesRaw                  string
+		notes, updatedAt                          string
 	)
-	err := row.Scan(&sub, &routerInfoRaw, &lastAuditRaw, &appliedRaw, &summariesRaw, &notes, &updatedAt)
+	err := row.Scan(&sub, &routerInfoRaw, &topoRaw, &lastAuditRaw, &appliedRaw, &summariesRaw, &notes, &updatedAt)
 	if err == sql.ErrNoRows {
 		return &AgentMemory{
 			Subdomain:             subdomain,
 			RouterInfo:            map[string]interface{}{},
+			TopologyProfile:       map[string]interface{}{},
 			LastAudit:             map[string]interface{}{},
 			AppliedCommands:       []AppliedCommand{},
 			ConversationSummaries: []ConversationSummary{},
@@ -59,10 +61,12 @@ func (r *SQLiteRepository) GetAgentMemory(subdomain string) (*AgentMemory, error
 
 	mem := &AgentMemory{Subdomain: sub, Notes: notes, UpdatedAt: updatedAt}
 	_ = json.Unmarshal([]byte(routerInfoRaw), &mem.RouterInfo)
+	_ = json.Unmarshal([]byte(topoRaw), &mem.TopologyProfile)
 	_ = json.Unmarshal([]byte(lastAuditRaw), &mem.LastAudit)
 	_ = json.Unmarshal([]byte(appliedRaw), &mem.AppliedCommands)
 	_ = json.Unmarshal([]byte(summariesRaw), &mem.ConversationSummaries)
 	if mem.RouterInfo == nil { mem.RouterInfo = map[string]interface{}{} }
+	if mem.TopologyProfile == nil { mem.TopologyProfile = map[string]interface{}{} }
 	if mem.LastAudit == nil { mem.LastAudit = map[string]interface{}{} }
 	return mem, nil
 }
@@ -70,23 +74,25 @@ func (r *SQLiteRepository) GetAgentMemory(subdomain string) (*AgentMemory, error
 // UpsertAgentMemory saves or updates the full memory for a given agent
 func (r *SQLiteRepository) UpsertAgentMemory(mem *AgentMemory) error {
 	routerInfoBytes, _ := json.Marshal(mem.RouterInfo)
+	topoBytes, _ := json.Marshal(mem.TopologyProfile)
 	lastAuditBytes, _ := json.Marshal(mem.LastAudit)
 	appliedBytes, _ := json.Marshal(mem.AppliedCommands)
 	summariesBytes, _ := json.Marshal(mem.ConversationSummaries)
 	_, err := r.db.Exec(
 		`INSERT INTO agent_memory
-		    (subdomain, router_info_json, last_audit_json, applied_commands_json,
+		    (subdomain, router_info_json, topology_profile_json, last_audit_json, applied_commands_json,
 		     conversation_summaries_json, notes, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(subdomain) DO UPDATE SET
 		    router_info_json = excluded.router_info_json,
+		    topology_profile_json = excluded.topology_profile_json,
 		    last_audit_json = excluded.last_audit_json,
 		    applied_commands_json = excluded.applied_commands_json,
 		    conversation_summaries_json = excluded.conversation_summaries_json,
 		    notes = excluded.notes,
 		    updated_at = excluded.updated_at`,
 		mem.Subdomain,
-		string(routerInfoBytes), string(lastAuditBytes),
+		string(routerInfoBytes), string(topoBytes), string(lastAuditBytes),
 		string(appliedBytes), string(summariesBytes),
 		mem.Notes, time.Now().UTC().Format(time.RFC3339),
 	)
@@ -135,6 +141,14 @@ func (r *SQLiteRepository) UpdateAgentLastAudit(subdomain string, audit map[stri
 	mem, err := r.GetAgentMemory(subdomain)
 	if err != nil { return err }
 	mem.LastAudit = audit
+	return r.UpsertAgentMemory(mem)
+}
+
+// UpdateAgentTopologyProfile stores the comprehensive network architecture and routing topology in memory
+func (r *SQLiteRepository) UpdateAgentTopologyProfile(subdomain string, topology map[string]interface{}) error {
+	mem, err := r.GetAgentMemory(subdomain)
+	if err != nil { return err }
+	mem.TopologyProfile = topology
 	return r.UpsertAgentMemory(mem)
 }
 

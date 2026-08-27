@@ -40,6 +40,8 @@ func (h *APIHandler) RegisterRoutes(app *fiber.App) {
 	aiGroup.Get("/memory/:subdomain", h.handleGetMemory)
 	aiGroup.Delete("/memory/:subdomain", h.handleDeleteMemory)
 	aiGroup.Patch("/memory/:subdomain/notes", h.handleUpdateMemoryNotes)
+	aiGroup.Post("/memory/:subdomain/discover-topology", h.handleDiscoverTopology)
+	aiGroup.Put("/memory/:subdomain/topology", h.handleSaveTopologyProfile)
 }
 
 func (h *APIHandler) handleStatus(c *fiber.Ctx) error {
@@ -336,5 +338,44 @@ func (h *APIHandler) handleUpdateMemoryNotes(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "تم تحديث ملاحظات الوكيل في الذاكرة بنجاح",
+	})
+}
+
+func (h *APIHandler) handleDiscoverTopology(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	topo, err := h.engine.DiscoverNetworkTopology(subdomain)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل استكشاف هيكلة الشبكة: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"message":  "تم استكشاف وتحديث هيكلة الشبكة وتوزيع الخطوط بالذاكرة بنجاح",
+		"topology": topo,
+	})
+}
+
+func (h *APIHandler) handleSaveTopologyProfile(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	var topo map[string]interface{}
+	if err := c.BodyParser(&topo); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "تنسيق البيانات غير صحيح"})
+	}
+
+	if err := h.repo.UpdateAgentTopologyProfile(subdomain, topo); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "تم حفظ وتحديث مخطط هيكلة الشبكة بالذاكرة بنجاح",
 	})
 }

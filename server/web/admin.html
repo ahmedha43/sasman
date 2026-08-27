@@ -1020,6 +1020,21 @@
         </div>
       </div>
 
+      <!-- Network Topology & WAN/LAN Architecture Profile Box -->
+      <div style="background:#1e293b; border-radius:8px; padding:12px; margin-bottom:12px; border-right:4px solid #06b6d4;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h4 style="margin:0; font-size:13px; color:#06b6d4; display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-network-wired"></i> 🌐 هيكلة وتوزيع خطوط الشبكة ومداخل الـ WAN
+          </h4>
+          <button class="btn btn-dark btn-xs" id="btn-discover-topo" onclick="discoverAgentTopologyNow()" style="background:#083344; color:#67e8f9; border:1px solid #0e7490; font-size:11px; padding:3px 8px;">
+            <i class="fa-solid fa-arrows-rotate"></i> استكشاف وتحديث الهيكلة
+          </button>
+        </div>
+        <div id="mem-topology-content" style="font-size:12px; color:#cbd5e1;">
+          <span style="color:#64748b;">لم يتم استكشاف الهيكلة بعد. اضغط على "استكشاف وتحديث الهيكلة" لاستكشاف خطوط الـ WAN ومنافذ الـ LAN وتوجيه الترافيك.</span>
+        </div>
+      </div>
+
       <!-- Router Resources & Info Box -->
       <div style="background:#1e293b; border-radius:8px; padding:12px; margin-bottom:12px; border-right:4px solid #38bdf8;">
         <h4 style="margin:0 0 8px 0; font-size:13px; color:#38bdf8; display:flex; align-items:center; gap:6px;">
@@ -2422,6 +2437,7 @@ ${setupCmd}`;
       currentMemorySubdomain = subdomain;
       document.getElementById('mem-modal-subdomain').textContent = subdomain;
       document.getElementById('mem-notes-input').value = '';
+      document.getElementById('mem-topology-content').innerHTML = '<span style="color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> جاري استرجاع هيكلة الشبكة...</span>';
       document.getElementById('mem-router-info-content').innerHTML = '<span style="color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> جاري تحميل الذاكرة...</span>';
       document.getElementById('mem-audit-content').innerHTML = '<span style="color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...</span>';
       document.getElementById('mem-applied-commands-content').innerHTML = '<span style="color:#64748b; font-family:sans-serif;"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...</span>';
@@ -2435,7 +2451,58 @@ ${setupCmd}`;
         const data = await res.json();
         const mem = data.memory || {};
 
-        // 1. Router Info
+        // 1. Network Topology & Lines Profile
+        const topo = mem.topology_profile || {};
+        const wanLines = topo.wan_lines || [];
+        const lanNets = topo.lan_networks || [];
+        const routingPolicies = topo.routing_policies || [];
+
+        if (wanLines.length > 0 || lanNets.length > 0 || routingPolicies.length > 0) {
+          let topoHtml = '';
+          
+          // WAN lines
+          if (wanLines.length > 0) {
+            topoHtml += '<div style="margin-bottom:8px;"><strong style="color:#06b6d4; font-size:11px; display:block; margin-bottom:4px;">📡 خطوط ومداخل الإنترنت (WAN Lines):</strong><div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:6px;">';
+            wanLines.forEach(w => {
+              topoHtml += `<div style="background:#082f49; border:1px solid #0e7490; border-radius:6px; padding:6px 8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:#67e8f9; font-family:monospace;">${escapeHtml(w.name || '')}</strong>
+                  <span class="badge" style="background:#0284c7; color:#fff; font-size:9px;">${escapeHtml(w.type || 'WAN')}</span>
+                </div>
+                ${w.ip ? `<div style="font-size:10px; color:#94a3b8; font-family:monospace; margin-top:2px;">IP: ${escapeHtml(w.ip)}</div>` : ''}
+                ${w.comment ? `<div style="font-size:10px; color:#fde047; margin-top:2px;">🏷️ ${escapeHtml(w.comment)}</div>` : ''}
+              </div>`;
+            });
+            topoHtml += '</div></div>';
+          }
+
+          // Routing Policies
+          if (routingPolicies.length > 0) {
+            topoHtml += '<div style="margin-bottom:8px;"><strong style="color:#f59e0b; font-size:11px; display:block; margin-bottom:4px;">🔀 سياسات التوجيه المكتشفة (Policy Routing & Mangle):</strong><ul style="margin:0; padding-right:16px; font-size:11px; color:#cbd5e1;">';
+            routingPolicies.forEach(p => {
+              topoHtml += `<li style="margin-bottom:2px;">${escapeHtml(p)}</li>`;
+            });
+            topoHtml += '</ul></div>';
+          }
+
+          // LAN Networks
+          if (lanNets.length > 0) {
+            const runningLans = lanNets.filter(l => l.ip);
+            if (runningLans.length > 0) {
+              topoHtml += '<div><strong style="color:#10b981; font-size:11px; display:block; margin-bottom:4px;">🔌 شبكات ومنافذ المشتركين (LAN/Bridges):</strong><div style="display:flex; flex-wrap:wrap; gap:4px;">';
+              runningLans.forEach(l => {
+                topoHtml += `<span class="badge" style="background:#064e3b; color:#6ee7b7; font-size:10px; font-family:monospace; border:1px solid #059669;">${escapeHtml(l.name)} (${escapeHtml(l.ip)})</span>`;
+              });
+              topoHtml += '</div></div>';
+            }
+          }
+
+          document.getElementById('mem-topology-content').innerHTML = topoHtml;
+        } else {
+          document.getElementById('mem-topology-content').innerHTML = '<span style="color:#64748b;">لم يتم استكشاف الهيكلة بعد. اضغط على <code>استكشاف وتحديث الهيكلة</code> بالزر أعلاه ليتعرف الـ AI على خطوط ستارلنك وإيرثلنك وتوزيع المنافذ فوراً.</span>';
+        }
+
+        // 2. Router Info
         const info = mem.router_info || {};
         const infoKeys = Object.keys(info);
         if (infoKeys.length > 0) {
@@ -2451,7 +2518,7 @@ ${setupCmd}`;
           document.getElementById('mem-router-info-content').innerHTML = '<span style="color:#64748b;">لا توجد بيانات مسجلة بعد. يتم استكشافها تلقائياً عند إجراء أول فحص أمني أو محادثة.</span>';
         }
 
-        // 2. Last Audit
+        // 3. Last Audit
         const audit = mem.last_audit || {};
         if (audit.score !== undefined) {
           const badge = document.getElementById('mem-audit-badge');
@@ -2481,7 +2548,7 @@ ${setupCmd}`;
           document.getElementById('mem-audit-content').innerHTML = '<span style="color:#64748b;">لم يتم إجراء فحص أمني بعد. يمكنك الضغط على <code>🤖 فحص ذكي</code> لحفظ التقييم بالذاكرة.</span>';
         }
 
-        // 3. Applied Commands
+        // 4. Applied Commands
         const cmds = mem.applied_commands || [];
         if (cmds.length > 0) {
           let cmdHtml = '';
@@ -2499,7 +2566,7 @@ ${setupCmd}`;
           document.getElementById('mem-applied-commands-content').innerHTML = '<span style="color:#64748b; font-family:sans-serif;">لا توجد أوامر مطبقة مسجلة حتى الآن.</span>';
         }
 
-        // 4. Conversation Summaries
+        // 5. Conversation Summaries
         const summaries = mem.conversation_summaries || [];
         if (summaries.length > 0) {
           let sumHtml = '';
@@ -2517,10 +2584,34 @@ ${setupCmd}`;
           document.getElementById('mem-summaries-content').innerHTML = '<span style="color:#64748b;">لا توجد جلسات سابقة مسجلة. يتم تلخيص كل محادثة تلقائياً.</span>';
         }
 
-        // 5. Notes
+        // 6. Notes
         document.getElementById('mem-notes-input').value = mem.notes || '';
       } catch (err) {
         document.getElementById('mem-router-info-content').innerHTML = '<span style="color:#ef4444;">خطأ في تحميل الذاكرة</span>';
+      }
+    }
+
+    async function discoverAgentTopologyNow() {
+      if (!currentMemorySubdomain) return;
+      const btn = document.getElementById('btn-discover-topo');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري استكشاف الشبكة...';
+      try {
+        const res = await fetch(`/api/ai/memory/${encodeURIComponent(currentMemorySubdomain)}/discover-topology`, {
+          method: 'POST'
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ ' + data.message);
+          openAgentMemoryModal(currentMemorySubdomain);
+        } else {
+          alert('❌ ' + (data.error || 'فشل استكشاف هيكلة الشبكة'));
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> استكشاف وتحديث الهيكلة';
       }
     }
 

@@ -16,6 +16,7 @@ func TestRouterOSToolDefinitions(t *testing.T) {
 	foundRunCmd := false
 	foundResources := false
 	foundMCPCall := false
+	foundDiscoverTopo := false
 	foundPlan := false
 	for _, tool := range tools {
 		if tool.Function.Name == "mikrotik_run_command" {
@@ -27,6 +28,9 @@ func TestRouterOSToolDefinitions(t *testing.T) {
 		if tool.Function.Name == "mikrotik_mcp_call" {
 			foundMCPCall = true
 		}
+		if tool.Function.Name == "mikrotik_discover_topology" {
+			foundDiscoverTopo = true
+		}
 		if tool.Function.Name == "mikrotik_generate_plan" {
 			foundPlan = true
 		}
@@ -37,6 +41,9 @@ func TestRouterOSToolDefinitions(t *testing.T) {
 	}
 	if !foundResources {
 		t.Errorf("expected mikrotik_get_resources tool to be present")
+	}
+	if !foundDiscoverTopo {
+		t.Errorf("expected mikrotik_discover_topology tool to be present")
 	}
 	if !foundMCPCall {
 		t.Errorf("expected mikrotik_mcp_call tool to be present")

@@ -340,6 +340,8 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 
 			toolTitle := fnName
 			switch fnName {
+			case "mikrotik_discover_topology":
+				toolTitle = fmt.Sprintf("🌐 استكشاف هيكلة وتوزيع شبكة (%s)", sub)
 			case "mikrotik_get_resources":
 				toolTitle = fmt.Sprintf("📊 فحص موارد ومعالج راوتر (%s)", sub)
 			case "mikrotik_get_firewall":
@@ -373,6 +375,27 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 			var toolResult interface{}
 
 			switch fnName {
+			case "mikrotik_discover_topology":
+				emit(StreamEvent{
+					Type:  "tunnel_exec",
+					Tool:  fnName,
+					Title: "استكشاف الهيكلة",
+					Text:  fmt.Sprintf("فحص خطوط الـ WAN، توزيع الـ LAN، وقواعد التوجيه لراوتر `%s`...", sub),
+				})
+				topo, err := e.DiscoverNetworkTopology(sub)
+				if err != nil {
+					toolResult = map[string]string{"error": err.Error()}
+				} else {
+					toolResult = truncateResult(topo, 3500)
+				}
+				emit(StreamEvent{
+					Type:     "tool_result",
+					Tool:     fnName,
+					Status:   "success",
+					Summary:  "تم استكشاف هيكلة وتوزيع الشبكة وتحديثها في الذاكرة الدائمة بنجاح",
+					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+				})
+
 			case "mikrotik_get_resources":
 				emit(StreamEvent{
 					Type:  "tunnel_exec",
@@ -840,6 +863,54 @@ func (e *Engine) buildAgentMemoryPromptBlock(subdomain string) string {
 		sb.WriteString("\n")
 	}
 
+	if len(mem.TopologyProfile) > 0 {
+		hasContent = true
+		sb.WriteString("\n- **🌐 هيكلة ومخطط شبكة الوكيل وتوزيع الخطوط والمنافذ (Network Topology Profile)**:\n")
+		if wanList, ok := mem.TopologyProfile["wan_lines"].([]interface{}); ok && len(wanList) > 0 {
+			sb.WriteString("  * خطوط ومداخل الإنترنت (WAN Lines):\n")
+			for _, w := range wanList {
+				if wm, ok := w.(map[string]interface{}); ok {
+					name := wm["name"]
+					ip := wm["ip"]
+					comm := wm["comment"]
+					commStr := ""
+					if comm != nil && fmt.Sprintf("%v", comm) != "" {
+						commStr = fmt.Sprintf(" [%v]", comm)
+					}
+					ipStr := ""
+					if ip != nil && fmt.Sprintf("%v", ip) != "" {
+						ipStr = fmt.Sprintf(" (IP: %v)", ip)
+					}
+					sb.WriteString(fmt.Sprintf("    - المنفذ/الخط: %v%s%s\n", name, ipStr, commStr))
+				}
+			}
+		}
+		if lanList, ok := mem.TopologyProfile["lan_networks"].([]interface{}); ok && len(lanList) > 0 {
+			sb.WriteString("  * شبكات ومنافذ المشتركين والـ LAN/Bridges:\n")
+			for _, l := range lanList {
+				if lm, ok := l.(map[string]interface{}); ok {
+					name := lm["name"]
+					ip := lm["ip"]
+					comm := lm["comment"]
+					if ip != nil && fmt.Sprintf("%v", ip) != "" {
+						commStr := ""
+						if comm != nil && fmt.Sprintf("%v", comm) != "" {
+							commStr = fmt.Sprintf(" [%v]", comm)
+						}
+						sb.WriteString(fmt.Sprintf("    - %v: %v%s\n", name, ip, commStr))
+					}
+				}
+			}
+		}
+		if policies, ok := mem.TopologyProfile["routing_policies"].([]interface{}); ok && len(policies) > 0 {
+			sb.WriteString("  * سياسات التوجيه وتوزيع الترافيك وقواعد Mangle المكتشفة:\n")
+			for _, p := range policies {
+				sb.WriteString(fmt.Sprintf("    - %v\n", p))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
 	if len(mem.LastAudit) > 0 {
 		hasContent = true
 		score := mem.LastAudit["score"]
@@ -1056,4 +1127,169 @@ func truncateResult(data interface{}, maxChars int) interface{} {
 		return str[:maxChars] + "... [تم تقليص بقية المخرجات لتوفير التوكنات]"
 	}
 	return data
+}
+
+// DiscoverNetworkTopology scans and maps the full network topology (WAN lines, LAN subnets, Policy Routing, Mangle)
+func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface{}, error) {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	if sub == "" {
+		return nil, fmt.Errorf("اسم النطاق مطلوب")
+	}
+
+	// 1. Gather raw data via router commands
+	ifacesRes, _ := e.ExecuteRouterCommand(sub, "/interface/print")
+	addrRes, _ := e.ExecuteRouterCommand(sub, "/ip/address/print")
+	routesRes, _ := e.ExecuteRouterCommand(sub, "/ip/route/print")
+	mangleRes, _ := e.ExecuteRouterCommand(sub, "/ip/firewall/mangle/print")
+	dhcpRes, _ := e.ExecuteRouterCommand(sub, "/ip/dhcp-server/print")
+	resRes, _ := e.ExecuteRouterCommand(sub, "/system/resource/print")
+
+	topo := map[string]interface{}{
+		"subdomain":     sub,
+		"discovered_at": time.Now().UTC().Format(time.RFC3339),
+	}
+
+	// Extract WANs, LANs, and Routing Rules
+	var wanList []map[string]interface{}
+	var lanList []map[string]interface{}
+	var routingPolicies []string
+
+	// Parse addresses
+	addrMap := make(map[string]string) // interface -> IP/subnet
+	if addrArr, ok := addrRes["data"].([]interface{}); ok {
+		for _, item := range addrArr {
+			if m, ok := item.(map[string]interface{}); ok {
+				iface := fmt.Sprintf("%v", m["interface"])
+				addr := fmt.Sprintf("%v", m["address"])
+				addrMap[iface] = addr
+			}
+		}
+	}
+
+	// Parse interfaces to identify WAN / LAN / Bridge
+	if ifArr, ok := ifacesRes["data"].([]interface{}); ok {
+		for _, item := range ifArr {
+			if m, ok := item.(map[string]interface{}); ok {
+				name := fmt.Sprintf("%v", m["name"])
+				ifType := fmt.Sprintf("%v", m["type"])
+				comment := fmt.Sprintf("%v", m["comment"])
+				if comment == "<nil>" {
+					comment = ""
+				}
+				running := fmt.Sprintf("%v", m["running"])
+				ipAddr := addrMap[name]
+
+				isWan := false
+				lower := strings.ToLower(name + " " + comment + " " + ifType)
+				if strings.Contains(lower, "wan") || strings.Contains(lower, "starlink") ||
+					strings.Contains(lower, "earthlink") || strings.Contains(lower, "isp") ||
+					strings.Contains(lower, "pppoe-out") || strings.Contains(lower, "lte") ||
+					strings.Contains(lower, "4g") || strings.Contains(lower, "internet") {
+					isWan = true
+				}
+
+				entry := map[string]interface{}{
+					"name":    name,
+					"type":    ifType,
+					"comment": comment,
+					"ip":      ipAddr,
+					"running": running == "true" || running == "yes",
+				}
+
+				if isWan {
+					wanList = append(wanList, entry)
+				} else {
+					lanList = append(lanList, entry)
+				}
+			}
+		}
+	}
+
+	// Parse Mangle for Policy Routing (e.g. WhatsApp, PUBG, PCC)
+	if mgArr, ok := mangleRes["data"].([]interface{}); ok {
+		for _, item := range mgArr {
+			if m, ok := item.(map[string]interface{}); ok {
+				action := fmt.Sprintf("%v", m["action"])
+				comment := fmt.Sprintf("%v", m["comment"])
+				routingMark := fmt.Sprintf("%v", m["new-routing-mark"])
+				dstPort := fmt.Sprintf("%v", m["dst-port"])
+				pcc := fmt.Sprintf("%v", m["per-connection-classifier"])
+
+				ruleDesc := ""
+				if comment != "" && comment != "<nil>" {
+					ruleDesc = comment
+				} else if action == "mark-routing" && routingMark != "<nil>" {
+					ruleDesc = fmt.Sprintf("توجيه الترافيك إلى علامة: %s", routingMark)
+					if dstPort != "<nil>" && dstPort != "" {
+						ruleDesc += fmt.Sprintf(" (المنافذ: %s)", dstPort)
+					}
+				} else if pcc != "<nil>" && pcc != "" {
+					ruleDesc = fmt.Sprintf("دمج وموازنة أحمال PCC (%s) إلى %s", pcc, routingMark)
+				}
+
+				if ruleDesc != "" {
+					routingPolicies = append(routingPolicies, ruleDesc)
+				}
+			}
+		}
+	}
+
+	// Fallback if no specific WAN tag was found: examine default routes
+	if len(wanList) == 0 {
+		if rtArr, ok := routesRes["data"].([]interface{}); ok {
+			for _, item := range rtArr {
+				if m, ok := item.(map[string]interface{}); ok {
+					dst := fmt.Sprintf("%v", m["dst-address"])
+					gw := fmt.Sprintf("%v", m["gateway"])
+					if dst == "0.0.0.0/0" && gw != "<nil>" && gw != "" {
+						wanList = append(wanList, map[string]interface{}{
+							"name":    gw,
+							"type":    "Default Gateway",
+							"gateway": gw,
+							"comment": "خط الإنترنت الافتراضي (Default Gateway)",
+						})
+					}
+				}
+			}
+		}
+	}
+
+	topo["wan_lines"] = wanList
+	topo["lan_networks"] = lanList
+	topo["routing_policies"] = routingPolicies
+	topo["dhcp_servers"] = dhcpRes["data"]
+	topo["resource_summary"] = resRes["data"]
+
+	// Generate Arabic summary
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("تم استكشاف هيكلة شبكة الوكيل (%s):\n", sub))
+	if len(wanList) > 0 {
+		sb.WriteString(fmt.Sprintf("- عدد خطوط الـ WAN: %d خطوط (", len(wanList)))
+		for i, w := range wanList {
+			c := ""
+			if comm, ok := w["comment"].(string); ok && comm != "" {
+				c = " - " + comm
+			}
+			sb.WriteString(fmt.Sprintf("%v%s", w["name"], c))
+			if i < len(wanList)-1 {
+				sb.WriteString(", ")
+			}
+		}
+		sb.WriteString(")\n")
+	}
+	if len(lanList) > 0 {
+		sb.WriteString(fmt.Sprintf("- عدد شبكات الـ LAN والمنافذ المحلية: %d\n", len(lanList)))
+	}
+	if len(routingPolicies) > 0 {
+		sb.WriteString("- سياسات التوجيه المكتشفة:\n")
+		for _, p := range routingPolicies {
+			sb.WriteString(fmt.Sprintf("  * %s\n", p))
+		}
+	}
+	topo["summary_arabic"] = sb.String()
+
+	// Save to agent persistent memory
+	_ = e.repo.UpdateAgentTopologyProfile(sub, topo)
+
+	return topo, nil
 }

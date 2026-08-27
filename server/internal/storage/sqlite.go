@@ -278,6 +278,7 @@ func (r *SQLiteRepository) CreateSchema() error {
 		`CREATE TABLE IF NOT EXISTS agent_memory (
             subdomain TEXT PRIMARY KEY,
             router_info_json TEXT NOT NULL DEFAULT '{}',
+            topology_profile_json TEXT NOT NULL DEFAULT '{}',
             last_audit_json TEXT NOT NULL DEFAULT '{}',
             applied_commands_json TEXT NOT NULL DEFAULT '[]',
             conversation_summaries_json TEXT NOT NULL DEFAULT '[]',
@@ -300,6 +301,7 @@ func (r *SQLiteRepository) CreateSchema() error {
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_version TEXT NOT NULL DEFAULT 'v5.0.0'")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_arch TEXT NOT NULL DEFAULT ''")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN credentials_json TEXT NOT NULL DEFAULT ''")
+	_, _ = r.db.Exec("ALTER TABLE agent_memory ADD COLUMN topology_profile_json TEXT NOT NULL DEFAULT '{}'")
 
 	// Create group_name index after migration
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_group_name ON subdomains(group_name);")
