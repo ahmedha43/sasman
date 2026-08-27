@@ -119,3 +119,32 @@ func (c *AssetCache) Set(path string, body []byte, contentType string) {
 		CachedAt:    time.Now(),
 	}
 }
+
+// Clear purges all assets from the cache and returns the number of purged items
+func (c *AssetCache) Clear() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	count := len(c.assets)
+	c.assets = make(map[string]*CachedAsset)
+	return count
+}
+
+// Stats returns the number of cached assets and estimated memory size
+func (c *AssetCache) Stats() map[string]interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var totalBytes int64
+	for _, asset := range c.assets {
+		if asset != nil {
+			totalBytes += int64(len(asset.Body))
+		}
+	}
+
+	return map[string]interface{}{
+		"cached_files": len(c.assets),
+		"total_bytes":  totalBytes,
+		"max_ttl":      c.maxTTL.String(),
+	}
+}

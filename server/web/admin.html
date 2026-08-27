@@ -482,6 +482,9 @@
         </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-dark btn-xs" style="padding:6px 14px; background:#1e293b; border:1px solid #334155;" onclick="purgeEdgeCache()" title="مسح كاش الأصول الثابتة السحابي وتحديث اللوحات">
+            <i class="fa-solid fa-broom"></i> 🧹 مسح كاش اللوحات
+          </button>
           <button class="btn btn-warning btn-xs" style="padding:6px 14px;" onclick="forceSyncAllMikrotikRouters()" title="إعادة حقن قواعد المايكروتك لجميع الراوترات">
             <i class="fa-solid fa-sync"></i> 🔄 مزامنة المايكروتك الفورية
           </button>
@@ -2711,6 +2714,21 @@ ${setupCmd}`;
         }
       } catch(e) {
         alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    async function purgeEdgeCache() {
+      if (!confirm('🧹 هل تريد مسح جميع الأصول الثابتة (CSS/JS/Fonts) المخزنة مؤقتاً في السيرفر وتحديثها فوراً من الوكلاء؟')) return;
+      try {
+        const res = await fetch('/api/admin/cache/clear', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ ${data.message}`);
+        } else {
+          alert(`❌ ${data.error || 'فشل مسح الكاش'}`);
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر: ' + err.message);
       }
     }
 

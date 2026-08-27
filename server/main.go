@@ -770,6 +770,23 @@ func main() {
 
 	api.SetupBackupRoutes(app, svc)
 
+	// Edge Static Asset Cache APIs
+	app.Post("/api/admin/cache/clear", func(c *fiber.Ctx) error {
+		purged := svc.ClearAssetCache()
+		return c.JSON(fiber.Map{
+			"success":      true,
+			"message":      fmt.Sprintf("تم مسح الكاش السحابي بنجاح وتفريغ %d ملف أصول.", purged),
+			"purged_count": purged,
+		})
+	})
+
+	app.Get("/api/admin/cache/stats", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"stats":   svc.GetAssetCacheStats(),
+		})
+	})
+
 	// Agents List API (with Owner + License Information)
 	app.Get("/api/agents", func(c *fiber.Ctx) error {
 		agents := svc.ListAgents()

@@ -580,6 +580,22 @@ func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
 	}
 }
 
+// ClearAssetCache purges the in-memory static assets cache
+func (s *Service) ClearAssetCache() int {
+	if s.assetCache != nil {
+		return s.assetCache.Clear()
+	}
+	return 0
+}
+
+// GetAssetCacheStats returns stats about the current static asset cache
+func (s *Service) GetAssetCacheStats() map[string]interface{} {
+	if s.assetCache != nil {
+		return s.assetCache.Stats()
+	}
+	return map[string]interface{}{"cached_files": 0, "total_bytes": 0}
+}
+
 func (s *Service) RequestBackup(subdomain string) ([]byte, string, error) {
 	agent := s.GetAgentBySubdomain(subdomain)
 	if agent == nil {
