@@ -898,11 +898,12 @@
 
       <!-- Quick Action Chips Bar -->
       <div style="background:#080d1a; padding:8px 16px; border-bottom:1px solid #1e293b; display:flex; gap:6px; overflow-x:auto; flex-shrink:0;">
-        <button class="btn btn-dark btn-xs" style="background:#1e1b4b; border:1px solid #4338ca; color:#a5b4fc; white-space:nowrap;" onclick="quickActionAudit()">🛡️ فحص الأمان والثغرات</button>
-        <button class="btn btn-dark btn-xs" style="background:#064e3b; border:1px solid #059669; color:#6ee7b7; white-space:nowrap;" onclick="quickActionSpeed()">⚡ تشخيص بطء الإنترنت</button>
-        <button class="btn btn-dark btn-xs" style="background:#701a75; border:1px solid #c026d3; color:#f5d0fe; white-space:nowrap;" onclick="quickActionAttacks()">🔐 كشف محاولات الاختراق</button>
-        <button class="btn btn-dark btn-xs" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; white-space:nowrap;" onclick="quickActionPCC()">🌐 خطة دمج خطين PCC</button>
-        <button class="btn btn-dark btn-xs" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; white-space:nowrap;" onclick="quickActionQueues()">🚀 خطة تقسيم السرعات PCQ</button>
+        <button class="btn btn-dark btn-xs" style="background:#083344; border:1px solid #0891b2; color:#67e8f9; white-space:nowrap;" onclick="quickActionTopology()">🌐 استكشاف الهيكلة (Topology)</button>
+        <button class="btn btn-dark btn-xs" style="background:#1e1b4b; border:1px solid #4338ca; color:#a5b4fc; white-space:nowrap;" onclick="quickActionAudit()">🛡️ فحص الفايروول والأمان</button>
+        <button class="btn btn-dark btn-xs" style="background:#064e3b; border:1px solid #059669; color:#6ee7b7; white-space:nowrap;" onclick="quickActionResources()">📊 فحص الموارد والمعالج</button>
+        <button class="btn btn-dark btn-xs" style="background:#701a75; border:1px solid #c026d3; color:#f5d0fe; white-space:nowrap;" onclick="quickActionAttacks()">🔐 كشف الهجمات وسجلات التخمين</button>
+        <button class="btn btn-dark btn-xs" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; white-space:nowrap;" onclick="quickActionPCC()">🔀 خطة دمج PCC</button>
+        <button class="btn btn-dark btn-xs" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; white-space:nowrap;" onclick="quickActionQueues()">🚀 تقسيم السرعات PCQ</button>
       </div>
 
       <!-- Chat Conversation Area -->
@@ -3167,6 +3168,16 @@ ${setupCmd}`;
         return;
       }
       runAIAuditForAgent(sub);
+    }
+
+    function quickActionTopology() {
+      document.getElementById('ai-chat-input').value = 'استكشف الهيكلة الكاملة للشبكة ومداخل خطوط الـ WAN ومنافذ الـ LAN عبر أداة mikrotik_discover_topology';
+      handleAIChatSubmit();
+    }
+
+    function quickActionResources() {
+      document.getElementById('ai-chat-input').value = 'افحص موارد الراوتر وحالة المعالج والذاكرة عبر أداة mikrotik_get_resources';
+      handleAIChatSubmit();
     }
 
     function quickActionSpeed() {
