@@ -130,15 +130,23 @@ func (c *AssetCache) Clear() int {
 	return count
 }
 
-// Stats returns the number of cached assets and estimated memory size
+// Stats returns the number of cached assets, estimated memory size, and file list
 func (c *AssetCache) Stats() map[string]interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	var totalBytes int64
-	for _, asset := range c.assets {
+	files := make([]map[string]interface{}, 0, len(c.assets))
+	for path, asset := range c.assets {
 		if asset != nil {
-			totalBytes += int64(len(asset.Body))
+			size := int64(len(asset.Body))
+			totalBytes += size
+			files = append(files, map[string]interface{}{
+				"path":         path,
+				"size":         size,
+				"content_type": asset.ContentType,
+				"cached_ago":   time.Since(asset.CachedAt).Round(time.Second).String(),
+			})
 		}
 	}
 
@@ -146,5 +154,6 @@ func (c *AssetCache) Stats() map[string]interface{} {
 		"cached_files": len(c.assets),
 		"total_bytes":  totalBytes,
 		"max_ttl":      c.maxTTL.String(),
+		"files":        files,
 	}
 }
