@@ -973,9 +973,22 @@
           <input type="text" id="ai-set-base-url" placeholder="https://api.deepseek.com" style="width:100%; font-family:monospace;">
         </div>
 
-        <div style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+        <div style="margin-bottom:14px; display:flex; align-items:center; gap:8px;">
           <input type="checkbox" id="ai-set-enabled" checked style="width:18px; height:18px;">
           <label for="ai-set-enabled" style="font-size:13px; font-weight:bold; cursor:pointer;">تفعيل المساعد الذكي في لوحة الإدارة</label>
+        </div>
+
+        <!-- MCP Sidecar Engine Status Box -->
+        <div id="mcp-sidecar-status-card" style="background:#090d16; border:1px solid #1e293b; border-right:4px solid #6366f1; border-radius:8px; padding:10px 12px; margin-bottom:14px; font-size:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:bold; color:#f8fafc; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-cube" style="color:#a855f7;"></i> محرك MikroTik MCP Sidecar
+            </span>
+            <span id="mcp-status-badge" class="badge" style="background:#312e81; color:#a5b4fc; font-size:10px;">جاري الفحص...</span>
+          </div>
+          <div style="color:#94a3b8; font-size:11px; margin-top:4px;" id="mcp-status-desc">
+            يحتوي على 885 أداة RouterOS جاهزة للعمل مع الذكاء الاصطناعي.
+          </div>
         </div>
 
         <div style="display:flex; justify-content:flex-end; gap:10px;">
@@ -2399,6 +2412,27 @@ ${setupCmd}`;
           document.getElementById('ai-set-base-url').value = data.base_url || '';
           document.getElementById('ai-set-enabled').checked = data.enabled !== false;
           onAIProviderChange();
+        }
+
+        const statusRes = await fetch('/api/ai/status');
+        if (statusRes.ok) {
+          const st = await statusRes.json();
+          const badge = document.getElementById('mcp-status-badge');
+          const desc = document.getElementById('mcp-status-desc');
+          const card = document.getElementById('mcp-sidecar-status-card');
+          if (st.mcp_sidecar_online) {
+            badge.style.background = '#14532d';
+            badge.style.color = '#86efac';
+            badge.innerHTML = '🟢 متصل ونشط (885 أداة)';
+            desc.innerHTML = `<span style="color:#86efac;">✅ حاوية الـ MCP Sidecar متصلة بنجاح (${escapeHtml(st.mcp_url || 'http://mikrotik-mcp:8000')}) مع 885 أداة RouterOS جاهزة.</span>`;
+            if (card) card.style.borderRightColor = '#22c55e';
+          } else {
+            badge.style.background = '#1e293b';
+            badge.style.color = '#94a3b8';
+            badge.innerHTML = '⚡ النواة المدمجة (Native Go)';
+            desc.innerHTML = `<span style="color:#cbd5e1;">يعمل حالياً عبر محرك Go المدمج السريع. لتشغيل حاوية الـ 885 أداة معاً: <code>docker compose -f server/docker-compose.yml up -d</code></span>`;
+            if (card) card.style.borderRightColor = '#6366f1';
+          }
         }
       } catch (err) {}
       document.getElementById('ai-settings-modal').classList.add('active');

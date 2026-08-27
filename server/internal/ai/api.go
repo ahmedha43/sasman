@@ -46,12 +46,22 @@ func (h *APIHandler) handleStatus(c *fiber.Ctx) error {
 	}
 
 	hasKey := strings.TrimSpace(settings.APIKey) != ""
+	mcpOnline := false
+	mcpUrl := "http://127.0.0.1:8000"
+	if h.engine.mcpBridge != nil {
+		mcpOnline = h.engine.mcpBridge.IsAvailable()
+		mcpUrl = h.engine.mcpBridge.baseURL
+	}
+
 	return c.JSON(fiber.Map{
-		"enabled":    settings.Enabled,
-		"provider":   settings.Provider,
-		"model":      settings.Model,
-		"has_api_key": hasKey,
-		"tools_count": len(GetRouterOSToolDefinitions()),
+		"enabled":            settings.Enabled,
+		"provider":           settings.Provider,
+		"model":              settings.Model,
+		"has_api_key":        hasKey,
+		"tools_count":        len(GetRouterOSToolDefinitions()),
+		"mcp_sidecar_online": mcpOnline,
+		"mcp_tools_count":    885,
+		"mcp_url":            mcpUrl,
 	})
 }
 
