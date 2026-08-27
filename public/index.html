@@ -516,51 +516,6 @@
                     </div>
                 </div>
 
-                <!-- 🌐 REMOTE TUNNELS SECTION - License Tab Only -->
-                <div id="cloudflared-section" class="card" style="display:none; border-right:4px solid #0ea5e9; margin-top:0;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px;">
-                        <div>
-                            <h3 style="margin:0; border:none; padding:0; color:#0284c7;"><i class="fa-solid fa-globe"></i> روابط الوصول الآمن عن بُعد (Remote Access)</h3>
-                            <p id="cloudflared-loading" style="margin:4px 0 0 0; color:#0284c7; font-size:0.85rem; font-weight:bold;">
-                                ⏳ جاري تحضير الاتصال الآمن... يرجى الانتظار
-                            </p>
-                            <p id="cloudflared-hint" style="margin:4px 0 0 0; color:var(--text-muted); font-size:0.85rem; display:none;">
-                                استخدم هذه الروابط الآمنة للوصول إلى النظام والمايكروتك من أي مكان خارج الشبكة.
-                            </p>
-                        </div>
-                        <!-- Ngrok Token Config -->
-                        <div id="ngrok-config-section" style="display:flex; align-items:center; gap:8px; background:#f0f9ff; padding:8px 14px; border-radius:var(--radius-md); border:1px solid #bae6fd; flex-wrap:wrap;">
-                            <i class="fa-solid fa-lock" style="color:#0ea5e9;"></i>
-                            <input type="password" id="ngrok-token-input" placeholder="أدخل Ngrok Auth Token هنا..." style="border:none; outline:none; font-size:12px; width:210px; background:transparent; margin:0; padding:4px;">
-                            <button class="btn btn-primary" style="padding:6px 14px; font-size:12px; width:auto; margin:0;" onclick="saveNgrokToken()">
-                                <i class="fa-solid fa-floppy-disk"></i> حفظ وتشغيل
-                            </button>
-                            <a href="https://dashboard.ngrok.com/get-started/your-authtoken" target="_blank" style="font-size:11px; color:#0ea5e9; text-decoration:none; font-weight:600;">
-                                <i class="fa-solid fa-arrow-up-right-from-square"></i> احصل على التوكن
-                            </a>
-                        </div>
-                    </div>
-
-                    <div id="cloudflared-buttons" style="display:none; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <div id="web-links" style="display:flex; gap:10px; flex-wrap:wrap;">
-                            <button class="btn btn-primary" style="padding:10px 18px; font-size:13px; width:auto;" onclick="copyPathLink('/mikrotik')">
-                                <i class="fa-solid fa-server"></i> نسخ رابط MikroTik Manager
-                            </button>
-                            <button class="btn btn-success" style="padding:10px 18px; font-size:13px; width:auto;" onclick="copyPathLink('/radius')">
-                                <i class="fa-solid fa-users-gear"></i> نسخ رابط SASMAN Radius
-                            </button>
-                        </div>
-                        <!-- WinBox Section (Ngrok Only) -->
-                        <div id="winbox-section" style="display:none; background:#f8fafc; border:1px dashed var(--border); padding:8px 14px; border-radius:var(--radius-md); align-items:center; gap:8px; flex-wrap:wrap;">
-                            <span style="font-size:13px; color:var(--text-muted); font-weight:700;"><i class="fa-solid fa-desktop" style="margin-left:4px;"></i>WinBox TCP:</span>
-                            <code id="winbox-url" style="font-size:13px; color:var(--text-main); font-weight:bold; font-family:monospace; background:#e2e8f0; padding:4px 10px; border-radius:6px;">---</code>
-                            <button class="btn" style="background:#64748b; color:white; padding:6px 12px; font-size:12px; width:auto; border:none;" onclick="copyToClipboard(document.getElementById('winbox-url').innerText)">
-                                <i class="fa-solid fa-copy"></i> نسخ
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- 🌐 SASMAN TUNNEL SETTINGS - Always Visible under License Tab -->
                 <div class="card" style="border-right:4px solid var(--primary); margin-top:20px;">
                     <h3 style="margin:0 0 12px 0; color:var(--primary);"><i class="fa-solid fa-network-wired"></i> إعدادات SASMAN Tunnel (البوابة المركزية)</h3>

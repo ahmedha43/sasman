@@ -690,25 +690,6 @@
                         </div>
                     </div>
 
-                    <!-- Remote Access Links -->
-                    <div id="radius-remote-access-card" class="card" style="margin-top:25px; border-right:4px solid var(--info); display:none;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:16px;">
-                            <h3 style="margin:0; border:none; padding:0;"><i class="fa-solid fa-globe"></i> روابط الوصول عن بُعد (Remote Access)</h3>
-                            <button class="btn" style="width:auto; padding:8px 14px;" onclick="loadRadiusRemoteAccess()">
-                                <i class="fa-solid fa-rotate"></i> تحديث
-                            </button>
-                        </div>
-                        <p id="radius-remote-access-status" class="field-hint" style="margin-bottom:14px;">جاري فحص روابط الوصول عن بُعد...</p>
-                        <div id="radius-remote-access-buttons" class="action-row" style="display:none;">
-                            <button class="btn btn-primary" style="width:auto; padding:10px 18px;" onclick="copyRadiusRemotePath('/radius')">
-                                <i class="fa-solid fa-copy"></i> نسخ رابط RADIUS
-                            </button>
-                            <button class="btn" style="width:auto; padding:10px 18px; background:var(--info); color:white; border:none;" onclick="copyRadiusRemotePath('/mikrotik')">
-                                <i class="fa-solid fa-copy"></i> نسخ رابط MikroTik
-                            </button>
-                        </div>
-                    </div>
-
                     <!-- SASMAN Cloud Tunnel & Direct Access Card -->
                     <div id="radius-tunnel-card" class="card" style="margin-top:25px; border:1px solid #0ea5e9; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border-radius:12px; box-shadow:0 4px 20px rgba(14,165,233,0.1);">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:16px;">
@@ -818,27 +799,6 @@
                         </div>
                         <p class="field-hint" style="margin-bottom:12px;">يتم إدارة وتجديد صلاحية هذا الترخيص مركزياً عبر السيرفر السحابي.</p>
                         <div id="license-status-box" style="margin-top:10px;"></div>
-                    </div>
-
-                    <!-- Blind Accept Bypass Section (SAS4 Style) -->
-                    <div class="card superadmin-only" style="margin-top:25px; border-right:4px solid var(--danger); display:none;">
-                        <h3 style="color:var(--danger);"><i class="fa-solid fa-lock-open"></i> وضع البايپاس العمياء (Blind Accept - SAS4 Legacy Style)</h3>
-                        <p style="color:var(--muted); font-size:0.9rem; margin:0 0 12px 0;">
-                            عند تفعيل هذا الوضع، سيقوم نظام الـ RADIUS بالموافقة الفورية على <strong>جميع</strong> طلبات الاتصال الواردة (بما فيها الحسابات المجهولة أو التي لا تتطابق كلمات مرورها) بدون التحقق من الباسورد. هذا يحاكي تماماً سلوك منظومات SAS 4 القديمة.
-                        </p>
-                        <div class="info-box-yellow">
-                            <p style="margin:0; color:#854d0e; font-size:0.85rem; line-height:1.6;">
-                                <strong>⚠️ تنبيه مهم جداً:</strong> لكي ينجح هذا الوضع مع بروتوكولات PPPoE/VPN بالمايكروتك، يجب عليك تفعيل خياري <strong>PAP</strong> و <strong>CHAP</strong> وإلغاء تفعيل <strong>mschap2</strong> في إعدادات روتر المايكروتك (PPP → PPPoE Servers → Authentication).
-                            </p>
-                        </div>
-                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-top:15px;">
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                <span id="bypass-status-badge" style="background:#e5e7eb; color:#374151; padding:6px 14px; border-radius:20px; font-size:0.85rem; font-weight:bold;">⏳ جارِ فحص الحالة...</span>
-                            </div>
-                            <button id="bypass-toggle-btn" class="btn" style="background:var(--danger); color:white; width:auto; padding:10px 24px;" onclick="toggleBypass()">
-                                🚀 تفعيل البايپاس العمياء
-                            </button>
-                        </div>
                     </div>
 
                     <!-- Migrating tools from SAS4 database -->
