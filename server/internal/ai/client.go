@@ -85,10 +85,11 @@ func (c *LLMClient) Complete(ctx context.Context, settings *storage.AISettings, 
 
 	modelsToTry := []string{req.Model}
 	if provider == "gemini" {
-		if req.Model == "gemini-2.0-flash" {
-			modelsToTry = append(modelsToTry, "gemini-1.5-flash", "gemini-2.5-flash")
-		} else if req.Model == "gemini-1.5-flash" {
-			modelsToTry = append(modelsToTry, "gemini-2.0-flash")
+		fallbackList := []string{"gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"}
+		for _, m := range fallbackList {
+			if m != req.Model {
+				modelsToTry = append(modelsToTry, m)
+			}
 		}
 	}
 
