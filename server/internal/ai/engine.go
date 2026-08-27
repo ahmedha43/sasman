@@ -383,12 +383,12 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
 					})
 				} else {
-					toolResult = audit
+					toolResult = compactAuditData(audit)
 					emit(StreamEvent{
 						Type:     "tool_result",
 						Tool:     fnName,
 						Status:   "success",
-						Summary:  fmt.Sprintf("تم استلام بيانات الفحص بنجاح (%d جدول، الموارد، الفايروول، السجلات)", len(audit)),
+						Summary:  fmt.Sprintf("تم استلام وضغط بيانات الفحص بنجاح (%d جدول، الموارد، الفايروول، السجلات)", len(audit)),
 						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
 					})
 				}
@@ -412,7 +412,7 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
 					})
 				} else {
-					toolResult = res
+					toolResult = truncateResult(res, 3500)
 					emit(StreamEvent{
 						Type:     "tool_result",
 						Tool:     fnName,
@@ -440,18 +440,15 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
 					})
 				} else {
-					var logs []interface{}
-					if l, ok := audit["logs"].([]interface{}); ok {
-						logs = l
-					}
+					compact := compactAuditData(audit)
 					toolResult = map[string]interface{}{
-						"logs": logs,
+						"suspicious_logs": compact["suspicious_logs"],
 					}
 					emit(StreamEvent{
 						Type:     "tool_result",
 						Tool:     fnName,
 						Status:   "success",
-						Summary:  fmt.Sprintf("تم تحليل %d سجل من سجلات الراوتر", len(logs)),
+						Summary:  "تم تحليل سجلات الراوتر واستخراج السجلات المشبوهة بنجاح",
 						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
 					})
 				}
@@ -673,15 +670,16 @@ func (e *Engine) RunSecurityAudit(ctx context.Context, subdomain string) (*Diagn
 		report.OverallStatus = "excellent"
 	}
 
-	// 6. Generate Narrative with LLM
-	auditJSON, _ := json.MarshalIndent(auditData, "", "  ")
+	// 6. Generate Narrative with LLM using compact audit summary (drastically reduces tokens)
+	compactData := compactAuditData(auditData)
+	compactJSON, _ := json.MarshalIndent(compactData, "", "  ")
 	promptMsg := fmt.Sprintf(`حلل تقرير فحص راوتر المايكروتك التالي للوكيل "%s":
 - درجة التقييم الحالية: %d/100
 - المشاكل المكتشفة أولياً: %d
-بيانات الفحص الخام:
+ملخص بيانات الفحص المضغوطة:
 %s
 
-اكتب تحليلاً مختصراً وواضحاً باللغة العربية (ملخص الحالة، أهم 3 نصائح لتحسين الشبكة والأمان، وتأثير المشاكل الحالية على المشتركين).`, subdomain, report.Score, len(report.Findings), string(auditJSON))
+اكتب تحليلاً مختصراً وواضحاً باللغة العربية (ملخص الحالة، أهم 3 نصائح لتحسين الشبكة والأمان، وتأثير المشاكل الحالية على المشتركين).`, subdomain, report.Score, len(report.Findings), string(compactJSON))
 
 	settings, _ := e.repo.GetAISettings()
 	if settings != nil && settings.Enabled && settings.APIKey != "" {
@@ -851,4 +849,129 @@ func extractLastUserMessage(messages []ChatMessage) string {
 		}
 	}
 	return ""
+}
+
+// compactAuditData compresses full 14-table MikroTik audit data by ~99% to prevent context token overflows
+func compactAuditData(audit map[string]interface{}) map[string]interface{} {
+	compact := make(map[string]interface{})
+
+	// 1. Resources
+	if resList, ok := audit["resource"].([]interface{}); ok && len(resList) > 0 {
+		if res, ok := resList[0].(map[string]interface{}); ok {
+			compact["resources"] = map[string]interface{}{
+				"board_name":  res["board-name"],
+				"version":     res["version"],
+				"cpu_load":    res["cpu-load"],
+				"free_memory": res["free-memory"],
+				"uptime":      res["uptime"],
+			}
+		}
+	}
+
+	// 2. DNS
+	if dnsList, ok := audit["dns"].([]interface{}); ok && len(dnsList) > 0 {
+		if dns, ok := dnsList[0].(map[string]interface{}); ok {
+			compact["dns"] = map[string]interface{}{
+				"allow_remote_requests": dns["allow-remote-requests"],
+				"servers":                dns["servers"],
+			}
+		}
+	}
+
+	// 3. Active IP Services
+	if svcList, ok := audit["ip_services"].([]interface{}); ok {
+		var activeSvcs []map[string]interface{}
+		for _, s := range svcList {
+			if svc, ok := s.(map[string]interface{}); ok {
+				disabled, _ := svc["disabled"].(string)
+				if disabled != "yes" && disabled != "true" {
+					activeSvcs = append(activeSvcs, map[string]interface{}{
+						"name":    svc["name"],
+						"port":    svc["port"],
+						"address": svc["address"],
+					})
+				}
+			}
+		}
+		compact["active_services"] = activeSvcs
+	}
+
+	// 4. Firewall Summary
+	fwSummary := map[string]interface{}{}
+	hasFastTrack := false
+	if filterList, ok := audit["firewall_filter"].([]interface{}); ok {
+		fwSummary["filter_rules_count"] = len(filterList)
+		for _, f := range filterList {
+			if rule, ok := f.(map[string]interface{}); ok {
+				if action, _ := rule["action"].(string); action == "fasttrack-connection" {
+					if d, _ := rule["disabled"].(string); d != "yes" && d != "true" {
+						hasFastTrack = true
+					}
+				}
+			}
+		}
+	}
+	fwSummary["fasttrack_enabled"] = hasFastTrack
+	if natList, ok := audit["firewall_nat"].([]interface{}); ok {
+		fwSummary["nat_rules_count"] = len(natList)
+	}
+	compact["firewall_summary"] = fwSummary
+
+	// 5. Active Interfaces
+	if ifList, ok := audit["interfaces"].([]interface{}); ok {
+		var runningIfaces []string
+		for _, i := range ifList {
+			if iface, ok := i.(map[string]interface{}); ok {
+				if r, _ := iface["running"].(string); r == "yes" || r == "true" {
+					runningIfaces = append(runningIfaces, fmt.Sprintf("%v (%v)", iface["name"], iface["type"]))
+				}
+			}
+		}
+		compact["active_interfaces"] = runningIfaces
+	}
+
+	// 6. Suspicious Logs (top 15 only)
+	if logList, ok := audit["logs"].([]interface{}); ok {
+		var relevantLogs []string
+		for i := len(logList) - 1; i >= 0 && len(relevantLogs) < 15; i-- {
+			if l, ok := logList[i].(map[string]interface{}); ok {
+				msg := fmt.Sprintf("%v", l["message"])
+				topics := fmt.Sprintf("%v", l["topics"])
+				lower := strings.ToLower(msg + " " + topics)
+				if strings.Contains(lower, "fail") || strings.Contains(lower, "deny") ||
+					strings.Contains(lower, "drop") || strings.Contains(lower, "error") ||
+					strings.Contains(lower, "attack") || strings.Contains(lower, "unauth") ||
+					strings.Contains(lower, "warning") || strings.Contains(lower, "critical") {
+					relevantLogs = append(relevantLogs, fmt.Sprintf("[%v] %s", l["time"], msg))
+				}
+			}
+		}
+		compact["suspicious_logs"] = relevantLogs
+	}
+
+	// 7. DHCP Summary
+	if leaseList, ok := audit["dhcp_lease"].([]interface{}); ok {
+		compact["active_dhcp_leases_count"] = len(leaseList)
+	}
+
+	return compact
+}
+
+// truncateResult ensures tool output never exceeds maxChars to protect the LLM context window
+func truncateResult(data interface{}, maxChars int) interface{} {
+	if data == nil {
+		return nil
+	}
+	b, err := json.Marshal(data)
+	if err != nil {
+		return data
+	}
+	if len(b) <= maxChars {
+		return data
+	}
+	str := string(b)
+	if len(str) > maxChars {
+		return str[:maxChars] + "... [تم تقليص بقية المخرجات لتوفير التوكنات]"
+	}
+	return data
 }

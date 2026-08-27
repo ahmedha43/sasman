@@ -2909,6 +2909,9 @@ ${setupCmd}`;
         }
         if (ev.message) {
           aiChatHistory.push(ev.message);
+          if (aiChatHistory.length > 8) {
+            aiChatHistory = aiChatHistory.slice(aiChatHistory.length - 8);
+          }
           appendAssistantMessage(ev.message.content || '', ev.plan);
         }
       } else if (ev.type === 'error') {
@@ -2939,6 +2942,9 @@ ${setupCmd}`;
 
       appendUserMessage(text);
       aiChatHistory.push({ role: 'user', content: text });
+      if (aiChatHistory.length > 8) {
+        aiChatHistory = aiChatHistory.slice(aiChatHistory.length - 8);
+      }
 
       const boxId = createAgentStepContainer();
 
