@@ -43,6 +43,18 @@ func IsStaticAsset(path string) bool {
 		path = path[:idx]
 	}
 
+	lowerPath := strings.ToLower(path)
+
+	// Explicitly ignore any API endpoints, WebSocket, and dynamic auth/login routes
+	if strings.Contains(lowerPath, "/api/") ||
+		strings.HasPrefix(lowerPath, "/api") ||
+		strings.Contains(lowerPath, "/ws") ||
+		strings.Contains(lowerPath, "/auth") ||
+		strings.Contains(lowerPath, "/login") ||
+		strings.Contains(lowerPath, "/logout") {
+		return false
+	}
+
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	case ".css", ".js", ".mjs", ".woff", ".woff2", ".ttf", ".eot", ".otf",
