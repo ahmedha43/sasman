@@ -513,6 +513,15 @@ func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
 		headers[string(key)] = string(value)
 	})
 
+	// 2. For cacheable static assets: strip conditional headers so the agent
+	//    always returns a full 200 response (not 304), enabling us to cache it.
+	if IsStaticAsset(originalPath) {
+		delete(headers, "If-None-Match")
+		delete(headers, "If-Modified-Since")
+		delete(headers, "if-none-match")
+		delete(headers, "if-modified-since")
+	}
+
 	reqPayload := HttpRequestPayload{
 		Method:  method,
 		Path:    originalPath,
