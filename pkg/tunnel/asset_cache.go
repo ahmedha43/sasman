@@ -85,12 +85,13 @@ func (c *AssetCache) Get(path string) (*CachedAsset, bool) {
 
 // Set stores an asset in the cache
 func (c *AssetCache) Set(path string, body []byte, contentType string) {
-	if len(body) == 0 || !IsStaticAsset(path) {
-		return
-	}
-
+	// Strip query parameters first, before any extension/path check
 	if idx := strings.Index(path, "?"); idx != -1 {
 		path = path[:idx]
+	}
+
+	if len(body) == 0 || !IsStaticAsset(path) {
+		return
 	}
 
 	if contentType == "" {
