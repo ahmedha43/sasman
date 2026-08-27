@@ -253,6 +253,28 @@ func (r *SQLiteRepository) CreateSchema() error {
         );`,
 		`CREATE INDEX IF NOT EXISTS idx_takeover_subdomain ON subdomain_takeover_requests(subdomain);`,
 		`CREATE INDEX IF NOT EXISTS idx_takeover_status ON subdomain_takeover_requests(status);`,
+		`CREATE TABLE IF NOT EXISTS ai_settings (
+            id TEXT PRIMARY KEY,
+            provider TEXT NOT NULL DEFAULT 'deepseek',
+            api_key TEXT NOT NULL DEFAULT '',
+            model TEXT NOT NULL DEFAULT 'deepseek-chat',
+            base_url TEXT NOT NULL DEFAULT 'https://api.deepseek.com',
+            system_prompt TEXT NOT NULL DEFAULT '',
+            temperature REAL NOT NULL DEFAULT 0.2,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+		`CREATE TABLE IF NOT EXISTS ai_audit_logs (
+            id TEXT PRIMARY KEY,
+            subdomain TEXT NOT NULL,
+            audit_type TEXT NOT NULL DEFAULT 'security',
+            score INTEGER NOT NULL DEFAULT 100,
+            findings_json TEXT NOT NULL DEFAULT '[]',
+            recommendations_json TEXT NOT NULL DEFAULT '[]',
+            raw_summary TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+		`CREATE INDEX IF NOT EXISTS idx_ai_audit_subdomain ON ai_audit_logs(subdomain);`,
 	}
 
 	for _, q := range queries {
@@ -1506,5 +1528,139 @@ func (r *SQLiteRepository) CheckTakeoverStatus(subdomain, phone string) (*Subdom
 	}
 
 	return &req, nil
+}
+
+// ─── AI Copilot Storage ─────────────────────────────────────────────────────
+
+type AISettings struct {
+	ID           string  `json:"id"`
+	Provider     string  `json:"provider"`
+	APIKey       string  `json:"api_key"`
+	Model        string  `json:"model"`
+	BaseURL      string  `json:"base_url"`
+	SystemPrompt string  `json:"system_prompt"`
+	Temperature  float64 `json:"temperature"`
+	Enabled      bool    `json:"enabled"`
+	UpdatedAt    string  `json:"updated_at"`
+}
+
+type AIAuditLog struct {
+	ID                  string `json:"id"`
+	Subdomain           string `json:"subdomain"`
+	AuditType           string `json:"audit_type"`
+	Score               int    `json:"score"`
+	FindingsJSON        string `json:"findings_json"`
+	RecommendationsJSON string `json:"recommendations_json"`
+	RawSummary          string `json:"raw_summary"`
+	CreatedAt           string `json:"created_at"`
+}
+
+func (r *SQLiteRepository) GetAISettings() (*AISettings, error) {
+	var s AISettings
+	var enabledInt int
+	err := r.db.QueryRow(`
+		SELECT id, provider, api_key, model, base_url, system_prompt, temperature, enabled, updated_at
+		FROM ai_settings
+		WHERE id = 'default'
+	`).Scan(&s.ID, &s.Provider, &s.APIKey, &s.Model, &s.BaseURL, &s.SystemPrompt, &s.Temperature, &enabledInt, &s.UpdatedAt)
+
+	if err == sql.ErrNoRows {
+		// Return default settings
+		return &AISettings{
+			ID:           "default",
+			Provider:     "deepseek",
+			APIKey:       os.Getenv("DEEPSEEK_API_KEY"),
+			Model:        "deepseek-chat",
+			BaseURL:      "https://api.deepseek.com",
+			SystemPrompt: "أنت المساعد الذكي وخبير شبكات المايكروتك لنظام SASMAN. مهمتك فحص وتحليل وإدارة راوترات المايكروتك بدقة وأمان.",
+			Temperature:  0.2,
+			Enabled:      true,
+			UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
+		}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.Enabled = (enabledInt == 1)
+	if s.APIKey == "" {
+		if s.Provider == "deepseek" {
+			s.APIKey = os.Getenv("DEEPSEEK_API_KEY")
+		} else if s.Provider == "gemini" {
+			s.APIKey = os.Getenv("GEMINI_API_KEY")
+		} else if s.Provider == "openai" {
+			s.APIKey = os.Getenv("OPENAI_API_KEY")
+		}
+	}
+	return &s, nil
+}
+
+func (r *SQLiteRepository) SaveAISettings(s *AISettings) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	enabledInt := 0
+	if s.Enabled {
+		enabledInt = 1
+	}
+	_, err := r.db.Exec(`
+		INSERT INTO ai_settings (id, provider, api_key, model, base_url, system_prompt, temperature, enabled, updated_at)
+		VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			provider=excluded.provider,
+			api_key=excluded.api_key,
+			model=excluded.model,
+			base_url=excluded.base_url,
+			system_prompt=excluded.system_prompt,
+			temperature=excluded.temperature,
+			enabled=excluded.enabled,
+			updated_at=excluded.updated_at
+	`, s.Provider, s.APIKey, s.Model, s.BaseURL, s.SystemPrompt, s.Temperature, enabledInt, now)
+	return err
+}
+
+func (r *SQLiteRepository) SaveAIAuditLog(log AIAuditLog) error {
+	if log.ID == "" {
+		log.ID = fmt.Sprintf("audit-%d", time.Now().UnixNano())
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.Exec(`
+		INSERT INTO ai_audit_logs (id, subdomain, audit_type, score, findings_json, recommendations_json, raw_summary, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, log.ID, strings.ToLower(log.Subdomain), log.AuditType, log.Score, log.FindingsJSON, log.RecommendationsJSON, log.RawSummary, now)
+	return err
+}
+
+func (r *SQLiteRepository) GetAIAuditLogs(subdomain string, limit int) ([]AIAuditLog, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	var rows *sql.Rows
+	var err error
+	if sub == "" {
+		rows, err = r.db.Query(`
+			SELECT id, subdomain, audit_type, score, findings_json, recommendations_json, raw_summary, created_at
+			FROM ai_audit_logs
+			ORDER BY created_at DESC LIMIT ?
+		`, limit)
+	} else {
+		rows, err = r.db.Query(`
+			SELECT id, subdomain, audit_type, score, findings_json, recommendations_json, raw_summary, created_at
+			FROM ai_audit_logs
+			WHERE subdomain = ?
+			ORDER BY created_at DESC LIMIT ?
+		`, sub, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []AIAuditLog
+	for rows.Next() {
+		var l AIAuditLog
+		if err := rows.Scan(&l.ID, &l.Subdomain, &l.AuditType, &l.Score, &l.FindingsJSON, &l.RecommendationsJSON, &l.RawSummary, &l.CreatedAt); err == nil {
+			logs = append(logs, l)
+		}
+	}
+	return logs, nil
 }
 

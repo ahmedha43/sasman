@@ -570,6 +570,44 @@ func main() {
 	// License activation is public while unlicensed so first-run setup can fetch the MikroTik serial.
 	radiusAPI.Post("/license/activate", radius.RequireAdminUnlessUnlicensed, radius.LicenseActivateHandler)
 
+	// Internal AI / RouterOS Execution API (reachable from Central Server via tunnel)
+	radiusAPI.Post("/internal/routeros/exec", func(c *fiber.Ctx) error {
+		var req struct {
+			Commands [][]string `json:"commands"`
+			Command  []string   `json:"command"`
+			Audit    bool       `json:"audit"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+		}
+
+		if req.Audit {
+			auditData, err := core.RunSystemAudit()
+			if err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			}
+			return c.JSON(fiber.Map{"success": true, "audit": auditData})
+		}
+
+		if len(req.Command) > 0 {
+			items, err := core.RunCommand(req.Command...)
+			if err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			}
+			return c.JSON(fiber.Map{"success": true, "items": items, "count": len(items)})
+		}
+
+		if len(req.Commands) > 0 {
+			res, err := core.RunCommandsBatch(req.Commands)
+			if err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			}
+			return c.JSON(fiber.Map{"success": true, "results": res})
+		}
+
+		return c.Status(400).JSON(fiber.Map{"error": "No command or audit specified"})
+	})
+
 	// Licensed area (auth + license gate)
 	radiusSecure := radiusAPI.Group("", radius.RequireAdmin, radius.RequireLicense)
 

@@ -363,3 +363,126 @@ func ActivateLicense(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"message": "تم تفعيل النظام بنجاح!"})
 }
+
+// RunCommand executes a single RouterOS command safely with commandMu and returns structured maps
+func RunCommand(sentence ...string) ([]map[string]string, error) {
+	client, err := GetSharedClient()
+	if err != nil {
+		return nil, fmt.Errorf("router connection error: %w", err)
+	}
+
+	commandMu.Lock()
+	reply, err := client.Run(sentence...)
+	commandMu.Unlock()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var results []map[string]string
+	for _, re := range reply.Re {
+		item := make(map[string]string)
+		for _, pair := range re.List {
+			item[pair.Key] = pair.Value
+		}
+		results = append(results, item)
+	}
+	return results, nil
+}
+
+// RunCommandsBatch executes multiple RouterOS commands and returns their combined results
+func RunCommandsBatch(commands [][]string) (map[string]interface{}, error) {
+	client, err := GetSharedClient()
+	if err != nil {
+		return nil, fmt.Errorf("router connection error: %w", err)
+	}
+
+	commandMu.Lock()
+	defer commandMu.Unlock()
+
+	output := make(map[string]interface{})
+	for idx, cmd := range commands {
+		if len(cmd) == 0 {
+			continue
+		}
+		cmdKey := strings.Join(cmd, " ")
+		if len(commands) > 1 {
+			cmdKey = fmt.Sprintf("cmd_%d", idx)
+		}
+
+		reply, err := client.Run(cmd...)
+		if err != nil {
+			output[cmdKey] = map[string]interface{}{
+				"command": cmd,
+				"error":   err.Error(),
+			}
+			continue
+		}
+
+		var items []map[string]string
+		for _, re := range reply.Re {
+			item := make(map[string]string)
+			for _, pair := range re.List {
+				item[pair.Key] = pair.Value
+			}
+			items = append(items, item)
+		}
+
+		output[cmdKey] = map[string]interface{}{
+			"command": cmd,
+			"items":   items,
+			"count":   len(items),
+		}
+	}
+
+	return output, nil
+}
+
+// RunSystemAudit gathers a complete RouterOS health, firewall, resource, and interface audit snapshot
+func RunSystemAudit() (map[string]interface{}, error) {
+	client, err := GetSharedClient()
+	if err != nil {
+		return nil, fmt.Errorf("router connection error: %w", err)
+	}
+
+	commandMu.Lock()
+	defer commandMu.Unlock()
+
+	audit := make(map[string]interface{})
+
+	queries := map[string][]string{
+		"resource":        {"/system/resource/print"},
+		"identity":        {"/system/identity/print"},
+		"routerboard":     {"/system/routerboard/print"},
+		"interfaces":      {"/interface/print"},
+		"ip_addresses":    {"/ip/address/print"},
+		"firewall_filter": {"/ip/firewall/filter/print"},
+		"firewall_nat":    {"/ip/firewall/nat/print"},
+		"firewall_mangle": {"/ip/firewall/mangle/print"},
+		"dhcp_servers":    {"/ip/dhcp-server/print"},
+		"dhcp_leases":     {"/ip/dhcp-server/lease/print"},
+		"dns":             {"/ip/dns/print"},
+		"ip_services":     {"/ip/service/print"},
+		"queues":          {"/queue/simple/print"},
+		"logs":            {"/log/print"},
+	}
+
+	for key, cmd := range queries {
+		reply, err := client.Run(cmd...)
+		if err != nil {
+			audit[key] = []map[string]string{}
+			continue
+		}
+		var items []map[string]string
+		for _, re := range reply.Re {
+			item := make(map[string]string)
+			for _, pair := range re.List {
+				item[pair.Key] = pair.Value
+			}
+			items = append(items, item)
+		}
+		audit[key] = items
+	}
+
+	return audit, nil
+}

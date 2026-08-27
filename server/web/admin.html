@@ -425,6 +425,9 @@
       <button class="tab-btn" onclick="switchTab('backup', this)">
         <i class="fa-solid fa-hard-drive"></i> النسخ الاحتياطي المركزي
       </button>
+      <button class="tab-btn" onclick="openAICopilot()" style="background:linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25)); color:#d8b4fe; border:1px solid #7e22ce; font-weight:bold;">
+        <i class="fa-solid fa-wand-magic-sparkles" style="color:#c084fc;"></i> 🤖 المساعد الذكي (AI Copilot)
+      </button>
     </div>
 
     <!-- ================= TAB 1: AGENTS ================= -->
@@ -437,6 +440,9 @@
           </div>
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button class="btn btn-primary" style="background:linear-gradient(135deg, #6366f1, #a855f7); border:none; box-shadow:0 2px 10px rgba(168,85,247,0.35); font-weight:bold;" onclick="openAICopilot()" title="فتح المساعد الذكي وفحص راوترات المايكروتك">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> 🤖 فحص المايكروتك بالذكاء الاصطناعي
+            </button>
             <input type="text" id="agent-search" placeholder="🔍 بحث بالنطاق أو اسم الوكيل..." oninput="filterAgents()" style="width:220px;">
             <select id="group-filter" onchange="filterAgents()">
               <option value="">كل المجموعات</option>
@@ -854,6 +860,132 @@
         <div id="cred-modal-updated" style="font-size:11px; color:#94a3b8;">-</div>
         <button type="button" class="btn btn-dark" onclick="closeAgentCredentialsModal()">إغلاق</button>
       </div>
+    </div>
+  </div>
+
+  <!-- AI Copilot Modal -->
+  <div id="ai-copilot-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:900px; width:95%; height:90vh; display:flex; flex-direction:column; padding:0; overflow:hidden; border:1.5px solid #6366f1; background:#0b0f19;">
+      <!-- Copilot Header -->
+      <div style="background:linear-gradient(135deg, #1e1b4b, #0f172a); padding:14px 20px; border-bottom:1px solid #334155; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; box-shadow:0 0 15px rgba(168,85,247,0.5);">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+          </div>
+          <div>
+            <h3 style="margin:0; font-size:16px; color:#f8fafc; display:flex; align-items:center; gap:8px;">
+              <span>مساعد SASMAN الذكي (AI Network Copilot)</span>
+              <span id="ai-copilot-badge" class="badge" style="background:#3b0764; color:#d8b4fe; border:1px solid #7e22ce; font-size:10px;">+885 أدوات MikroTik</span>
+            </h3>
+            <div style="font-size:11px; color:#94a3b8;">إدارة وفحص وتشخيص راوترات المايكروتك بالذكاء الاصطناعي</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px;">
+          <!-- Target Agent Selector -->
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label style="font-size:12px; color:#94a3b8; margin:0;"><i class="fa-solid fa-network-wired"></i> الراوتر المستهدف:</label>
+            <select id="ai-target-agent-select" style="background:#1e293b; color:#38bdf8; border:1px solid #475569; font-size:12px; font-weight:bold; font-family:monospace; padding:4px 8px; border-radius:6px; max-width:200px;">
+              <option value="">-- كل الراوترات --</option>
+            </select>
+          </div>
+
+          <button class="btn btn-dark btn-xs" onclick="openAISettingsModal()" title="إعدادات الذكاء الاصطناعي ومفتاح API" style="background:#1e293b; border:1px solid #475569; color:#f8fafc;">
+            <i class="fa-solid fa-gear"></i> إعدادات AI
+          </button>
+          <button class="btn btn-dark btn-xs" onclick="closeAICopilot()" style="padding:4px 8px;">✕</button>
+        </div>
+      </div>
+
+      <!-- Quick Action Chips Bar -->
+      <div style="background:#080d1a; padding:8px 16px; border-bottom:1px solid #1e293b; display:flex; gap:6px; overflow-x:auto; flex-shrink:0;">
+        <button class="btn btn-dark btn-xs" style="background:#1e1b4b; border:1px solid #4338ca; color:#a5b4fc; white-space:nowrap;" onclick="quickActionAudit()">🛡️ فحص الأمان والثغرات</button>
+        <button class="btn btn-dark btn-xs" style="background:#064e3b; border:1px solid #059669; color:#6ee7b7; white-space:nowrap;" onclick="quickActionSpeed()">⚡ تشخيص بطء الإنترنت</button>
+        <button class="btn btn-dark btn-xs" style="background:#701a75; border:1px solid #c026d3; color:#f5d0fe; white-space:nowrap;" onclick="quickActionAttacks()">🔐 كشف محاولات الاختراق</button>
+        <button class="btn btn-dark btn-xs" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; white-space:nowrap;" onclick="quickActionPCC()">🌐 خطة دمج خطين PCC</button>
+        <button class="btn btn-dark btn-xs" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; white-space:nowrap;" onclick="quickActionQueues()">🚀 خطة تقسيم السرعات PCQ</button>
+      </div>
+
+      <!-- Chat Conversation Area -->
+      <div id="ai-chat-messages" style="flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:14px; background:#060913;">
+        <!-- Welcome Message -->
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div style="background:#1e1b4b; border:1px solid #3730a3; border-radius:12px; border-top-right-radius:2px; padding:12px 16px; color:#f8fafc; font-size:13px; max-width:85%; line-height:1.6;">
+            <div style="font-weight:bold; color:#a5b4fc; margin-bottom:4px;">🤖 مرحباً بك في مساعد SASMAN الذكي للمايكروتك!</div>
+            أنا هنا لمساعدتك في فحص وتشخيص راوترات وكلائك، اكتشاف الثغرات الأمنية، واقتراح وتطبيق أفضل الإعدادات (دمج الخطوط، تقسيم السرعات، فتح البورتات، كشف الاختراقات) بأمان تام.
+            <div style="margin-top:8px; font-size:12px; color:#94a3b8;">اختر راوتر الوكيل من الأعلى أو اضغط على أحد أزرار الفحص السريع أعلاه!</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input Bar -->
+      <div style="background:#0f172a; padding:12px 16px; border-top:1px solid #334155; flex-shrink:0;">
+        <form onsubmit="handleAIChatSubmit(event)" style="display:flex; gap:8px; align-items:center;">
+          <input type="text" id="ai-chat-input" placeholder="اكتب سؤالك أو طلبك للمايكروتك بالعربي (مثال: افحص الفايروول أو سوي كيو 20 ميجا)..." style="flex:1; background:#1e293b; border:1px solid #475569; color:#f8fafc; font-size:13px; padding:10px 14px; border-radius:8px; outline:none;">
+          <button type="submit" id="btn-send-ai" class="btn btn-primary" style="padding:10px 18px; background:linear-gradient(135deg, #6366f1, #a855f7); border:none;">
+            <i class="fa-solid fa-paper-plane"></i> إرسال
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Settings Modal -->
+  <div id="ai-settings-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:500px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:16px; display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-gear" style="color:#a855f7;"></i> إعدادات الذكاء الاصطناعي (AI Settings)
+        </h3>
+        <button class="btn btn-dark btn-xs" onclick="closeAISettingsModal()">✕</button>
+      </div>
+      <form onsubmit="handleSaveAISettings(event)">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px; font-weight:bold;">مزود الذكاء الاصطناعي (AI Provider):</label>
+          <select id="ai-set-provider" onchange="onAIProviderChange()" style="width:100%; font-size:13px;">
+            <option value="deepseek">DeepSeek (موصى به - فائق السرعة، ذكي، ورخيص جداً)</option>
+            <option value="gemini">Google Gemini 2.0 Flash (سريع جداً ومجاني/منخفض التكلفة)</option>
+            <option value="openai">OpenAI (ChatGPT / GPT-4o)</option>
+            <option value="custom">مخصص (Custom OpenAI-Compatible API)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px; font-weight:bold;">مفتاح الـ API Key *:</label>
+          <div style="display:flex; gap:4px;">
+            <input type="password" id="ai-set-api-key" placeholder="sk-..." style="flex:1; font-family:monospace;">
+            <button type="button" class="btn btn-dark btn-xs" onclick="togglePassVisibility('ai-set-api-key', this)">👁️</button>
+          </div>
+          <div id="ai-api-key-hint" style="font-size:11px; color:#94a3b8; margin-top:3px;">
+            احصل على مفتاح من platform.deepseek.com أو aistudio.google.com
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">النموذج (Model):</label>
+          <input type="text" id="ai-set-model" value="deepseek-chat" style="width:100%; font-family:monospace;">
+        </div>
+
+        <div style="margin-bottom:12px;" id="ai-base-url-group">
+          <label style="font-size:13px; display:block; margin-bottom:4px;">عنوان الـ API (Base URL - اختياري):</label>
+          <input type="text" id="ai-set-base-url" placeholder="https://api.deepseek.com" style="width:100%; font-family:monospace;">
+        </div>
+
+        <div style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="ai-set-enabled" checked style="width:18px; height:18px;">
+          <label for="ai-set-enabled" style="font-size:13px; font-weight:bold; cursor:pointer;">تفعيل المساعد الذكي في لوحة الإدارة</label>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-dark" onclick="closeAISettingsModal()">إلغاء</button>
+          <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg, #6366f1, #a855f7); border:none;">
+            <i class="fa-solid fa-save"></i> حفظ الإعدادات
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1385,7 +1517,10 @@
             routerInfo += `<div style="font-size:11px; color:#94a3b8;">👤 ${escapeHtml(a.sync_data.mikrotik.username)}</div>`;
           }
         }
-        routerInfo += `<div style="margin-top:4px;"><button class="btn btn-dark btn-xs" style="background:#1e293b; color:#fbbf24; border:1px solid #475569; padding:2px 6px;" onclick="openAgentCredentialsModal('${escapeHtml(a.subdomain)}')">🔑 بيانات الدخول</button></div>`;
+        routerInfo += `<div style="margin-top:4px; display:flex; gap:4px; flex-wrap:wrap;">
+          <button class="btn btn-dark btn-xs" style="background:#1e293b; color:#fbbf24; border:1px solid #475569; padding:2px 6px;" onclick="openAgentCredentialsModal('${escapeHtml(a.subdomain)}')">🔑 بيانات الدخول</button>
+          <button class="btn btn-dark btn-xs" style="background:#3b0764; color:#d8b4fe; border:1px solid #7e22ce; padding:2px 6px;" onclick="runAIAuditForAgent('${escapeHtml(a.subdomain)}')">🤖 فحص ذكي</button>
+        </div>`;
 
         html += `<tr>
           <td>${ownerHTML}</td>
@@ -1416,6 +1551,7 @@
           <td style="font-size:11px; color:#94a3b8;">${timeStr}</td>
           <td>
             <div style="display:flex; gap:4px; flex-wrap:wrap;">
+              <button class="btn btn-dark btn-xs" style="background:linear-gradient(135deg, #6366f1, #a855f7); color:#fff; border:none;" title="المساعد الذكي للراوتر" onclick="openAICopilot('${escapeHtml(a.subdomain)}')">🤖 AI</button>
               <button class="btn btn-dark btn-xs" style="background:#1e1b4b; color:#fbbf24; border:1px solid #4338ca;" title="عرض ونسخ بيانات الدخول" onclick="openAgentCredentialsModal('${escapeHtml(a.subdomain)}')">🔑 دخول</button>
               <button class="btn btn-dark btn-xs" style="background:#0284c7; color:#fff;" title="ترقية / تحديث الوكيل (OTA Upgrade)" onclick="openUpgradeAgentModal('${escapeHtml(a.subdomain)}', '${escapeHtml(a.agent_version || 'v5.0.0')}', '${escapeHtml(a.arch || 'linux_arm64')}')">🚀 ترقية</button>
               <button class="btn btn-dark btn-xs" title="تحميل النسخة الاحتياطية" onclick="window.location.href='/api/agents/${encodeURIComponent(a.subdomain)}/backup/latest/download'">💾</button>
@@ -2179,6 +2315,378 @@ ${setupCmd}`;
       navigator.clipboard.writeText(input.value).then(() => {
         alert('✅ تم نسخ كلمة المرور بنجاح');
       });
+    }
+
+    // ─── AI COPILOT & MIKROTIK MCP ─────────────────────────────────────────
+    let aiChatHistory = [];
+    let currentAISettings = null;
+
+    function openAICopilot(targetSubdomain) {
+      // Populate target agent select dropdown
+      const sel = document.getElementById('ai-target-agent-select');
+      sel.innerHTML = '<option value="">-- كل الراوترات (عام) --</option>';
+      if (currentAgentsList && currentAgentsList.length) {
+        currentAgentsList.forEach(a => {
+          const opt = document.createElement('option');
+          opt.value = a.subdomain;
+          opt.textContent = `${a.subdomain} ${a.owner_name ? '(' + a.owner_name + ')' : ''} ${a.connected ? '🟢' : '🔴'}`;
+          if (targetSubdomain && a.subdomain.toLowerCase() === targetSubdomain.toLowerCase()) {
+            opt.selected = true;
+          }
+          sel.appendChild(opt);
+        });
+      }
+      document.getElementById('ai-copilot-modal').classList.add('active');
+      document.getElementById('ai-chat-input').focus();
+    }
+
+    function closeAICopilot() {
+      document.getElementById('ai-copilot-modal').classList.remove('active');
+    }
+
+    async function openAISettingsModal() {
+      try {
+        const res = await fetch('/api/ai/settings');
+        if (res.ok) {
+          const data = await res.json();
+          currentAISettings = data;
+          document.getElementById('ai-set-provider').value = data.provider || 'deepseek';
+          document.getElementById('ai-set-api-key').value = '';
+          document.getElementById('ai-set-api-key').placeholder = data.has_api_key ? (data.api_key || '••••••••') : 'sk-...';
+          document.getElementById('ai-set-model').value = data.model || 'deepseek-chat';
+          document.getElementById('ai-set-base-url').value = data.base_url || '';
+          document.getElementById('ai-set-enabled').checked = data.enabled !== false;
+          onAIProviderChange();
+        }
+      } catch (err) {}
+      document.getElementById('ai-settings-modal').classList.add('active');
+    }
+
+    function closeAISettingsModal() {
+      document.getElementById('ai-settings-modal').classList.remove('active');
+    }
+
+    function onAIProviderChange() {
+      const p = document.getElementById('ai-set-provider').value;
+      const modelInput = document.getElementById('ai-set-model');
+      const hint = document.getElementById('ai-api-key-hint');
+      const baseUrlInput = document.getElementById('ai-set-base-url');
+
+      if (p === 'deepseek') {
+        if (!modelInput.value || modelInput.value === 'gemini-2.0-flash' || modelInput.value === 'gpt-4o') modelInput.value = 'deepseek-chat';
+        hint.innerHTML = 'احصل على مفتاح فائق السرعة ورخيص من <a href="https://platform.deepseek.com" target="_blank" style="color:#38bdf8;">platform.deepseek.com</a>';
+        if (!baseUrlInput.value || baseUrlInput.value.includes('google') || baseUrlInput.value.includes('openai')) baseUrlInput.value = 'https://api.deepseek.com';
+      } else if (p === 'gemini') {
+        if (!modelInput.value || modelInput.value === 'deepseek-chat' || modelInput.value === 'gpt-4o') modelInput.value = 'gemini-2.0-flash';
+        hint.innerHTML = 'احصل على مفتاح مجاني/سريع من <a href="https://aistudio.google.com" target="_blank" style="color:#38bdf8;">aistudio.google.com</a>';
+        if (!baseUrlInput.value || baseUrlInput.value.includes('deepseek') || baseUrlInput.value.includes('openai')) baseUrlInput.value = 'https://generativelanguage.googleapis.com/v1beta/openai';
+      } else if (p === 'openai') {
+        if (!modelInput.value || modelInput.value === 'deepseek-chat' || modelInput.value === 'gemini-2.0-flash') modelInput.value = 'gpt-4o';
+        hint.innerHTML = 'احصل على مفتاح من <a href="https://platform.openai.com" target="_blank" style="color:#38bdf8;">platform.openai.com</a>';
+        if (!baseUrlInput.value || baseUrlInput.value.includes('deepseek') || baseUrlInput.value.includes('google')) baseUrlInput.value = 'https://api.openai.com/v1';
+      }
+    }
+
+    async function handleSaveAISettings(e) {
+      e.preventDefault();
+      const provider = document.getElementById('ai-set-provider').value;
+      const apiKey = document.getElementById('ai-set-api-key').value;
+      const model = document.getElementById('ai-set-model').value;
+      const baseUrl = document.getElementById('ai-set-base-url').value;
+      const enabled = document.getElementById('ai-set-enabled').checked;
+
+      try {
+        const res = await fetch('/api/ai/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider,
+            api_key: apiKey,
+            model,
+            base_url: baseUrl,
+            enabled
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ تم حفظ إعدادات الذكاء الاصطناعي بنجاح!');
+          closeAISettingsModal();
+        } else {
+          alert('❌ ' + (data.error || 'فشل حفظ الإعدادات'));
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    function renderMarkdownBasic(text) {
+      if (!text) return '';
+      let escaped = escapeHtml(text);
+      // Code blocks
+      escaped = escaped.replace(/```([a-z]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+        return `<pre style="background:#0b1329; border:1px solid #334155; border-radius:8px; padding:10px 12px; margin:8px 0; overflow-x:auto; font-family:monospace; font-size:12px; color:#38bdf8;"><code>${code}</code></pre>`;
+      });
+      // Inline code
+      escaped = escaped.replace(/`([^`]+)`/g, '<code style="background:#1e293b; color:#fbbf24; padding:2px 5px; border-radius:4px; font-family:monospace; font-size:12px;">$1</code>');
+      // Bold
+      escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#f8fafc;">$1</strong>');
+      // Lists
+      escaped = escaped.replace(/^\s*[\-\*]\s+(.*)$/gm, '<li style="margin-right:16px;">$1</li>');
+      // Headers
+      escaped = escaped.replace(/^### (.*)$/gm, '<h4 style="color:#38bdf8; margin:8px 0 4px 0; font-size:14px;">$1</h4>');
+      escaped = escaped.replace(/^## (.*)$/gm, '<h3 style="color:#a855f7; margin:10px 0 6px 0; font-size:15px;">$1</h3>');
+      escaped = escaped.replace(/^# (.*)$/gm, '<h2 style="color:#f8fafc; margin:12px 0 8px 0; font-size:16px;">$1</h2>');
+      // Line breaks
+      escaped = escaped.replace(/\n/g, '<br>');
+      return escaped;
+    }
+
+    function appendUserMessage(text) {
+      const container = document.getElementById('ai-chat-messages');
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex; gap:12px; align-items:flex-start; justify-content:flex-end;';
+      div.innerHTML = `
+        <div style="background:linear-gradient(135deg, #4338ca, #3730a3); border-radius:12px; border-top-left-radius:2px; padding:10px 14px; color:#fff; font-size:13px; max-width:80%; line-height:1.5;">
+          ${escapeHtml(text)}
+        </div>
+        <div style="width:32px; height:32px; border-radius:50%; background:#1e293b; border:1px solid #475569; display:flex; align-items:center; justify-content:center; color:#38bdf8; font-size:14px; flex-shrink:0;">
+          👤
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendAssistantMessage(content, plan) {
+      const container = document.getElementById('ai-chat-messages');
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex; gap:12px; align-items:flex-start;';
+      
+      let planHTML = '';
+      if (plan && plan.commands && plan.commands.length) {
+        const encodedCmds = encodeURIComponent(JSON.stringify(plan.commands));
+        const encodedTitle = encodeURIComponent(plan.title || 'خطة التعديل');
+        planHTML = `
+          <div style="background:#0f172a; border:1.5px solid #0284c7; border-radius:8px; padding:12px; margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-weight:bold; color:#38bdf8; font-size:13px;">📋 ${escapeHtml(plan.title || 'خطة التعديل المقترحة')}</span>
+              <span class="badge" style="background:#0369a1; color:#fff; font-size:10px;">خطورة: ${escapeHtml(plan.risk_level || 'low')}</span>
+            </div>
+            <div style="font-size:12px; color:#cbd5e1; margin-bottom:8px;">${escapeHtml(plan.description || '')}</div>
+            <div style="background:#020617; padding:8px 10px; border-radius:6px; font-family:monospace; font-size:11px; color:#22c55e; max-height:120px; overflow-y:auto; margin-bottom:10px;">
+              ${plan.commands.map(c => '<div>+ ' + escapeHtml(c) + '</div>').join('')}
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+              <button class="btn btn-primary btn-xs" style="background:#0284c7; padding:6px 14px;" onclick="applyAIPlan('${escapeHtml(plan.target_router)}', '${encodedCmds}', '${encodedTitle}')">
+                <i class="fa-solid fa-play"></i> تطبيق الخطة الآن على الراوتر
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      div.innerHTML = `
+        <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;">
+          <i class="fa-solid fa-robot"></i>
+        </div>
+        <div style="background:#1e1b4b; border:1px solid #3730a3; border-radius:12px; border-top-right-radius:2px; padding:12px 16px; color:#f8fafc; font-size:13px; max-width:85%; line-height:1.6;">
+          ${renderMarkdownBasic(content)}
+          ${planHTML}
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    async function handleAIChatSubmit(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('ai-chat-input');
+      const text = (input.value || '').trim();
+      if (!text) return;
+
+      const sub = document.getElementById('ai-target-agent-select').value;
+      input.value = '';
+
+      appendUserMessage(text);
+      aiChatHistory.push({ role: 'user', content: text });
+
+      // Loading bubble
+      const container = document.getElementById('ai-chat-messages');
+      const loadDiv = document.createElement('div');
+      loadDiv.id = 'ai-loading-bubble';
+      loadDiv.style.cssText = 'display:flex; gap:12px; align-items:center;';
+      loadDiv.innerHTML = `
+        <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
+        <div style="color:#94a3b8; font-size:12px; font-style:italic;">جاري التحليل والتواصل مع راوتر المايكروتك...</div>
+      `;
+      container.appendChild(loadDiv);
+      container.scrollTop = container.scrollHeight;
+
+      try {
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: aiChatHistory,
+            subdomain: sub
+          })
+        });
+        const data = await res.json();
+        loadDiv.remove();
+
+        if (res.ok && data.success && data.message) {
+          aiChatHistory.push(data.message);
+          appendAssistantMessage(data.message.content || '', data.plan);
+        } else {
+          appendAssistantMessage('❌ ' + (data.error || 'حدث خطأ أثناء التواصل مع نموذج الذكاء الاصطناعي'));
+        }
+      } catch (err) {
+        loadDiv.remove();
+        appendAssistantMessage('❌ خطأ في الاتصال بالسيرفر المركزي');
+      }
+    }
+
+    async function runAIAuditForAgent(subdomain) {
+      openAICopilot(subdomain);
+      const container = document.getElementById('ai-chat-messages');
+      appendUserMessage(`قم بإجراء فحص أمان وتشخيص كامل لراوتر "${subdomain}"`);
+
+      const loadDiv = document.createElement('div');
+      loadDiv.id = 'ai-loading-bubble';
+      loadDiv.style.cssText = 'display:flex; gap:12px; align-items:center;';
+      loadDiv.innerHTML = `
+        <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;">
+          <i class="fa-solid fa-shield-halved fa-spin"></i>
+        </div>
+        <div style="color:#94a3b8; font-size:12px; font-style:italic;">جاري جلب وفحص كافة جداول الفايروول، المنافذ، والموارد لراوتر ${escapeHtml(subdomain)}...</div>
+      `;
+      container.appendChild(loadDiv);
+      container.scrollTop = container.scrollHeight;
+
+      try {
+        const res = await fetch(`/api/ai/audit/${encodeURIComponent(subdomain)}`, {
+          method: 'POST'
+        });
+        const data = await res.json();
+        loadDiv.remove();
+
+        if (res.ok && data.success && data.report) {
+          const rep = data.report;
+          let scoreColor = '#22c55e';
+          if (rep.score < 60) scoreColor = '#ef4444';
+          else if (rep.score < 85) scoreColor = '#f59e0b';
+
+          let findingsHTML = '';
+          if (rep.findings && rep.findings.length) {
+            findingsHTML = rep.findings.map(f => `
+              <div style="background:#0b1329; border-right:3px solid ${f.severity === 'critical' ? '#ef4444' : (f.severity === 'warning' ? '#f59e0b' : '#38bdf8')}; padding:8px 12px; border-radius:6px; margin-bottom:6px;">
+                <div style="font-weight:bold; color:#f8fafc; font-size:12px;">${escapeHtml(f.title)}</div>
+                <div style="color:#94a3b8; font-size:11px; margin-top:2px;">${escapeHtml(f.description)}</div>
+                ${f.fix_command ? `<div style="margin-top:4px;"><code style="font-size:11px; color:#22c55e; background:#020617; padding:2px 6px; border-radius:4px; display:inline-block;">${escapeHtml(f.fix_command)}</code></div>` : ''}
+              </div>
+            `).join('');
+          } else {
+            findingsHTML = '<div style="color:#22c55e; font-size:12px;">✅ لم يتم اكتشاف ثغرات أمنية حرجة! الراوتر بحالة ممتازة.</div>';
+          }
+
+          const auditBubble = `
+            <div style="background:#0f172a; border:1.5px solid #6366f1; border-radius:10px; padding:14px; margin-bottom:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:8px; margin-bottom:10px;">
+                <h4 style="margin:0; font-size:14px; color:#f8fafc;">🛡️ تقرير فحص راوتر (${escapeHtml(rep.subdomain)})</h4>
+                <div style="font-size:15px; font-weight:bold; color:${scoreColor}; font-family:monospace;">تقييم الأمان: ${rep.score}/100</div>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:10px; font-size:11px;">
+                <div style="background:#0b1329; padding:6px; border-radius:6px;"><span style="color:#94a3b8;">المعالج:</span> <strong>${escapeHtml(rep.resource_summary.cpu_load || '-')}</strong></div>
+                <div style="background:#0b1329; padding:6px; border-radius:6px;"><span style="color:#94a3b8;">الرام المتاح:</span> <strong>${escapeHtml(rep.resource_summary.free_memory || '-')}</strong></div>
+                <div style="background:#0b1329; padding:6px; border-radius:6px;"><span style="color:#94a3b8;">الإصدار:</span> <strong>${escapeHtml(rep.resource_summary.version || '-')}</strong></div>
+              </div>
+              <div style="margin-bottom:10px;">
+                <div style="font-size:12px; font-weight:bold; color:#f8fafc; margin-bottom:6px;">⚠️ الملاحظات والثغرات المكتشفة (${rep.findings ? rep.findings.length : 0}):</div>
+                ${findingsHTML}
+              </div>
+              <div style="background:#1e1b4b; border:1px solid #4338ca; border-radius:8px; padding:10px; font-size:12px; color:#e0e7ff; line-height:1.5;">
+                <strong>💡 تحليل الذكاء الاصطناعي:</strong><br>
+                ${renderMarkdownBasic(rep.narrative)}
+              </div>
+            </div>
+          `;
+
+          const div = document.createElement('div');
+          div.style.cssText = 'display:flex; gap:12px; align-items:flex-start;';
+          div.innerHTML = `
+            <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;">
+              <i class="fa-solid fa-robot"></i>
+            </div>
+            <div style="max-width:90%; width:100%;">
+              ${auditBubble}
+            </div>
+          `;
+          container.appendChild(div);
+          container.scrollTop = container.scrollHeight;
+        } else {
+          appendAssistantMessage('❌ ' + (data.error || 'فشل فحص الراوتر'));
+        }
+      } catch (err) {
+        loadDiv.remove();
+        appendAssistantMessage('❌ خطأ في الاتصال أثناء فحص الراوتر');
+      }
+    }
+
+    async function applyAIPlan(subdomain, encodedCmds, encodedTitle) {
+      const cmds = JSON.parse(decodeURIComponent(encodedCmds));
+      const title = decodeURIComponent(encodedTitle);
+
+      if (!confirm(`هل أنت متأكد من رغبتك بتطبيق "${title}" على راوتر الوكيل "${subdomain}"؟\nسيتم إرسال الأوامر فوراً وتطبيقها بأمان.`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/ai/apply/${encodeURIComponent(subdomain)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commands: cmds, title })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ ' + data.message);
+          appendAssistantMessage(`✅ تم تطبيق الخطة "${title}" بنجاح على راوتر ${subdomain}!`);
+        } else {
+          alert('❌ ' + (data.error || 'فشل تطبيق الخطة'));
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر أثناء تطبيق الخطة');
+      }
+    }
+
+    function quickActionAudit() {
+      const sub = document.getElementById('ai-target-agent-select').value;
+      if (!sub) {
+        alert('يرجى اختيار راوتر الوكيل من القائمة المنسدلة بالأعلى أولاً');
+        return;
+      }
+      runAIAuditForAgent(sub);
+    }
+
+    function quickActionSpeed() {
+      document.getElementById('ai-chat-input').value = 'افحص أداء الراوتر واستهلاك المعالج ومنافذ الشبكة وشخص سبب بطء الإنترنت';
+      handleAIChatSubmit();
+    }
+
+    function quickActionAttacks() {
+      document.getElementById('ai-chat-input').value = 'افحص سجلات الراوتر (Logs) واكشف محاولات الاختراق وهجمات الـ Brute-Force';
+      handleAIChatSubmit();
+    }
+
+    function quickActionPCC() {
+      document.getElementById('ai-chat-input').value = 'اقترح خطة دمج خطين إنترنت متوازيين (PCC Load Balancing) مع ميزة الطوارئ Failover';
+      handleAIChatSubmit();
+    }
+
+    function quickActionQueues() {
+      document.getElementById('ai-chat-input').value = 'اقترح خطة توزيع وتقسيم السرعة العادل (PCQ Queue) بين المشتركين بالتساوي';
+      handleAIChatSubmit();
     }
 
     // ─── SERVICE RELAY MANAGEMENT ───────────────────────────────────────────

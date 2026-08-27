@@ -16,6 +16,7 @@ import (
 	"mikrotik-manager/pkg/relay"
 	"mikrotik-manager/pkg/tunnel"
 	"mikrotik-manager/server/internal/api"
+	aiinternal "mikrotik-manager/server/internal/ai"
 	"mikrotik-manager/server/internal/backup"
 	otainternal "mikrotik-manager/server/internal/ota"
 	relayinternal "mikrotik-manager/server/internal/relay"
@@ -198,6 +199,9 @@ func main() {
 	otaManager := otainternal.NewManager(repo, svc)
 	otaAPI := otainternal.NewAPIHandler(otaManager, repo)
 
+	aiEngine := aiinternal.NewEngine(repo, svc)
+	aiAPI := aiinternal.NewAPIHandler(aiEngine, repo)
+
 	app := fiber.New(fiber.Config{
 		AppName:   "SASMAN Central Server",
 		BodyLimit: 256 * 1024 * 1024, // 256MB Max payload limit for large OTA releases and container images
@@ -205,6 +209,7 @@ func main() {
 
 	relayAPI.RegisterRoutes(app)
 	otaAPI.RegisterRoutes(app)
+	aiAPI.RegisterRoutes(app)
 
 	centralDomain := os.Getenv("SASMAN_CENTRAL_DOMAIN")
 	if centralDomain == "" {

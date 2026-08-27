@@ -605,6 +605,72 @@ func (s *Service) GetAssetCacheStats() map[string]interface{} {
 	return map[string]interface{}{"cached_files": 0, "total_bytes": 0}
 }
 
+// SendAgentHTTPRequest sends an internal HTTP request to a connected agent and returns the decoded response
+func (s *Service) SendAgentHTTPRequest(subdomain string, method, path string, body []byte, headers map[string]string) (*HttpResponsePayload, []byte, error) {
+	agent := s.GetAgentBySubdomain(subdomain)
+	if agent == nil {
+		return nil, nil, fmt.Errorf("الوكيل غير متصل حالياً (Agent offline)")
+	}
+
+	bodyBase64 := ""
+	if len(body) > 0 {
+		bodyBase64 = base64.StdEncoding.EncodeToString(body)
+	}
+
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+	if headers["Content-Type"] == "" && headers["content-type"] == "" {
+		headers["Content-Type"] = "application/json"
+	}
+
+	reqPayload := HttpRequestPayload{
+		Method:  method,
+		Path:    path,
+		Headers: headers,
+		Body:    bodyBase64,
+	}
+
+	payloadBytes, err := json.Marshal(reqPayload)
+	if err != nil {
+		return nil, nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	reqID := fmt.Sprintf("req-%d-%d", time.Now().UnixNano(), rand.Intn(100000))
+	respChan := make(chan *HttpResponsePayload, 1)
+
+	s.mu.Lock()
+	s.pendingRequests[reqID] = respChan
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		delete(s.pendingRequests, reqID)
+		s.mu.Unlock()
+	}()
+
+	msg := TunnelMessage{
+		Type:      "http_request",
+		RequestID: reqID,
+		Payload:   payloadBytes,
+	}
+
+	if err := agent.WriteJSON(msg); err != nil {
+		return nil, nil, fmt.Errorf("write to agent: %w", err)
+	}
+
+	select {
+	case resp := <-respChan:
+		if resp == nil {
+			return nil, nil, fmt.Errorf("empty response received from agent")
+		}
+		respBody, _ := base64.StdEncoding.DecodeString(resp.Body)
+		return resp, respBody, nil
+	case <-time.After(30 * time.Second):
+		return nil, nil, fmt.Errorf("مهلة الاستجابة انتهت من الراوتر (Request timeout)")
+	}
+}
+
 func (s *Service) RequestBackup(subdomain string) ([]byte, string, error) {
 	agent := s.GetAgentBySubdomain(subdomain)
 	if agent == nil {
