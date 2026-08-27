@@ -482,8 +482,8 @@ func (s *Service) RotateToken(subdomain string) (string, bool) {
 }
 
 func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
-	originalPath := c.OriginalURL()
-	method := c.Method()
+	originalPath := strings.Clone(c.OriginalURL())
+	method := strings.Clone(c.Method())
 
 	// 1. Check Edge Static Asset Cache for GET/HEAD requests
 	if s.assetCache != nil && (method == fiber.MethodGet || method == fiber.MethodHead) && IsStaticAsset(originalPath) {

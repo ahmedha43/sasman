@@ -85,7 +85,8 @@ func (c *AssetCache) Get(path string) (*CachedAsset, bool) {
 
 // Set stores an asset in the cache
 func (c *AssetCache) Set(path string, body []byte, contentType string) {
-	// Strip query parameters first, before any extension/path check
+	// Deep copy path string to avoid fasthttp buffer reuse mutations
+	path = strings.Clone(path)
 	if idx := strings.Index(path, "?"); idx != -1 {
 		path = path[:idx]
 	}
@@ -115,16 +116,19 @@ func (c *AssetCache) Set(path string, body []byte, contentType string) {
 		}
 	}
 
+	bodyCopy := make([]byte, len(body))
+	copy(bodyCopy, body)
+
 	hasher := sha256.New()
-	hasher.Write(body)
+	hasher.Write(bodyCopy)
 	etag := `"` + hex.EncodeToString(hasher.Sum(nil))[:16] + `"`
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.assets[path] = &CachedAsset{
-		Body:        body,
-		ContentType: contentType,
+		Body:        bodyCopy,
+		ContentType: strings.Clone(contentType),
 		ETag:        etag,
 		CachedAt:    time.Now(),
 	}
