@@ -295,9 +295,24 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 
 		// Execute tool calls requested by the model
 		for _, tc := range replyMsg.ToolCalls {
-			fnName := tc.Function.Name
+			var fnName string
+			var argsStr string
+			var tcID string
+
+			if id, ok := tc["id"].(string); ok {
+				tcID = id
+			}
+			if fn, ok := tc["function"].(map[string]interface{}); ok {
+				if n, ok := fn["name"].(string); ok {
+					fnName = n
+				}
+				if a, ok := fn["arguments"].(string); ok {
+					argsStr = a
+				}
+			}
+
 			var args map[string]interface{}
-			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+			_ = json.Unmarshal([]byte(argsStr), &args)
 
 			sub := targetSubdomain
 			if s, ok := args["subdomain"].(string); ok && s != "" {
@@ -486,7 +501,7 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 			conversation = append(conversation, ChatMessage{
 				Role:       "tool",
 				Name:       fnName,
-				ToolCallID: tc.ID,
+				ToolCallID: tcID,
 				Content:    string(resultBytes),
 			})
 		}
