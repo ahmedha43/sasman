@@ -498,6 +498,10 @@ func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
 		headers[string(key)] = string(value)
 	})
 
+	// Strip compression headers so agent sends clean uncompressed payloads over tunnel
+	delete(headers, "Accept-Encoding")
+	delete(headers, "accept-encoding")
+
 	reqPayload := HttpRequestPayload{
 		Method:  method,
 		Path:    originalPath,
@@ -542,7 +546,7 @@ func (s *Service) ForwardRequestToAgent(c *fiber.Ctx, subdomain string) error {
 
 		for k, v := range resp.Headers {
 			lk := strings.ToLower(k)
-			if lk == "connection" || lk == "content-length" || lk == "transfer-encoding" || lk == "cache-control" || lk == "expires" || lk == "pragma" {
+			if lk == "connection" || lk == "content-length" || lk == "transfer-encoding" || lk == "cache-control" || lk == "expires" || lk == "pragma" || lk == "content-encoding" {
 				continue
 			}
 			c.Set(k, v)
