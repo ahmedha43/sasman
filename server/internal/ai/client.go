@@ -79,42 +79,77 @@ func (c *LLMClient) Complete(ctx context.Context, settings *storage.AISettings, 
 		}
 	}
 
-	bodyBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request error: %w", err)
+	// Attempt request with automatic retry and model fallback on 503/429 errors
+	var respBytes []byte
+	var lastErr error
+
+	modelsToTry := []string{req.Model}
+	if provider == "gemini" {
+		if req.Model == "gemini-2.0-flash" {
+			modelsToTry = append(modelsToTry, "gemini-1.5-flash", "gemini-2.5-flash")
+		} else if req.Model == "gemini-1.5-flash" {
+			modelsToTry = append(modelsToTry, "gemini-2.0-flash")
+		}
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, fmt.Errorf("create request error: %w", err)
+	for _, modelName := range modelsToTry {
+		req.Model = modelName
+		bodyBytes, err := json.Marshal(req)
+		if err != nil {
+			return nil, fmt.Errorf("marshal request error: %w", err)
+		}
+
+		for attempt := 0; attempt < 2; attempt++ {
+			if attempt > 0 {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(1200 * time.Millisecond):
+				}
+			}
+
+			httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyBytes))
+			if err != nil {
+				return nil, fmt.Errorf("create request error: %w", err)
+			}
+
+			httpReq.Header.Set("Content-Type", "application/json")
+			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+
+			resp, err := c.httpClient.Do(httpReq)
+			if err != nil {
+				lastErr = fmt.Errorf("AI service request failed: %w", err)
+				continue
+			}
+
+			respBytes, err = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				lastErr = fmt.Errorf("read response error: %w", err)
+				continue
+			}
+
+			if resp.StatusCode == 503 || resp.StatusCode == 429 {
+				lastErr = fmt.Errorf("AI provider error (HTTP %d): %s", resp.StatusCode, string(respBytes))
+				continue // retry or fallback model
+			}
+
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				return nil, fmt.Errorf("AI provider error (HTTP %d): %s", resp.StatusCode, string(respBytes))
+			}
+
+			var chatResp ChatCompletionResponse
+			if err := json.Unmarshal(respBytes, &chatResp); err != nil {
+				return nil, fmt.Errorf("unmarshal response error: %w (%s)", err, string(respBytes))
+			}
+
+			if chatResp.Error != nil {
+				return nil, fmt.Errorf("AI error: %s", chatResp.Error.Message)
+			}
+
+			return &chatResp, nil
+		}
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("AI service request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response error: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("AI provider error (HTTP %d): %s", resp.StatusCode, string(respBytes))
-	}
-
-	var chatResp ChatCompletionResponse
-	if err := json.Unmarshal(respBytes, &chatResp); err != nil {
-		return nil, fmt.Errorf("unmarshal response error: %w (%s)", err, string(respBytes))
-	}
-
-	if chatResp.Error != nil {
-		return nil, fmt.Errorf("AI error: %s", chatResp.Error.Message)
-	}
-
-	return &chatResp, nil
+	return nil, lastErr
 }
