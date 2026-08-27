@@ -146,6 +146,146 @@ func GetRouterOSToolDefinitions() []ToolDefinition {
 		{
 			Type: "function",
 			Function: FunctionDefinition{
+				Name:        "mikrotik_packet_simulator",
+				Description: "محاكي مسار الباكت الافتراضي (Offline Packet Simulator): فحص واختبار عبور باكت افتراضي عبر جداول الـ NAT، والتوجيه، والفايروول دون لمس الراوتر لمعرفة هل سيمر أم يسقط (PASS or DROP) ورقم القاعدة المسببة",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+						"src_ip": map[string]interface{}{
+							"type":        "string",
+							"description": "عنوان IP المصدر للباكت (مثال: 192.168.1.100 أو 10.20.0.5)",
+						},
+						"dst_ip": map[string]interface{}{
+							"type":        "string",
+							"description": "عنوان IP الوجهة (مثال: 8.8.8.8 أو 1.1.1.1)",
+						},
+						"protocol": map[string]interface{}{
+							"type":        "string",
+							"enum":        []string{"tcp", "udp", "icmp"},
+							"description": "بروتوكول الباكت (افتراضياً tcp)",
+						},
+						"dst_port": map[string]interface{}{
+							"type":        "string",
+							"description": "منفذ الوجهة (مثال: 53 أو 80 أو 443)",
+						},
+						"in_interface": map[string]interface{}{
+							"type":        "string",
+							"description": "المنفذ الداخل (مثال: ether1 أو bridge-lan)",
+						},
+					},
+					"required": []string{"subdomain", "src_ip", "dst_ip"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
+				Name:        "mikrotik_explain_device",
+				Description: "توليد وثيقة هندسية معمارية شاملة للراوتر (Explain Device) باللغة العربية تشرح هيكلة المنافذ، خطوط الـ WAN، وسلاسل الفايروول، والخدمات المكشوفة مع مخطط Mermaid",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+					},
+					"required": []string{"subdomain"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
+				Name:        "mikrotik_active_defense",
+				Description: "الرصد السيبراني النشط (Active Cyber Defense): تحليل محاولات التخمين وهجمات Brute-Force وتوليد خطة حظر آمنة ومؤقتة للمهاجمين في الفايروول",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+						"block_duration_minutes": map[string]interface{}{
+							"type":        "integer",
+							"description": "مدة الحظر المؤقت بالدقائق (افتراضياً 60 دقيقة)",
+						},
+					},
+					"required": []string{"subdomain"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
+				Name:        "mikrotik_setup_vpn",
+				Description: "أتمتة سويت الـ VPN: توليد خطة إعداد سيرفر أو عميل VPN (WireGuard, IPsec, SSTP, L2TP, OpenVPN, EoIP) وتوليد ملف إعداد العميل للموبايل/الكمبيوتر",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+						"vpn_type": map[string]interface{}{
+							"type":        "string",
+							"enum":        []string{"wireguard", "ipsec", "sstp", "l2tp", "openvpn", "eoip"},
+							"description": "نوع بروتوكول الـ VPN المطلوب إعداده",
+						},
+						"client_name": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم العميل أو الموقع المراد ربطه (مثال: phone_client أو site_b)",
+						},
+						"subnet": map[string]interface{}{
+							"type":        "string",
+							"description": "نطاق شبكة الـ VPN (مثال: 10.50.0.0/24)",
+						},
+					},
+					"required": []string{"subdomain", "vpn_type"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
+				Name:        "mikrotik_drift_guard",
+				Description: "كاشف انحراف الإعدادات (Drift Guard): مقارنة إعدادات الراوتر الحالية مع الإعداد الأساسي المعتمد في الذاكرة وكشف أي تعديل يدوي أو غير مصرح به",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+					},
+					"required": []string{"subdomain"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
+				Name:        "mikrotik_l2_rescue",
+				Description: "مساعد الإنقاذ عبر الطبقة الثانية (L2 Rescue): فحص واكتشاف الأجهزة المجاورة (MNDP / CDP / LLDP) وتقديم إرشادات وأوامر الإنقاذ عبر MAC-Telnet/Winbox MAC عند فقدان الـ IP",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+					},
+					"required": []string{"subdomain"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
 				Name:        "mikrotik_generate_plan",
 				Description: "توليد خطة تعديل إعدادات آمنة (Safe Mode Change Plan) مع إظهار الفروقات (Diff Preview) وأوامر التراجع التلقائي (Rollback) قبل التطبيق",
 				Parameters: map[string]interface{}{
@@ -194,11 +334,20 @@ const SystemPromptTemplate = `أنت "مساعد SASMAN الذكي (AI Network C
 مهمتك مساعدة مدراء الشبكات والوكلاء في:
 1. تشخيص وفحص راوترات المايكروتك، اكتشاف الثغرات الأمنية والأخطاء الفنية (DNS open resolver, FastTrack status, High CPU, Interface drops, Brute force attacks).
 2. استكشاف وفهم هيكلة الشبكة وتوزيع الخطوط والمنافذ عبر أداة "mikrotik_discover_topology".
-3. اقتراح وتوليد حلول وإعدادات احترافية (Firewall, NAT, Queues, PCC Load Balancing, WireGuard, DHCP).
+3. محاكاة مسار البيانات قبل التطبيق عبر أداة "mikrotik_packet_simulator".
+4. توثيق وشرح معمارية الراوتر بلغة عربية احترافية عبر أداة "mikrotik_explain_device".
+5. كشف الهجمات والحظر التلقائي المؤقت عبر أداة "mikrotik_active_defense".
+6. كشف التغييرات والانحراف عن الإعدادات المعتمدة عبر أداة "mikrotik_drift_guard".
+7. إنقاذ الراوترات المعطلة وفاقدة الـ IP عبر أداة "mikrotik_l2_rescue".
+
+🛡️ قاعدة خط الحماية الإلزامي الصارم (Zero Direct Write Guardrail):
+- يمنع منعاً باتاً تنفيذ أي أوامر تعديل أو كتابة على الراوتر (مثل: /add, /set, /remove, /enable, /disable) مباشرة عبر mikrotik_run_command!
+- أي طلب تعديل أو إصلاح أو حظر هجمات أو إعداد VPN أو جدار حماية يجب أن يتم حصراً وبشكل إلزامي عن طريق استدعاء أداة "mikrotik_generate_plan" لتقديم خطة آمنة (Safe Mode Plan) توضح الأهداف ومستوى الخطورة وأوامر التراجع (Rollback)، ولا يتم التنفيذ الفعلي على الراوتر إلا بعد مراجعة المدير وموافقته بالضغط على زر التطبيق.
+
 ⚡ استدعاء الأدوات المباشر (Direct Tool Invocation):
-- إذا أرسل المستخدم أو ذكر اسم أي أداة مباشرة في رسالته (مثل: mikrotik_discover_topology أو mikrotik_get_resources أو mikrotik_get_firewall أو mikrotik_attack_detection أو mikrotik_run_command أو mikrotik_mcp_call أو mikrotik_generate_plan): قم باستدعاء هذه الأداة فوراً للراوتر المستهدف واجلب تفاصيلها الحية كاملة واعرضها بشكل منظم ومفصل مع نصائح عملية.
+- إذا أرسل المستخدم أو ذكر اسم أي أداة مباشرة في رسالته (مثل: mikrotik_discover_topology, mikrotik_packet_simulator, mikrotik_explain_device, mikrotik_active_defense, mikrotik_setup_vpn, mikrotik_drift_guard, mikrotik_l2_rescue, mikrotik_get_resources, mikrotik_get_firewall, mikrotik_attack_detection, mikrotik_run_command, mikrotik_generate_plan): قم باستدعاء هذه الأداة فوراً للراوتر المستهدف واجلب تفاصيلها الحية كاملة واعرضها بشكل منظم ومفصل.
 
 ⚡ قواعد السرعة الفائقة وتوفير التوكنات (High Speed & Efficiency Rules):
-- عند طلب فحص أو تشخيص عام للراوتر، استدعِ الأدوات المطلوبة دفعة واحدة في الدورة الأولى بالتوازي (Parallel Tool Calls مثل mikrotik_discover_topology أو mikrotik_get_resources) لتنهي الإجابة في دورة واحدة دون إطالة أو تكرار الاستدعاءات عبر دورات متعددة.
+- عند طلب فحص أو تشخيص عام للراوتر، استدعِ الأدوات المطلوبة دفعة واحدة في الدورة الأولى بالتوازي (Parallel Tool Calls) لتنهي الإجابة في دورة واحدة دون إطالة أو تكرار الاستدعاءات عبر دورات متعددة.
 - قدم ردك النهائي والتحليل الفني فور استلام مخرجات الأدوات ولا تقم بإجراء دورات استدعاء فرعية لا حاجة لها.
-- استخدم لغة عربية مهنية واضحة ومنظمة مع إبراز النتائج والنصائح بالأيقونات التعبيرية والجداول عند الحاجة.`
+- استخدم لغة عربية مهنية واضحة ومنظمة مع إبراز النتائج والنصائح بالأيقونات التعبيرية والجداول ومخططات Mermaid عند الحاجة.`

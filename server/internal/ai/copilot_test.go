@@ -17,21 +17,36 @@ func TestRouterOSToolDefinitions(t *testing.T) {
 	foundResources := false
 	foundMCPCall := false
 	foundDiscoverTopo := false
+	foundSimulator := false
+	foundExplain := false
+	foundDefense := false
+	foundVPN := false
+	foundDrift := false
+	foundL2Rescue := false
 	foundPlan := false
 	for _, tool := range tools {
-		if tool.Function.Name == "mikrotik_run_command" {
+		switch tool.Function.Name {
+		case "mikrotik_run_command":
 			foundRunCmd = true
-		}
-		if tool.Function.Name == "mikrotik_get_resources" {
+		case "mikrotik_get_resources":
 			foundResources = true
-		}
-		if tool.Function.Name == "mikrotik_mcp_call" {
+		case "mikrotik_mcp_call":
 			foundMCPCall = true
-		}
-		if tool.Function.Name == "mikrotik_discover_topology" {
+		case "mikrotik_discover_topology":
 			foundDiscoverTopo = true
-		}
-		if tool.Function.Name == "mikrotik_generate_plan" {
+		case "mikrotik_packet_simulator":
+			foundSimulator = true
+		case "mikrotik_explain_device":
+			foundExplain = true
+		case "mikrotik_active_defense":
+			foundDefense = true
+		case "mikrotik_setup_vpn":
+			foundVPN = true
+		case "mikrotik_drift_guard":
+			foundDrift = true
+		case "mikrotik_l2_rescue":
+			foundL2Rescue = true
+		case "mikrotik_generate_plan":
 			foundPlan = true
 		}
 	}
@@ -44,6 +59,24 @@ func TestRouterOSToolDefinitions(t *testing.T) {
 	}
 	if !foundDiscoverTopo {
 		t.Errorf("expected mikrotik_discover_topology tool to be present")
+	}
+	if !foundSimulator {
+		t.Errorf("expected mikrotik_packet_simulator tool to be present")
+	}
+	if !foundExplain {
+		t.Errorf("expected mikrotik_explain_device tool to be present")
+	}
+	if !foundDefense {
+		t.Errorf("expected mikrotik_active_defense tool to be present")
+	}
+	if !foundVPN {
+		t.Errorf("expected mikrotik_setup_vpn tool to be present")
+	}
+	if !foundDrift {
+		t.Errorf("expected mikrotik_drift_guard tool to be present")
+	}
+	if !foundL2Rescue {
+		t.Errorf("expected mikrotik_l2_rescue tool to be present")
 	}
 	if !foundMCPCall {
 		t.Errorf("expected mikrotik_mcp_call tool to be present")

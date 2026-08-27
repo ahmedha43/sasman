@@ -42,6 +42,11 @@ func (h *APIHandler) RegisterRoutes(app *fiber.App) {
 	aiGroup.Patch("/memory/:subdomain/notes", h.handleUpdateMemoryNotes)
 	aiGroup.Post("/memory/:subdomain/discover-topology", h.handleDiscoverTopology)
 	aiGroup.Put("/memory/:subdomain/topology", h.handleSaveTopologyProfile)
+	aiGroup.Post("/simulator/:subdomain", h.handleSimulator)
+	aiGroup.Get("/explain/:subdomain", h.handleExplain)
+	aiGroup.Post("/active-defense/:subdomain", h.handleActiveDefense)
+	aiGroup.Post("/drift/:subdomain", h.handleDrift)
+	aiGroup.Get("/l2-rescue/:subdomain", h.handleL2Rescue)
 }
 
 func (h *APIHandler) handleStatus(c *fiber.Ctx) error {
@@ -377,5 +382,106 @@ func (h *APIHandler) handleSaveTopologyProfile(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "تم حفظ وتحديث مخطط هيكلة الشبكة بالذاكرة بنجاح",
+	})
+}
+
+func (h *APIHandler) handleSimulator(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	var req struct {
+		SrcIP       string `json:"src_ip"`
+		DstIP       string `json:"dst_ip"`
+		Protocol    string `json:"protocol"`
+		DstPort     string `json:"dst_port"`
+		InInterface string `json:"in_interface"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "تنسيق البيانات غير صحيح"})
+	}
+
+	sim, err := h.engine.SimulatePacket(subdomain, req.SrcIP, req.DstIP, req.Protocol, req.DstPort, req.InInterface)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل محاكاة الباكت: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":    true,
+		"simulation": sim,
+	})
+}
+
+func (h *APIHandler) handleExplain(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	report, err := h.engine.ExplainDeviceArchitecture(subdomain)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل توليد التقرير المعماري: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"report":  report,
+	})
+}
+
+func (h *APIHandler) handleActiveDefense(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	var req struct {
+		Duration int `json:"duration_minutes"`
+	}
+	_ = c.BodyParser(&req)
+
+	defense, err := h.engine.CorrelateActiveDefense(subdomain, req.Duration)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل تشغيل الدفاع السيبراني: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"defense": defense,
+	})
+}
+
+func (h *APIHandler) handleDrift(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	drift, err := h.engine.DetectConfigDrift(subdomain)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل فحص انحراف الإعدادات: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"drift":   drift,
+	})
+}
+
+func (h *APIHandler) handleL2Rescue(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	rescue, err := h.engine.DiagnoseL2Rescue(subdomain)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "فشل تشخيص الطبقة الثانية: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"rescue":  rescue,
 	})
 }

@@ -898,12 +898,14 @@
 
       <!-- Quick Action Chips Bar -->
       <div style="background:#080d1a; padding:8px 16px; border-bottom:1px solid #1e293b; display:flex; gap:6px; overflow-x:auto; flex-shrink:0;">
-        <button class="btn btn-dark btn-xs" style="background:#083344; border:1px solid #0891b2; color:#67e8f9; white-space:nowrap;" onclick="quickActionTopology()">🌐 استكشاف الهيكلة (Topology)</button>
-        <button class="btn btn-dark btn-xs" style="background:#1e1b4b; border:1px solid #4338ca; color:#a5b4fc; white-space:nowrap;" onclick="quickActionAudit()">🛡️ فحص الفايروول والأمان</button>
-        <button class="btn btn-dark btn-xs" style="background:#064e3b; border:1px solid #059669; color:#6ee7b7; white-space:nowrap;" onclick="quickActionResources()">📊 فحص الموارد والمعالج</button>
-        <button class="btn btn-dark btn-xs" style="background:#701a75; border:1px solid #c026d3; color:#f5d0fe; white-space:nowrap;" onclick="quickActionAttacks()">🔐 كشف الهجمات وسجلات التخمين</button>
+        <button class="btn btn-dark btn-xs" style="background:#083344; border:1px solid #0891b2; color:#67e8f9; white-space:nowrap;" onclick="quickActionTopology()">🌐 استكشاف الهيكلة</button>
+        <button class="btn btn-dark btn-xs" style="background:#164e63; border:1px solid #06b6d4; color:#a5f3fc; white-space:nowrap;" onclick="quickActionSimulator()">🧪 محاكي الباكت</button>
+        <button class="btn btn-dark btn-xs" style="background:#1e1b4b; border:1px solid #4338ca; color:#a5b4fc; white-space:nowrap;" onclick="quickActionExplain()">📖 التوثيق المعماري</button>
+        <button class="btn btn-dark btn-xs" style="background:#701a75; border:1px solid #c026d3; color:#f5d0fe; white-space:nowrap;" onclick="quickActionDefense()">🛡️ الدفاع السيبراني</button>
+        <button class="btn btn-dark btn-xs" style="background:#064e3b; border:1px solid #059669; color:#6ee7b7; white-space:nowrap;" onclick="quickActionVPN()">🔐 معالج الـ VPN</button>
+        <button class="btn btn-dark btn-xs" style="background:#312e81; border:1px solid #6366f1; color:#c7d2fe; white-space:nowrap;" onclick="quickActionDrift()">🔍 كاشف الانحراف</button>
+        <button class="btn btn-dark btn-xs" style="background:#831843; border:1px solid #db2777; color:#fbcfe8; white-space:nowrap;" onclick="quickActionL2Rescue()">⚡ إنقاذ الطبقة الثانية</button>
         <button class="btn btn-dark btn-xs" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; white-space:nowrap;" onclick="quickActionPCC()">🔀 خطة دمج PCC</button>
-        <button class="btn btn-dark btn-xs" style="background:#1e293b; border:1px solid #475569; color:#cbd5e1; white-space:nowrap;" onclick="quickActionQueues()">🚀 تقسيم السرعات PCQ</button>
       </div>
 
       <!-- Chat Conversation Area -->
@@ -3172,6 +3174,36 @@ ${setupCmd}`;
 
     function quickActionTopology() {
       document.getElementById('ai-chat-input').value = 'استكشف الهيكلة الكاملة للشبكة ومداخل خطوط الـ WAN ومنافذ الـ LAN عبر أداة mikrotik_discover_topology';
+      handleAIChatSubmit();
+    }
+
+    function quickActionSimulator() {
+      document.getElementById('ai-chat-input').value = 'قم بمحاكاة مسار باكت افتراضي من 192.168.1.100 إلى 8.8.8.8 عبر بروتوكول TCP وبورت 443 باستخدام أداة mikrotik_packet_simulator';
+      handleAIChatSubmit();
+    }
+
+    function quickActionExplain() {
+      document.getElementById('ai-chat-input').value = 'ولد لي التوثيق المعماري الهندسي الكامل للراوتر ومخطط الشبكة باللغة العربية عبر أداة mikrotik_explain_device';
+      handleAIChatSubmit();
+    }
+
+    function quickActionDefense() {
+      document.getElementById('ai-chat-input').value = 'شغل نظام الرصد السيبراني واكشف هجمات التخمين Brute-Force واقترح خطة حظر آمنة عبر أداة mikrotik_active_defense';
+      handleAIChatSubmit();
+    }
+
+    function quickActionVPN() {
+      document.getElementById('ai-chat-input').value = 'اقترح خطة إنشاء سيرفر WireGuard VPN آمن مع ملف إعداد للموبايل عبر أداة mikrotik_setup_vpn';
+      handleAIChatSubmit();
+    }
+
+    function quickActionDrift() {
+      document.getElementById('ai-chat-input').value = 'افحص انحراف وتغيير إعدادات الراوتر وقارنها مع النسخة المعتمدة عبر أداة mikrotik_drift_guard';
+      handleAIChatSubmit();
+    }
+
+    function quickActionL2Rescue() {
+      document.getElementById('ai-chat-input').value = 'افحص الأجهزة المجاورة (MNDP) وتشخيص إمكانية الإنقاذ عبر الطبقة الثانية MAC-Telnet باستخدام أداة mikrotik_l2_rescue';
       handleAIChatSubmit();
     }
 
