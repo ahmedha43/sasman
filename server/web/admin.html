@@ -2540,6 +2540,129 @@ ${setupCmd}`;
       container.scrollTop = container.scrollHeight;
     }
 
+    function createAgentStepContainer() {
+      const container = document.getElementById('ai-chat-messages');
+      const boxId = 'agent-steps-' + Date.now();
+      const div = document.createElement('div');
+      div.id = boxId;
+      div.style.cssText = 'background:#090d16; border:1px solid #1e293b; border-right:3px solid #6366f1; border-radius:10px; padding:12px; margin-bottom:12px; font-size:12px;';
+      div.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleAgentSteps('${boxId}')">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div id="${boxId}-spinner" style="width:18px; height:18px; border-radius:50%; background:#4f46e5; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px;">
+              <i class="fa-solid fa-gear fa-spin"></i>
+            </div>
+            <strong style="color:#f8fafc; font-size:12px;"> مسار عمل المساعد الذكي (Live Agentic Execution)</strong>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span id="${boxId}-badge" class="badge" style="background:#312e81; color:#a5b4fc; font-size:10px;">⏳ جاري المعالجة...</span>
+            <span id="${boxId}-toggle-icon" style="color:#64748b; font-size:11px;">▼</span>
+          </div>
+        </div>
+        <div id="${boxId}-body" style="margin-top:10px; padding-top:10px; border-top:1px solid #1e293b; display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;">
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return boxId;
+    }
+
+    function toggleAgentSteps(boxId) {
+      const body = document.getElementById(`${boxId}-body`);
+      const icon = document.getElementById(`${boxId}-toggle-icon`);
+      if (!body) return;
+      if (body.style.display === 'none') {
+        body.style.display = 'flex';
+        if (icon) icon.textContent = '▼';
+      } else {
+        body.style.display = 'none';
+        if (icon) icon.textContent = '◀';
+      }
+    }
+
+    function handleLiveAgentEvent(boxId, ev) {
+      const body = document.getElementById(`${boxId}-body`);
+      const badge = document.getElementById(`${boxId}-badge`);
+      const spinner = document.getElementById(`${boxId}-spinner`);
+      if (!body) return;
+
+      const container = document.getElementById('ai-chat-messages');
+
+      if (ev.type === 'thought') {
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex; gap:6px; align-items:flex-start; font-size:11px; color:#cbd5e1;';
+        item.innerHTML = `<span style="color:#a855f7; flex-shrink:0;">🧠</span> <div><strong style="color:#e2e8f0;">${escapeHtml(ev.title || 'تفكير')}:</strong> <span style="color:#94a3b8;">${escapeHtml(ev.text || '')}</span></div>`;
+        body.appendChild(item);
+      } else if (ev.type === 'tool_start') {
+        const toolId = `${boxId}-tool-${ev.tool}`;
+        const item = document.createElement('div');
+        item.id = toolId;
+        item.style.cssText = 'background:#0f172a; border:1px solid #334155; border-right:3px solid #f59e0b; border-radius:6px; padding:6px 10px; font-size:11px;';
+        item.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:#f8fafc; font-weight:bold;"><i class="fa-solid fa-wrench fa-spin" style="color:#f59e0b; margin-left:4px;"></i> ${escapeHtml(ev.title || ev.tool)}</span>
+            <span class="badge" style="background:#b45309; color:#fff; font-size:9px;">⏳ جاري التنفيذ</span>
+          </div>
+          <div class="tool-detail" style="font-size:10px; color:#94a3b8; margin-top:2px;">${escapeHtml(ev.text || '')}</div>
+        `;
+        body.appendChild(item);
+      } else if (ev.type === 'tunnel_exec') {
+        const toolId = `${boxId}-tool-${ev.tool}`;
+        const toolElem = document.getElementById(toolId) || body;
+        const line = document.createElement('div');
+        line.style.cssText = 'font-size:10px; color:#38bdf8; margin-top:3px;';
+        line.innerHTML = `<i class="fa-solid fa-bolt" style="color:#38bdf8;"></i> ${escapeHtml(ev.text || '')}`;
+        toolElem.appendChild(line);
+      } else if (ev.type === 'tool_result') {
+        const toolId = `${boxId}-tool-${ev.tool}`;
+        const toolElem = document.getElementById(toolId);
+        if (toolElem) {
+          const isSuccess = ev.status === 'success';
+          toolElem.style.borderRight = isSuccess ? '3px solid #22c55e' : '3px solid #ef4444';
+          toolElem.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#f8fafc; font-weight:bold;">${isSuccess ? '✅' : '❌'} ${escapeHtml(ev.tool)}</span>
+              <span class="badge" style="background:${isSuccess ? '#15803d' : '#b91c1c'}; color:#fff; font-size:9px;">${isSuccess ? 'مكتمل' : 'فشل'} (${escapeHtml(ev.duration || '')})</span>
+            </div>
+            <div style="font-size:10px; color:${isSuccess ? '#86efac' : '#fca5a5'}; margin-top:3px;">${escapeHtml(ev.summary || '')}</div>
+          `;
+        }
+      } else if (ev.type === 'plan') {
+        const item = document.createElement('div');
+        item.style.cssText = 'background:#032b43; border:1px solid #0284c7; border-radius:6px; padding:6px 10px; font-size:11px; color:#7dd3fc;';
+        item.innerHTML = `<i class="fa-solid fa-clipboard-check"></i> <strong>خطة التعديل:</strong> ${escapeHtml(ev.summary || '')}`;
+        body.appendChild(item);
+      } else if (ev.type === 'done') {
+        if (badge) {
+          badge.style.background = '#14532d';
+          badge.style.color = '#86efac';
+          badge.textContent = '✅ اكتملت المهمة';
+        }
+        if (spinner) {
+          spinner.style.background = '#16a34a';
+          spinner.innerHTML = '<i class="fa-solid fa-check"></i>';
+        }
+        if (ev.message) {
+          aiChatHistory.push(ev.message);
+          appendAssistantMessage(ev.message.content || '', ev.plan);
+        }
+      } else if (ev.type === 'error') {
+        if (badge) {
+          badge.style.background = '#7f1d1d';
+          badge.style.color = '#fca5a5';
+          badge.textContent = '❌ خطأ';
+        }
+        if (spinner) {
+          spinner.style.background = '#dc2626';
+          spinner.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+        }
+        appendAssistantMessage('❌ ' + (ev.text || 'حدث خطأ أثناء المعالجة'));
+      }
+
+      body.scrollTop = body.scrollHeight;
+      container.scrollTop = container.scrollHeight;
+    }
+
     async function handleAIChatSubmit(e) {
       if (e) e.preventDefault();
       const input = document.getElementById('ai-chat-input');
@@ -2552,22 +2675,10 @@ ${setupCmd}`;
       appendUserMessage(text);
       aiChatHistory.push({ role: 'user', content: text });
 
-      // Loading bubble
-      const container = document.getElementById('ai-chat-messages');
-      const loadDiv = document.createElement('div');
-      loadDiv.id = 'ai-loading-bubble';
-      loadDiv.style.cssText = 'display:flex; gap:12px; align-items:center;';
-      loadDiv.innerHTML = `
-        <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;">
-          <i class="fa-solid fa-spinner fa-spin"></i>
-        </div>
-        <div style="color:#94a3b8; font-size:12px; font-style:italic;">جاري التحليل والتواصل مع راوتر المايكروتك...</div>
-      `;
-      container.appendChild(loadDiv);
-      container.scrollTop = container.scrollHeight;
+      const boxId = createAgentStepContainer();
 
       try {
-        const res = await fetch('/api/ai/chat', {
+        const response = await fetch('/api/ai/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2575,104 +2686,89 @@ ${setupCmd}`;
             subdomain: sub
           })
         });
-        const data = await res.json();
-        loadDiv.remove();
 
-        if (res.ok && data.success && data.message) {
-          aiChatHistory.push(data.message);
-          appendAssistantMessage(data.message.content || '', data.plan);
-        } else {
-          appendAssistantMessage('❌ ' + (data.error || 'حدث خطأ أثناء التواصل مع نموذج الذكاء الاصطناعي'));
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          handleLiveAgentEvent(boxId, { type: 'error', text: errData.error || 'فشل الاتصال بالذكاء الاصطناعي' });
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+
+          for (const part of parts) {
+            const trimmed = part.trim();
+            if (trimmed.startsWith('data: ')) {
+              const jsonStr = trimmed.substring(6).trim();
+              try {
+                const event = JSON.parse(jsonStr);
+                handleLiveAgentEvent(boxId, event);
+              } catch (parseErr) {}
+            }
+          }
         }
       } catch (err) {
-        loadDiv.remove();
-        appendAssistantMessage('❌ خطأ في الاتصال بالسيرفر المركزي');
+        handleLiveAgentEvent(boxId, { type: 'error', text: 'خطأ في شبكة الاتصال بالسيرفر المركزي' });
       }
     }
 
     async function runAIAuditForAgent(subdomain) {
       openAICopilot(subdomain);
       const container = document.getElementById('ai-chat-messages');
-      appendUserMessage(`قم بإجراء فحص أمان وتشخيص كامل لراوتر "${subdomain}"`);
+      const promptText = `قم بإجراء فحص أمان وتشخيص كامل لراوتر "${subdomain}" واكتشاف أي ثغرات أو استهلاك غير طبيعي للموارد`;
+      appendUserMessage(promptText);
+      aiChatHistory.push({ role: 'user', content: promptText });
 
-      const loadDiv = document.createElement('div');
-      loadDiv.id = 'ai-loading-bubble';
-      loadDiv.style.cssText = 'display:flex; gap:12px; align-items:center;';
-      loadDiv.innerHTML = `
-        <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;">
-          <i class="fa-solid fa-shield-halved fa-spin"></i>
-        </div>
-        <div style="color:#94a3b8; font-size:12px; font-style:italic;">جاري جلب وفحص كافة جداول الفايروول، المنافذ، والموارد لراوتر ${escapeHtml(subdomain)}...</div>
-      `;
-      container.appendChild(loadDiv);
-      container.scrollTop = container.scrollHeight;
+      const boxId = createAgentStepContainer();
 
       try {
-        const res = await fetch(`/api/ai/audit/${encodeURIComponent(subdomain)}`, {
-          method: 'POST'
+        const response = await fetch('/api/ai/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: aiChatHistory,
+            subdomain: subdomain
+          })
         });
-        const data = await res.json();
-        loadDiv.remove();
 
-        if (res.ok && data.success && data.report) {
-          const rep = data.report;
-          let scoreColor = '#22c55e';
-          if (rep.score < 60) scoreColor = '#ef4444';
-          else if (rep.score < 85) scoreColor = '#f59e0b';
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          handleLiveAgentEvent(boxId, { type: 'error', text: errData.error || 'فشل تشغيل الفحص' });
+          return;
+        }
 
-          let findingsHTML = '';
-          if (rep.findings && rep.findings.length) {
-            findingsHTML = rep.findings.map(f => `
-              <div style="background:#0b1329; border-right:3px solid ${f.severity === 'critical' ? '#ef4444' : (f.severity === 'warning' ? '#f59e0b' : '#38bdf8')}; padding:8px 12px; border-radius:6px; margin-bottom:6px;">
-                <div style="font-weight:bold; color:#f8fafc; font-size:12px;">${escapeHtml(f.title)}</div>
-                <div style="color:#94a3b8; font-size:11px; margin-top:2px;">${escapeHtml(f.description)}</div>
-                ${f.fix_command ? `<div style="margin-top:4px;"><code style="font-size:11px; color:#22c55e; background:#020617; padding:2px 6px; border-radius:4px; display:inline-block;">${escapeHtml(f.fix_command)}</code></div>` : ''}
-              </div>
-            `).join('');
-          } else {
-            findingsHTML = '<div style="color:#22c55e; font-size:12px;">✅ لم يتم اكتشاف ثغرات أمنية حرجة! الراوتر بحالة ممتازة.</div>';
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+
+          for (const part of parts) {
+            const trimmed = part.trim();
+            if (trimmed.startsWith('data: ')) {
+              const jsonStr = trimmed.substring(6).trim();
+              try {
+                const event = JSON.parse(jsonStr);
+                handleLiveAgentEvent(boxId, event);
+              } catch (parseErr) {}
+            }
           }
-
-          const auditBubble = `
-            <div style="background:#0f172a; border:1.5px solid #6366f1; border-radius:10px; padding:14px; margin-bottom:8px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:8px; margin-bottom:10px;">
-                <h4 style="margin:0; font-size:14px; color:#f8fafc;">🛡️ تقرير فحص راوتر (${escapeHtml(rep.subdomain)})</h4>
-                <div style="font-size:15px; font-weight:bold; color:${scoreColor}; font-family:monospace;">تقييم الأمان: ${rep.score}/100</div>
-              </div>
-              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:10px; font-size:11px;">
-                <div style="background:#0b1329; padding:6px; border-radius:6px;"><span style="color:#94a3b8;">المعالج:</span> <strong>${escapeHtml(rep.resource_summary.cpu_load || '-')}</strong></div>
-                <div style="background:#0b1329; padding:6px; border-radius:6px;"><span style="color:#94a3b8;">الرام المتاح:</span> <strong>${escapeHtml(rep.resource_summary.free_memory || '-')}</strong></div>
-                <div style="background:#0b1329; padding:6px; border-radius:6px;"><span style="color:#94a3b8;">الإصدار:</span> <strong>${escapeHtml(rep.resource_summary.version || '-')}</strong></div>
-              </div>
-              <div style="margin-bottom:10px;">
-                <div style="font-size:12px; font-weight:bold; color:#f8fafc; margin-bottom:6px;">⚠️ الملاحظات والثغرات المكتشفة (${rep.findings ? rep.findings.length : 0}):</div>
-                ${findingsHTML}
-              </div>
-              <div style="background:#1e1b4b; border:1px solid #4338ca; border-radius:8px; padding:10px; font-size:12px; color:#e0e7ff; line-height:1.5;">
-                <strong>💡 تحليل الذكاء الاصطناعي:</strong><br>
-                ${renderMarkdownBasic(rep.narrative)}
-              </div>
-            </div>
-          `;
-
-          const div = document.createElement('div');
-          div.style.cssText = 'display:flex; gap:12px; align-items:flex-start;';
-          div.innerHTML = `
-            <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg, #6366f1, #a855f7); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;">
-              <i class="fa-solid fa-robot"></i>
-            </div>
-            <div style="max-width:90%; width:100%;">
-              ${auditBubble}
-            </div>
-          `;
-          container.appendChild(div);
-          container.scrollTop = container.scrollHeight;
-        } else {
-          appendAssistantMessage('❌ ' + (data.error || 'فشل فحص الراوتر'));
         }
       } catch (err) {
-        loadDiv.remove();
-        appendAssistantMessage('❌ خطأ في الاتصال أثناء فحص الراوتر');
+        handleLiveAgentEvent(boxId, { type: 'error', text: 'خطأ في شبكة الاتصال بالسيرفر' });
       }
     }
 

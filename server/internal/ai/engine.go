@@ -189,12 +189,29 @@ func (e *Engine) ExecuteBatchCommands(subdomain string, commands []string) (map[
 
 // Chat handles conversation with the AI copilot including RouterOS MCP tool-calling loops
 func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdomain string) (*ChatMessage, *ChangePlan, error) {
+	return e.ChatStream(ctx, messages, targetSubdomain, nil)
+}
+
+// ChatStream handles conversation with the AI copilot and streams every agentic step and tool execution
+func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetSubdomain string, onStep func(StreamEvent)) (*ChatMessage, *ChangePlan, error) {
+	emit := func(ev StreamEvent) {
+		if ev.Timestamp == "" {
+			ev.Timestamp = time.Now().UTC().Format(time.RFC3339)
+		}
+		if onStep != nil {
+			onStep(ev)
+		}
+	}
+
 	settings, err := e.repo.GetAISettings()
 	if err != nil {
+		emit(StreamEvent{Type: "error", Text: err.Error()})
 		return nil, nil, err
 	}
 	if !settings.Enabled {
-		return nil, nil, fmt.Errorf("خدمة المساعد الذكي معطلة حالياً من الإعدادات")
+		err := fmt.Errorf("خدمة المساعد الذكي معطلة حالياً من الإعدادات")
+		emit(StreamEvent{Type: "error", Text: err.Error()})
+		return nil, nil, err
 	}
 
 	systemPrompt := SystemPromptTemplate
@@ -203,6 +220,22 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 	}
 	if targetSubdomain != "" {
 		systemPrompt += fmt.Sprintf("\nالوكيل والراوتر المستهدف حالياً: %s", targetSubdomain)
+	}
+
+	emit(StreamEvent{
+		Type:  "thought",
+		Title: "بدء المعالجة والتفكير",
+		Text:  fmt.Sprintf("جاري تحليل الطلب والتحقق من الراوتر المستهدف (%s)...", targetSubdomain),
+	})
+
+	if targetSubdomain != "" {
+		if auth := e.getAgentRouterAuth(targetSubdomain); auth != nil {
+			emit(StreamEvent{
+				Type:  "thought",
+				Title: "تجهيز بيانات الدخول",
+				Text:  fmt.Sprintf("تم تجهيز بيانات دخول الراوتر (%s) بنجاح.", auth["user"]),
+			})
+		}
 	}
 
 	conversation := []ChatMessage{
@@ -216,8 +249,14 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 	tools := GetRouterOSToolDefinitions()
 	var finalPlan *ChangePlan
 
-	// Execute Tool Calling loop (max 4 iterations)
-	for iter := 0; iter < 4; iter++ {
+	// Execute Tool Calling loop (max 5 iterations)
+	for iter := 0; iter < 5; iter++ {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "استدعاء نموذج الذكاء الاصطناعي",
+			Text:  fmt.Sprintf("جاري التخطيط للخطوات بواسطة %s (%s)...", settings.Provider, settings.Model),
+		})
+
 		req := ChatCompletionRequest{
 			Model:       settings.Model,
 			Messages:    conversation,
@@ -227,11 +266,14 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 
 		resp, err := e.llm.Complete(ctx, settings, req)
 		if err != nil {
+			emit(StreamEvent{Type: "error", Text: err.Error()})
 			return nil, nil, err
 		}
 
 		if len(resp.Choices) == 0 {
-			return nil, nil, fmt.Errorf("لم يتم استلام رد من نموذج الذكاء الاصطناعي")
+			err := fmt.Errorf("لم يتم استلام رد من نموذج الذكاء الاصطناعي")
+			emit(StreamEvent{Type: "error", Text: err.Error()})
+			return nil, nil, err
 		}
 
 		choice := resp.Choices[0]
@@ -239,6 +281,13 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 
 		// If no tool calls, this is the final message
 		if len(replyMsg.ToolCalls) == 0 {
+			emit(StreamEvent{
+				Type:    "done",
+				Title:   "اكتمل الرد بنجاح",
+				Text:    replyMsg.Content,
+				Message: &replyMsg,
+				Plan:    finalPlan,
+			})
 			return &replyMsg, finalPlan, nil
 		}
 
@@ -258,30 +307,107 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 				sub = s
 			}
 
+			toolTitle := fnName
+			switch fnName {
+			case "mikrotik_audit_router":
+				toolTitle = fmt.Sprintf("🛡️ فحص شامل لراوتر (%s)", sub)
+			case "mikrotik_run_command":
+				cmdStr, _ := args["command"].(string)
+				toolTitle = fmt.Sprintf("⚡ تنفيذ أمر RouterOS: `%s`", cmdStr)
+			case "mikrotik_attack_detection":
+				toolTitle = fmt.Sprintf("🔐 كشف سجلات الهجمات لراوتر (%s)", sub)
+			case "mikrotik_generate_plan":
+				titleStr, _ := args["title"].(string)
+				toolTitle = fmt.Sprintf("📋 توليد خطة تعديل: %s", titleStr)
+			}
+
+			emit(StreamEvent{
+				Type:   "tool_start",
+				Tool:   fnName,
+				Title:  toolTitle,
+				Args:   args,
+				Status: "running",
+				Text:   fmt.Sprintf("جاري استدعاء الأداة `%s` عبر نفق الوكيل المشفر...", fnName),
+			})
+
+			startTime := time.Now()
 			var toolResult interface{}
 
 			switch fnName {
 			case "mikrotik_audit_router":
+				emit(StreamEvent{
+					Type:  "tunnel_exec",
+					Tool:  fnName,
+					Title: "نفق WebSocket",
+					Text:  fmt.Sprintf("إرسال طلب فحص الـ 14 جدول للراوتر `%s` عبر النفق...", sub),
+				})
 				audit, err := e.ExecuteSystemAudit(sub)
 				if err != nil {
 					toolResult = map[string]string{"error": err.Error()}
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "error",
+						Summary:  "تعذر الاتصال بالراوتر: " + err.Error(),
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
 				} else {
 					toolResult = audit
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "success",
+						Summary:  fmt.Sprintf("تم استلام بيانات الفحص بنجاح (%d جدول، الموارد، الفايروول، السجلات)", len(audit)),
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
 				}
 
 			case "mikrotik_run_command":
 				cmd, _ := args["command"].(string)
+				emit(StreamEvent{
+					Type:  "tunnel_exec",
+					Tool:  fnName,
+					Title: "تنفيذ أمر RouterOS",
+					Text:  fmt.Sprintf("تشغيل `%s` على راوتر `%s`...", cmd, sub),
+				})
 				res, err := e.ExecuteRouterCommand(sub, cmd)
 				if err != nil {
 					toolResult = map[string]string{"error": err.Error()}
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "error",
+						Summary:  "خطأ في التنفيذ: " + err.Error(),
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
 				} else {
 					toolResult = res
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "success",
+						Summary:  "تم تنفيذ الأمر بنجاح واستلام النتيجة الحية من الراوتر",
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
 				}
 
 			case "mikrotik_attack_detection":
+				emit(StreamEvent{
+					Type:  "tunnel_exec",
+					Tool:  fnName,
+					Title: "جلب السجلات",
+					Text:  fmt.Sprintf("جلب سجلات الـ Log من راوتر `%s` وتحليل محاولات الدخول...", sub),
+				})
 				audit, err := e.ExecuteSystemAudit(sub)
 				if err != nil {
 					toolResult = map[string]string{"error": err.Error()}
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "error",
+						Summary:  "تعذر جلب السجلات: " + err.Error(),
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
 				} else {
 					var logs []interface{}
 					if l, ok := audit["logs"].([]interface{}); ok {
@@ -290,6 +416,13 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 					toolResult = map[string]interface{}{
 						"logs": logs,
 					}
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "success",
+						Summary:  fmt.Sprintf("تم تحليل %d سجل من سجلات الراوتر", len(logs)),
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
 				}
 
 			case "mikrotik_generate_plan":
@@ -337,6 +470,13 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 					"message": "تم توليد خطة التعديل بنجاح وبانتظار موافقة المستخدم لتطبيقها.",
 					"plan":    plan,
 				}
+				emit(StreamEvent{
+					Type:     "plan",
+					Plan:     plan,
+					Status:   "success",
+					Summary:  fmt.Sprintf("تم تجهيز خطة التعديل (%d أوامر تنفيذ + %d أوامر تراجع)", len(cmds), len(rollbacks)),
+					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+				})
 
 			default:
 				toolResult = map[string]string{"error": "أداة غير معروفة"}

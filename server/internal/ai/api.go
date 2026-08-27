@@ -1,12 +1,17 @@
 package ai
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
 	"mikrotik-manager/server/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/valyala/fasthttp"
 )
 
 type APIHandler struct {
@@ -28,6 +33,7 @@ func (h *APIHandler) RegisterRoutes(app *fiber.App) {
 	aiGroup.Get("/settings", h.handleGetSettings)
 	aiGroup.Post("/settings", h.handleSaveSettings)
 	aiGroup.Post("/chat", h.handleChat)
+	aiGroup.Post("/chat/stream", h.handleChatStream)
 	aiGroup.Post("/audit/:subdomain", h.handleAudit)
 	aiGroup.Get("/audit/logs", h.handleGetAuditLogs)
 	aiGroup.Post("/apply/:subdomain", h.handleApplyPlan)
@@ -159,6 +165,43 @@ func (h *APIHandler) handleChat(c *fiber.Ctx) error {
 		"message": replyMsg,
 		"plan":    plan,
 	})
+}
+
+func (h *APIHandler) handleChatStream(c *fiber.Ctx) error {
+	var req struct {
+		Messages  []ChatMessage `json:"messages"`
+		Subdomain string        `json:"subdomain"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "تنسيق الطلب غير صحيح"})
+	}
+
+	if len(req.Messages) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "الرسائل فارغة"})
+	}
+
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+	c.Set("Transfer-Encoding", "chunked")
+
+	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
+		sendEvent := func(ev StreamEvent) {
+			data, err := json.Marshal(ev)
+			if err == nil {
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", string(data))
+				_ = w.Flush()
+			}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+
+		_, _, _ = h.engine.ChatStream(ctx, req.Messages, req.Subdomain, sendEvent)
+	}))
+
+	return nil
 }
 
 func (h *APIHandler) handleAudit(c *fiber.Ctx) error {

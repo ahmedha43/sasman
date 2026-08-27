@@ -81,3 +81,18 @@ type ChangePlan struct {
 	DiffPreview  string   `json:"diff_preview"`
 	RiskLevel    string   `json:"risk_level"` // low, medium, high
 }
+
+type StreamEvent struct {
+	Type      string       `json:"type"` // "thought", "tool_start", "tunnel_exec", "tool_result", "plan", "content", "error", "done"
+	Title     string       `json:"title,omitempty"`
+	Text      string       `json:"text,omitempty"`
+	Tool      string       `json:"tool,omitempty"`
+	Args      interface{}  `json:"args,omitempty"`
+	Status    string       `json:"status,omitempty"` // "running", "success", "error"
+	Summary   string       `json:"summary,omitempty"`
+	Duration  string       `json:"duration,omitempty"`
+	Plan      *ChangePlan  `json:"plan,omitempty"`
+	Message   *ChatMessage `json:"message,omitempty"`
+	Report    *DiagnosticReport `json:"report,omitempty"`
+	Timestamp string       `json:"timestamp"`
+}
