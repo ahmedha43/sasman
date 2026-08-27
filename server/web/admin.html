@@ -1001,6 +1001,83 @@
     </div>
   </div>
 
+  <!-- Agent AI Persistent Memory Modal -->
+  <div id="agent-memory-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:750px; max-height:85vh; overflow-y:auto; background:#0f172a; border:1px solid #334155; border-radius:12px; padding:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:12px; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="width:34px; height:34px; border-radius:8px; background:linear-gradient(135deg, #059669, #10b981); display:flex; align-items:center; justify-content:center; color:#fff; font-size:16px;">
+            <i class="fa-solid fa-brain"></i>
+          </div>
+          <div>
+            <h3 style="margin:0; font-size:16px; color:#f8fafc;">ذاكرة وسجل الوكيل المحفوظة</h3>
+            <span id="mem-modal-subdomain" style="font-size:12px; font-family:monospace; color:#38bdf8;">subdomain</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-danger btn-xs" onclick="clearAgentMemory()" title="مسح ذاكرة هذا الوكيل"><i class="fa-solid fa-trash"></i> مسح الذاكرة</button>
+          <button class="btn btn-dark btn-xs" onclick="closeAgentMemoryModal()">✕</button>
+        </div>
+      </div>
+
+      <!-- Router Resources & Info Box -->
+      <div style="background:#1e293b; border-radius:8px; padding:12px; margin-bottom:12px; border-right:4px solid #38bdf8;">
+        <h4 style="margin:0 0 8px 0; font-size:13px; color:#38bdf8; display:flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-microchip"></i> بيانات وإعدادات الراوتر المكتشفة
+        </h4>
+        <div id="mem-router-info-content" style="font-size:12px; color:#cbd5e1; display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:8px;">
+          <span style="color:#64748b;">لا توجد بيانات مسجلة بعد.</span>
+        </div>
+      </div>
+
+      <!-- Security Audit & Health Box -->
+      <div style="background:#1e293b; border-radius:8px; padding:12px; margin-bottom:12px; border-right:4px solid #a855f7;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <h4 style="margin:0; font-size:13px; color:#a855f7; display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-shield-halved"></i> آخر تقييم أمني وفني
+          </h4>
+          <span id="mem-audit-badge" class="badge" style="background:#3b0764; color:#d8b4fe; font-size:11px;">-</span>
+        </div>
+        <div id="mem-audit-content" style="font-size:12px; color:#cbd5e1;">
+          <span style="color:#64748b;">لم يتم إجراء فحص أمني بعد.</span>
+        </div>
+      </div>
+
+      <!-- Applied Commands Box -->
+      <div style="background:#1e293b; border-radius:8px; padding:12px; margin-bottom:12px; border-right:4px solid #22c55e;">
+        <h4 style="margin:0 0 8px 0; font-size:13px; color:#22c55e; display:flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-terminal"></i> سجل الأوامر والتعديلات المطبقة
+        </h4>
+        <div id="mem-applied-commands-content" style="font-size:11px; max-height:140px; overflow-y:auto; font-family:monospace; background:#0b0f19; padding:8px; border-radius:6px; color:#a7f3d0;">
+          <span style="color:#64748b; font-family:sans-serif;">لا توجد أوامر مطبقة مسجلة.</span>
+        </div>
+      </div>
+
+      <!-- Conversation Summaries Box -->
+      <div style="background:#1e293b; border-radius:8px; padding:12px; margin-bottom:12px; border-right:4px solid #f59e0b;">
+        <h4 style="margin:0 0 8px 0; font-size:13px; color:#f59e0b; display:flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-comments"></i> ملخصات الجلسات والمحادثات السابقة
+        </h4>
+        <div id="mem-summaries-content" style="font-size:12px; color:#cbd5e1; max-height:140px; overflow-y:auto;">
+          <span style="color:#64748b;">لا توجد محادثات سابقة مسجلة.</span>
+        </div>
+      </div>
+
+      <!-- Permanent Technical Notes Box -->
+      <div style="background:#1e293b; border-radius:8px; padding:12px; margin-bottom:12px;">
+        <h4 style="margin:0 0 8px 0; font-size:13px; color:#f8fafc; display:flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-note-sticky" style="color:#fbbf24;"></i> ملاحظات فنية دائمة (يقرأها الـ AI دائماً)
+        </h4>
+        <textarea id="mem-notes-input" rows="3" placeholder="أضف أي ملاحظات خاصة بهذا الوكيل (مثلاً: لا تغير DNS هذا الراوتر، خط الإنترنت من مزود Earthlink...)" style="width:100%; background:#0b0f19; border:1px solid #334155; color:#f8fafc; border-radius:6px; padding:8px; font-size:12px; resize:vertical;"></textarea>
+        <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+          <button class="btn btn-primary btn-xs" onclick="saveAgentMemoryNotes()" style="background:#059669; border:none;">
+            <i class="fa-solid fa-save"></i> حفظ الملاحظات
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Service Relay Create/Edit Modal -->
   <div id="service-modal" class="modal-overlay">
     <div class="modal-card" style="max-width:650px;">
@@ -1531,6 +1608,7 @@
         }
         routerInfo += `<div style="margin-top:4px; display:flex; gap:4px; flex-wrap:wrap;">
           <button class="btn btn-dark btn-xs" style="background:#1e293b; color:#fbbf24; border:1px solid #475569; padding:2px 6px;" onclick="openAgentCredentialsModal('${escapeHtml(a.subdomain)}')">🔑 بيانات الدخول</button>
+          <button class="btn btn-dark btn-xs" style="background:#064e3b; color:#6ee7b7; border:1px solid #059669; padding:2px 6px;" onclick="openAgentMemoryModal('${escapeHtml(a.subdomain)}')">🧠 ذاكرة AI</button>
           <button class="btn btn-dark btn-xs" style="background:#3b0764; color:#d8b4fe; border:1px solid #7e22ce; padding:2px 6px;" onclick="runAIAuditForAgent('${escapeHtml(a.subdomain)}')">🤖 فحص ذكي</button>
         </div>`;
 
@@ -1564,6 +1642,7 @@
           <td>
             <div style="display:flex; gap:4px; flex-wrap:wrap;">
               <button class="btn btn-dark btn-xs" style="background:linear-gradient(135deg, #6366f1, #a855f7); color:#fff; border:none;" title="المساعد الذكي للراوتر" onclick="openAICopilot('${escapeHtml(a.subdomain)}')">🤖 AI</button>
+              <button class="btn btn-dark btn-xs" style="background:#064e3b; color:#6ee7b7; border:1px solid #059669;" title="ذاكرة وسجل الوكيل المحفوظة" onclick="openAgentMemoryModal('${escapeHtml(a.subdomain)}')">🧠 ذاكرة</button>
               <button class="btn btn-dark btn-xs" style="background:#1e1b4b; color:#fbbf24; border:1px solid #4338ca;" title="عرض ونسخ بيانات الدخول" onclick="openAgentCredentialsModal('${escapeHtml(a.subdomain)}')">🔑 دخول</button>
               <button class="btn btn-dark btn-xs" style="background:#0284c7; color:#fff;" title="ترقية / تحديث الوكيل (OTA Upgrade)" onclick="openUpgradeAgentModal('${escapeHtml(a.subdomain)}', '${escapeHtml(a.agent_version || 'v5.0.0')}', '${escapeHtml(a.arch || 'linux_arm64')}')">🚀 ترقية</button>
               <button class="btn btn-dark btn-xs" title="تحميل النسخة الاحتياطية" onclick="window.location.href='/api/agents/${encodeURIComponent(a.subdomain)}/backup/latest/download'">💾</button>
@@ -2334,6 +2413,158 @@ ${setupCmd}`;
 
     function closeAgentCredentialsModal() {
       document.getElementById('agent-credentials-modal').classList.remove('active');
+    }
+
+    // ─── AGENT PERSISTENT MEMORY MODAL ──────────────────────────────────────
+    let currentMemorySubdomain = '';
+
+    async function openAgentMemoryModal(subdomain) {
+      currentMemorySubdomain = subdomain;
+      document.getElementById('mem-modal-subdomain').textContent = subdomain;
+      document.getElementById('mem-notes-input').value = '';
+      document.getElementById('mem-router-info-content').innerHTML = '<span style="color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> جاري تحميل الذاكرة...</span>';
+      document.getElementById('mem-audit-content').innerHTML = '<span style="color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...</span>';
+      document.getElementById('mem-applied-commands-content').innerHTML = '<span style="color:#64748b; font-family:sans-serif;"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...</span>';
+      document.getElementById('mem-summaries-content').innerHTML = '<span style="color:#64748b;"><i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...</span>';
+      document.getElementById('mem-audit-badge').textContent = '-';
+      document.getElementById('agent-memory-modal').classList.add('active');
+
+      try {
+        const res = await fetch(`/api/ai/memory/${encodeURIComponent(subdomain)}`);
+        if (!res.ok) throw new Error('فشل جلب الذاكرة');
+        const data = await res.json();
+        const mem = data.memory || {};
+
+        // 1. Router Info
+        const info = mem.router_info || {};
+        const infoKeys = Object.keys(info);
+        if (infoKeys.length > 0) {
+          let h = '';
+          infoKeys.forEach(k => {
+            h += `<div style="background:#0b0f19; padding:6px 8px; border-radius:6px; border:1px solid #334155;">
+              <span style="color:#94a3b8; font-size:10px; display:block;">${escapeHtml(k)}</span>
+              <strong style="color:#38bdf8; font-family:monospace;">${escapeHtml(String(info[k]))}</strong>
+            </div>`;
+          });
+          document.getElementById('mem-router-info-content').innerHTML = h;
+        } else {
+          document.getElementById('mem-router-info-content').innerHTML = '<span style="color:#64748b;">لا توجد بيانات مسجلة بعد. يتم استكشافها تلقائياً عند إجراء أول فحص أمني أو محادثة.</span>';
+        }
+
+        // 2. Last Audit
+        const audit = mem.last_audit || {};
+        if (audit.score !== undefined) {
+          const badge = document.getElementById('mem-audit-badge');
+          const score = audit.score;
+          if (score >= 90) {
+            badge.style.background = '#14532d'; badge.style.color = '#86efac'; badge.textContent = `🟢 ممتاز (${score}/100)`;
+          } else if (score >= 70) {
+            badge.style.background = '#713f12'; badge.style.color = '#fde047'; badge.textContent = `🟡 تنبيه (${score}/100)`;
+          } else {
+            badge.style.background = '#7f1d1d'; badge.style.color = '#fca5a5'; badge.textContent = `🔴 حرج (${score}/100)`;
+          }
+
+          let auditHtml = `<div style="margin-bottom:6px; font-size:11px; color:#94a3b8;">تاريخ آخر فحص: <strong>${escapeHtml(audit.date || '-')}</strong></div>`;
+          if (audit.findings && audit.findings.length > 0) {
+            auditHtml += '<ul style="margin:0; padding-right:18px;">';
+            audit.findings.forEach(f => {
+              const sev = f.severity === 'critical' ? '🔴' : (f.severity === 'warning' ? '🟡' : '🔵');
+              auditHtml += `<li style="margin-bottom:3px;">${sev} <strong>${escapeHtml(f.title || '')}</strong>: <span style="color:#94a3b8;">${escapeHtml(f.description || '')}</span></li>`;
+            });
+            auditHtml += '</ul>';
+          } else {
+            auditHtml += '<div style="color:#86efac;">✅ لم يتم رصد أي ثغرات أو مشاكل أمنية حرجة.</div>';
+          }
+          document.getElementById('mem-audit-content').innerHTML = auditHtml;
+        } else {
+          document.getElementById('mem-audit-badge').textContent = 'لم يُفحص';
+          document.getElementById('mem-audit-content').innerHTML = '<span style="color:#64748b;">لم يتم إجراء فحص أمني بعد. يمكنك الضغط على <code>🤖 فحص ذكي</code> لحفظ التقييم بالذاكرة.</span>';
+        }
+
+        // 3. Applied Commands
+        const cmds = mem.applied_commands || [];
+        if (cmds.length > 0) {
+          let cmdHtml = '';
+          cmds.slice().reverse().forEach(c => {
+            cmdHtml += `<div style="margin-bottom:4px; padding-bottom:4px; border-bottom:1px solid #1e293b;">
+              <div style="color:#38bdf8;">$ ${escapeHtml(c.command)}</div>
+              <div style="color:#64748b; font-size:10px; display:flex; justify-content:space-between; margin-top:2px;">
+                <span>السياق: ${escapeHtml(c.context || 'تعديل مباشر')}</span>
+                <span>${escapeHtml(c.applied_at || '')}</span>
+              </div>
+            </div>`;
+          });
+          document.getElementById('mem-applied-commands-content').innerHTML = cmdHtml;
+        } else {
+          document.getElementById('mem-applied-commands-content').innerHTML = '<span style="color:#64748b; font-family:sans-serif;">لا توجد أوامر مطبقة مسجلة حتى الآن.</span>';
+        }
+
+        // 4. Conversation Summaries
+        const summaries = mem.conversation_summaries || [];
+        if (summaries.length > 0) {
+          let sumHtml = '';
+          summaries.slice().reverse().forEach(s => {
+            sumHtml += `<div style="background:#0b0f19; padding:8px; border-radius:6px; margin-bottom:6px; border:1px solid #1e293b;">
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <strong style="color:#fbbf24; font-size:12px;">📌 ${escapeHtml(s.topic || 'جلسة استفسار')}</strong>
+                <span style="color:#64748b; font-size:10px;">${escapeHtml(s.created_at || '')}</span>
+              </div>
+              <div style="color:#cbd5e1; font-size:11px; line-height:1.4;">${escapeHtml(s.summary || '')}</div>
+            </div>`;
+          });
+          document.getElementById('mem-summaries-content').innerHTML = sumHtml;
+        } else {
+          document.getElementById('mem-summaries-content').innerHTML = '<span style="color:#64748b;">لا توجد جلسات سابقة مسجلة. يتم تلخيص كل محادثة تلقائياً.</span>';
+        }
+
+        // 5. Notes
+        document.getElementById('mem-notes-input').value = mem.notes || '';
+      } catch (err) {
+        document.getElementById('mem-router-info-content').innerHTML = '<span style="color:#ef4444;">خطأ في تحميل الذاكرة</span>';
+      }
+    }
+
+    function closeAgentMemoryModal() {
+      document.getElementById('agent-memory-modal').classList.remove('active');
+    }
+
+    async function saveAgentMemoryNotes() {
+      if (!currentMemorySubdomain) return;
+      const notes = document.getElementById('mem-notes-input').value;
+      try {
+        const res = await fetch(`/api/ai/memory/${encodeURIComponent(currentMemorySubdomain)}/notes`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ ' + data.message);
+        } else {
+          alert('❌ ' + (data.error || 'فشل حفظ الملاحظات'));
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    async function clearAgentMemory() {
+      if (!currentMemorySubdomain) return;
+      if (!confirm(`هل أنت متأكد من رغبتك في مسح كافة ذاكرة وسجلات الوكيل (${currentMemorySubdomain})؟`)) return;
+      try {
+        const res = await fetch(`/api/ai/memory/${encodeURIComponent(currentMemorySubdomain)}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('✅ ' + data.message);
+          openAgentMemoryModal(currentMemorySubdomain);
+        } else {
+          alert('❌ ' + (data.error || 'فشل مسح الذاكرة'));
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر');
+      }
     }
 
     function togglePassVisibility(inputId, btn) {

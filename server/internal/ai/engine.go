@@ -220,6 +220,16 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 	}
 	if targetSubdomain != "" {
 		systemPrompt += fmt.Sprintf("\nالوكيل والراوتر المستهدف حالياً: %s", targetSubdomain)
+
+		// Inject per-agent persistent memory context
+		if memBlock := e.buildAgentMemoryPromptBlock(targetSubdomain); memBlock != "" {
+			systemPrompt += memBlock
+			emit(StreamEvent{
+				Type:  "thought",
+				Title: "استرجاع ذاكرة الوكيل",
+				Text:  fmt.Sprintf("تم استرجاع ذاكرة وسجل الوكيل (%s) المحفوظة لتجنب استهلاك التوكنات وتكرار الأسئلة.", targetSubdomain),
+			})
+		}
 	}
 
 	emit(StreamEvent{
@@ -288,6 +298,12 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 				Message: &replyMsg,
 				Plan:    finalPlan,
 			})
+
+			// Auto-record compact session summary into agent memory
+			if targetSubdomain != "" {
+				e.saveChatSessionMemory(targetSubdomain, messages, replyMsg.Content, finalPlan)
+			}
+
 			return &replyMsg, finalPlan, nil
 		}
 
@@ -698,6 +714,141 @@ func (e *Engine) RunSecurityAudit(ctx context.Context, subdomain string) (*Diagn
 		RawSummary:          report.Narrative,
 	})
 
+	// 8. Update Agent Persistent Memory
+	lastAuditData := map[string]interface{}{
+		"score":    report.Score,
+		"status":   report.OverallStatus,
+		"findings": report.Findings,
+		"date":     report.CreatedAt,
+	}
+	_ = e.repo.UpdateAgentLastAudit(subdomain, lastAuditData)
+
+	routerInfoMap := map[string]interface{}{}
+	for k, v := range report.ResourceSummary {
+		routerInfoMap[k] = v
+	}
+	if len(routerInfoMap) > 0 {
+		_ = e.repo.UpdateAgentRouterInfo(subdomain, routerInfoMap)
+	}
+
 	log.Printf("[AI Copilot] Completed audit for %s: score=%d, findings=%d", subdomain, report.Score, len(report.Findings))
 	return report, nil
+}
+
+// buildAgentMemoryPromptBlock constructs a concise memory context to prevent token waste
+func (e *Engine) buildAgentMemoryPromptBlock(subdomain string) string {
+	if subdomain == "" {
+		return ""
+	}
+	mem, err := e.repo.GetAgentMemory(subdomain)
+	if err != nil || mem == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+	hasContent := false
+
+	sb.WriteString("\n\n### 🧠 ذاكرة وسجل الوكيل والراوتر المحفوظة (" + subdomain + "):\n")
+	sb.WriteString("(استند إلى هذه المعلومات السابقة ولا تطلب من المستخدم إعادة إدخالها):\n")
+
+	if len(mem.RouterInfo) > 0 {
+		hasContent = true
+		sb.WriteString("- **معلومات الراوتر المكتشفة سابقاً**: ")
+		for k, v := range mem.RouterInfo {
+			sb.WriteString(fmt.Sprintf("%s=%v, ", k, v))
+		}
+		sb.WriteString("\n")
+	}
+
+	if len(mem.LastAudit) > 0 {
+		hasContent = true
+		score := mem.LastAudit["score"]
+		status := mem.LastAudit["status"]
+		date := mem.LastAudit["date"]
+		sb.WriteString(fmt.Sprintf("- **آخر فحص أمني سابق**: النتيجة %v/100 (%v) بتاريخ %v\n", score, status, date))
+		if findings, ok := mem.LastAudit["findings"].([]interface{}); ok && len(findings) > 0 {
+			sb.WriteString("  * أهم الملاحظات السابقة: ")
+			for i, f := range findings {
+				if i >= 3 {
+					break
+				}
+				if fm, ok := f.(map[string]interface{}); ok {
+					sb.WriteString(fmt.Sprintf("[%v: %v] ", fm["title"], fm["severity"]))
+				}
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	if len(mem.AppliedCommands) > 0 {
+		hasContent = true
+		sb.WriteString("- **سجل آخر التعديلات والأوامر المنفذة على الراوتر**:\n")
+		startIdx := 0
+		if len(mem.AppliedCommands) > 5 {
+			startIdx = len(mem.AppliedCommands) - 5
+		}
+		for _, ac := range mem.AppliedCommands[startIdx:] {
+			sb.WriteString(fmt.Sprintf("  * `%s` (%s)\n", ac.Command, ac.Context))
+		}
+	}
+
+	if len(mem.ConversationSummaries) > 0 {
+		hasContent = true
+		sb.WriteString("- **ملخصات الجلسات السابقة مع هذا الوكيل**:\n")
+		startIdx := 0
+		if len(mem.ConversationSummaries) > 4 {
+			startIdx = len(mem.ConversationSummaries) - 4
+		}
+		for _, cs := range mem.ConversationSummaries[startIdx:] {
+			sb.WriteString(fmt.Sprintf("  * [%s]: %s\n", cs.Topic, cs.Summary))
+		}
+	}
+
+	if strings.TrimSpace(mem.Notes) != "" {
+		hasContent = true
+		sb.WriteString("- **ملاحظات فنية مسجلة**: " + mem.Notes + "\n")
+	}
+
+	if !hasContent {
+		return ""
+	}
+	return sb.String()
+}
+
+// saveChatSessionMemory asynchronously records a compact session summary into agent memory
+func (e *Engine) saveChatSessionMemory(subdomain string, messages []ChatMessage, aiReply string, plan *ChangePlan) {
+	if subdomain == "" || strings.TrimSpace(aiReply) == "" {
+		return
+	}
+	go func(sub string, userMsg string, reply string, p *ChangePlan) {
+		topic := "استفسار ومساعدة عامة"
+		if p != nil {
+			topic = fmt.Sprintf("خطة تعديل: %s", p.Title)
+		} else if strings.Contains(userMsg, "فحص") || strings.Contains(userMsg, "بطء") || strings.Contains(userMsg, "أمان") {
+			topic = "تشخيص وصيانة الراوتر"
+		} else if strings.Contains(userMsg, "أمر") || strings.Contains(userMsg, "تعديل") || strings.Contains(userMsg, "firewall") {
+			topic = "إدارة إعدادات الراوتر"
+		}
+
+		summary := strings.TrimSpace(reply)
+		// Strip markdown code blocks for a clean short summary
+		if idx := strings.Index(summary, "```"); idx != -1 && idx > 50 {
+			summary = summary[:idx]
+		}
+		summary = strings.ReplaceAll(summary, "\n", " ")
+		if len(summary) > 200 {
+			summary = summary[:197] + "..."
+		}
+
+		_ = e.repo.AppendConversationSummary(sub, summary, topic, 10)
+	}(subdomain, extractLastUserMessage(messages), aiReply, plan)
+}
+
+func extractLastUserMessage(messages []ChatMessage) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			return messages[i].Content
+		}
+	}
+	return ""
 }

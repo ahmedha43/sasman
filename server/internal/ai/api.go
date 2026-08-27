@@ -37,6 +37,9 @@ func (h *APIHandler) RegisterRoutes(app *fiber.App) {
 	aiGroup.Post("/audit/:subdomain", h.handleAudit)
 	aiGroup.Get("/audit/logs", h.handleGetAuditLogs)
 	aiGroup.Post("/apply/:subdomain", h.handleApplyPlan)
+	aiGroup.Get("/memory/:subdomain", h.handleGetMemory)
+	aiGroup.Delete("/memory/:subdomain", h.handleDeleteMemory)
+	aiGroup.Patch("/memory/:subdomain/notes", h.handleUpdateMemoryNotes)
 }
 
 func (h *APIHandler) handleStatus(c *fiber.Ctx) error {
@@ -268,9 +271,70 @@ func (h *APIHandler) handleApplyPlan(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "فشل تطبيق الأوامر: " + err.Error()})
 	}
 
+	// Auto-record applied commands in agent persistent memory
+	for _, cmd := range req.Commands {
+		_ = h.repo.AppendAppliedCommand(subdomain, cmd, req.Title)
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "تم تطبيق الخطة بنجاح على راوتر الوكيل",
+		"message": "تم تطبيق الخطة بنجاح على راوتر الوكيل وتسجيلها في الذاكرة",
 		"results": res,
+	})
+}
+
+func (h *APIHandler) handleGetMemory(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	mem, err := h.repo.GetAgentMemory(subdomain)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"memory":  mem,
+	})
+}
+
+func (h *APIHandler) handleDeleteMemory(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	if err := h.repo.DeleteAgentMemory(subdomain); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("تم مسح ذاكرة الوكيل (%s) بنجاح", subdomain),
+	})
+}
+
+func (h *APIHandler) handleUpdateMemoryNotes(c *fiber.Ctx) error {
+	subdomain := c.Params("subdomain")
+	if subdomain == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم النطاق مطلوب"})
+	}
+
+	var req struct {
+		Notes string `json:"notes"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "تنسيق البيانات غير صحيح"})
+	}
+
+	if err := h.repo.UpdateAgentNotes(subdomain, req.Notes); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "تم تحديث ملاحظات الوكيل في الذاكرة بنجاح",
 	})
 }

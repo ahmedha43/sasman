@@ -275,6 +275,15 @@ func (r *SQLiteRepository) CreateSchema() error {
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );`,
 		`CREATE INDEX IF NOT EXISTS idx_ai_audit_subdomain ON ai_audit_logs(subdomain);`,
+		`CREATE TABLE IF NOT EXISTS agent_memory (
+            subdomain TEXT PRIMARY KEY,
+            router_info_json TEXT NOT NULL DEFAULT '{}',
+            last_audit_json TEXT NOT NULL DEFAULT '{}',
+            applied_commands_json TEXT NOT NULL DEFAULT '[]',
+            conversation_summaries_json TEXT NOT NULL DEFAULT '[]',
+            notes TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
 	}
 
 	for _, q := range queries {
