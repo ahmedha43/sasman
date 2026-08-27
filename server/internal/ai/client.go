@@ -85,7 +85,7 @@ func (c *LLMClient) Complete(ctx context.Context, settings *storage.AISettings, 
 
 	modelsToTry := []string{req.Model}
 	if provider == "gemini" {
-		fallbackList := []string{"gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"}
+		fallbackList := []string{"gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"}
 		for _, m := range fallbackList {
 			if m != req.Model {
 				modelsToTry = append(modelsToTry, m)
@@ -128,6 +128,11 @@ func (c *LLMClient) Complete(ctx context.Context, settings *storage.AISettings, 
 			if err != nil {
 				lastErr = fmt.Errorf("read response error: %w", err)
 				continue
+			}
+
+			if resp.StatusCode == 404 {
+				lastErr = fmt.Errorf("AI provider error (HTTP 404): %s", string(respBytes))
+				break // Model deprecated/not found, immediately switch to next fallback model
 			}
 
 			if resp.StatusCode == 503 || resp.StatusCode == 429 {

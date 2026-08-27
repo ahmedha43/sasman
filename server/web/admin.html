@@ -2775,7 +2775,7 @@ ${setupCmd}`;
         hint.innerHTML = 'احصل على مفتاح فائق السرعة ورخيص من <a href="https://platform.deepseek.com" target="_blank" style="color:#38bdf8;">platform.deepseek.com</a>';
         if (!baseUrlInput.value || baseUrlInput.value.includes('google') || baseUrlInput.value.includes('openai')) baseUrlInput.value = 'https://api.deepseek.com';
       } else if (p === 'gemini') {
-        if (!modelInput.value || modelInput.value === 'deepseek-chat' || modelInput.value === 'gpt-4o') modelInput.value = 'gemini-2.0-flash';
+        if (!modelInput.value || modelInput.value === 'deepseek-chat' || modelInput.value === 'gpt-4o' || modelInput.value === 'gemini-2.0-flash') modelInput.value = 'gemini-3.6-flash';
         hint.innerHTML = 'احصل على مفتاح مجاني/سريع من <a href="https://aistudio.google.com" target="_blank" style="color:#38bdf8;">aistudio.google.com</a>';
         if (!baseUrlInput.value || baseUrlInput.value.includes('deepseek') || baseUrlInput.value.includes('openai')) baseUrlInput.value = 'https://generativelanguage.googleapis.com/v1beta/openai';
       } else if (p === 'openai') {
