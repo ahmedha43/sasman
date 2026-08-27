@@ -13,19 +13,33 @@ func TestRouterOSToolDefinitions(t *testing.T) {
 		t.Fatalf("expected tools to be defined, got 0")
 	}
 
-	foundAudit := false
+	foundRunCmd := false
+	foundResources := false
+	foundMCPCall := false
 	foundPlan := false
 	for _, tool := range tools {
-		if tool.Function.Name == "mikrotik_audit_router" {
-			foundAudit = true
+		if tool.Function.Name == "mikrotik_run_command" {
+			foundRunCmd = true
+		}
+		if tool.Function.Name == "mikrotik_get_resources" {
+			foundResources = true
+		}
+		if tool.Function.Name == "mikrotik_mcp_call" {
+			foundMCPCall = true
 		}
 		if tool.Function.Name == "mikrotik_generate_plan" {
 			foundPlan = true
 		}
 	}
 
-	if !foundAudit {
-		t.Errorf("expected mikrotik_audit_router tool to be present")
+	if !foundRunCmd {
+		t.Errorf("expected mikrotik_run_command tool to be present")
+	}
+	if !foundResources {
+		t.Errorf("expected mikrotik_get_resources tool to be present")
+	}
+	if !foundMCPCall {
+		t.Errorf("expected mikrotik_mcp_call tool to be present")
 	}
 	if !foundPlan {
 		t.Errorf("expected mikrotik_generate_plan tool to be present")

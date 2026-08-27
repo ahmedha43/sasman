@@ -6,25 +6,8 @@ func GetRouterOSToolDefinitions() []ToolDefinition {
 		{
 			Type: "function",
 			Function: FunctionDefinition{
-				Name:        "mikrotik_audit_router",
-				Description: "يقوم بجلب فحص شامل وهيكلي لكافة إعدادات الراوتر: موارد النظام، الفايروول، المنافذ، خدمات الـ IP، سجلات الهجمات، وسيرفرات DHCP",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"subdomain": map[string]interface{}{
-							"type":        "string",
-							"description": "اسم نطاق الوكيل أو معرف الراوتر المستهدف",
-						},
-					},
-					"required": []string{"subdomain"},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: FunctionDefinition{
 				Name:        "mikrotik_run_command",
-				Description: "تنفيذ أمر RouterOS CLI محدد على راوتر الوكيل وجلب النتيجة الحية (مثل /ip/firewall/filter/print أو /interface/print)",
+				Description: "تنفيذ أي أمر RouterOS CLI محدد على راوتر الوكيل وجلب النتيجة الحية (مثل /ip/firewall/filter/print أو /interface/print أو /ip/dns/print)",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -34,7 +17,7 @@ func GetRouterOSToolDefinitions() []ToolDefinition {
 						},
 						"command": map[string]interface{}{
 							"type":        "string",
-							"description": "أمر RouterOS المراد تنفيذه (مثل: /ip/address/print)",
+							"description": "أمر RouterOS CLI المراد تنفيذه (مثل: /ip/firewall/filter/print where action=drop)",
 						},
 					},
 					"required": []string{"subdomain", "command"},
@@ -44,8 +27,8 @@ func GetRouterOSToolDefinitions() []ToolDefinition {
 		{
 			Type: "function",
 			Function: FunctionDefinition{
-				Name:        "mikrotik_attack_detection",
-				Description: "فحص سجلات الراوتر (Logs) للكشف عن هجمات التخمين Brute-Force، محاولات الدخول الفاشلة، والآيبيهات المشبوهة",
+				Name:        "mikrotik_get_resources",
+				Description: "فحص موارد الراوتر الأساسية: نسبة استهلاك المعالج CPU، الذاكرة المتبقية RAM، مدة التشغيل Uptime، اسم الموديل، وإصدار RouterOS",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -61,14 +44,99 @@ func GetRouterOSToolDefinitions() []ToolDefinition {
 		{
 			Type: "function",
 			Function: FunctionDefinition{
+				Name:        "mikrotik_get_firewall",
+				Description: "جلب قواعد جدار الحماية (Firewall Filter / NAT / Mangle / Address-Lists) مع إمكانية التحديد",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+						"section": map[string]interface{}{
+							"type":        "string",
+							"enum":        []string{"filter", "nat", "mangle", "address_list", "all"},
+							"description": "قسم الفايروول المطلوب (افتراضياً filter)",
+						},
+						"chain": map[string]interface{}{
+							"type":        "string",
+							"description": "تصفية حسب سلسلة محددة (مثل: input أو forward أو dstnat)",
+						},
+					},
+					"required": []string{"subdomain"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
+				Name:        "mikrotik_get_interfaces",
+				Description: "جلب قائمة المنافذ وواجهات الشبكة (Interfaces & IP Addresses) وحالتها الحالية والترافيك",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+					},
+					"required": []string{"subdomain"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
+				Name:        "mikrotik_attack_detection",
+				Description: "فحص سجلات الراوتر (Logs) وتحليل الهجمات: محاولات التخمين Brute-Force، الدخول الفاشل، وعناوين IP المهاجمة",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+					},
+					"required": []string{"subdomain"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
+				Name:        "mikrotik_mcp_call",
+				Description: "استدعاء مباشر لأي من أدوات محرك MikroTik MCP الـ 885 في الحاوية الجانبية (مثل: explain_device, simulator, vpn_wizard)",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subdomain": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم نطاق الوكيل المستهدف",
+						},
+						"tool_name": map[string]interface{}{
+							"type":        "string",
+							"description": "اسم أداة الـ MCP المراد استدعاؤها (مثل: firewall_list_rules أو explain_device)",
+						},
+						"arguments": map[string]interface{}{
+							"type":        "object",
+							"description": "مدخلات ومعاملات الأداة",
+						},
+					},
+					"required": []string{"subdomain", "tool_name"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: FunctionDefinition{
 				Name:        "mikrotik_generate_plan",
-				Description: "توليد خطة تعديل إعدادات (Change Plan) مع إظهار الفروقات (Diff Preview) وأوامر التراجع التلقائي (Rollback) قبل التطبيق",
+				Description: "توليد خطة تعديل إعدادات آمنة (Safe Mode Change Plan) مع إظهار الفروقات (Diff Preview) وأوامر التراجع التلقائي (Rollback) قبل التطبيق",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"title": map[string]interface{}{
 							"type":        "string",
-							"description": "عنوان خطة التعديل (مثال: دمج خطين PCC أو حظر بورتات التورنت)",
+							"description": "عنوان خطة التعديل (مثال: حظر هجمات التخمين أو تفعيل FastTrack)",
 						},
 						"description": map[string]interface{}{
 							"type":        "string",

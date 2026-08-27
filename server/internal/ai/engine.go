@@ -340,8 +340,16 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 
 			toolTitle := fnName
 			switch fnName {
-			case "mikrotik_audit_router":
-				toolTitle = fmt.Sprintf("🛡️ فحص شامل لراوتر (%s)", sub)
+			case "mikrotik_get_resources":
+				toolTitle = fmt.Sprintf("📊 فحص موارد ومعالج راوتر (%s)", sub)
+			case "mikrotik_get_firewall":
+				sec, _ := args["section"].(string)
+				toolTitle = fmt.Sprintf("🛡️ جلب قواعد فايروول (%s - %s)", sub, sec)
+			case "mikrotik_get_interfaces":
+				toolTitle = fmt.Sprintf("🔌 جلب منافذ وعناوين راوتر (%s)", sub)
+			case "mikrotik_mcp_call":
+				tn, _ := args["tool_name"].(string)
+				toolTitle = fmt.Sprintf("🧰 استدعاء أداة MCP Sidecar: `%s`", tn)
 			case "mikrotik_run_command":
 				cmdStr, _ := args["command"].(string)
 				toolTitle = fmt.Sprintf("⚡ تنفيذ أمر RouterOS: `%s`", cmdStr)
@@ -365,33 +373,107 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 			var toolResult interface{}
 
 			switch fnName {
-			case "mikrotik_audit_router":
+			case "mikrotik_get_resources":
 				emit(StreamEvent{
 					Type:  "tunnel_exec",
 					Tool:  fnName,
-					Title: "نفق WebSocket",
-					Text:  fmt.Sprintf("إرسال طلب فحص الـ 14 جدول للراوتر `%s` عبر النفق...", sub),
+					Title: "موارد النظام",
+					Text:  fmt.Sprintf("فحص استهلاك المعالج والذاكرة لراوتر `%s`...", sub),
 				})
-				audit, err := e.ExecuteSystemAudit(sub)
+				res, err := e.ExecuteRouterCommand(sub, "/system/resource/print")
 				if err != nil {
 					toolResult = map[string]string{"error": err.Error()}
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "error",
-						Summary:  "تعذر الاتصال بالراوتر: " + err.Error(),
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
 				} else {
-					toolResult = compactAuditData(audit)
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "success",
-						Summary:  fmt.Sprintf("تم استلام وضغط بيانات الفحص بنجاح (%d جدول، الموارد، الفايروول، السجلات)", len(audit)),
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
+					toolResult = truncateResult(res, 2000)
 				}
+				emit(StreamEvent{
+					Type:     "tool_result",
+					Tool:     fnName,
+					Status:   "success",
+					Summary:  "تم استلام موارد ومعالج الراوتر بنجاح",
+					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+				})
+
+			case "mikrotik_get_firewall":
+				sec, _ := args["section"].(string)
+				chain, _ := args["chain"].(string)
+				cmd := "/ip/firewall/filter/print"
+				if sec == "nat" {
+					cmd = "/ip/firewall/nat/print"
+				} else if sec == "mangle" {
+					cmd = "/ip/firewall/mangle/print"
+				} else if sec == "address_list" {
+					cmd = "/ip/firewall/address-list/print"
+				}
+				if chain != "" {
+					cmd += fmt.Sprintf(" where chain=%s", chain)
+				}
+				emit(StreamEvent{
+					Type:  "tunnel_exec",
+					Tool:  fnName,
+					Title: "جدار الحماية",
+					Text:  fmt.Sprintf("قراءة قواعد الفايروول: `%s`...", cmd),
+				})
+				res, err := e.ExecuteRouterCommand(sub, cmd)
+				if err != nil {
+					toolResult = map[string]string{"error": err.Error()}
+				} else {
+					toolResult = truncateResult(res, 3000)
+				}
+				emit(StreamEvent{
+					Type:     "tool_result",
+					Tool:     fnName,
+					Status:   "success",
+					Summary:  "تم جلب قواعد الفايروول المحددة",
+					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+				})
+
+			case "mikrotik_get_interfaces":
+				emit(StreamEvent{
+					Type:  "tunnel_exec",
+					Tool:  fnName,
+					Title: "منافذ الشبكة",
+					Text:  fmt.Sprintf("جلب المنافذ وعناوين IP لراوتر `%s`...", sub),
+				})
+				ifaces, _ := e.ExecuteRouterCommand(sub, "/interface/print")
+				ips, _ := e.ExecuteRouterCommand(sub, "/ip/address/print")
+				toolResult = map[string]interface{}{
+					"interfaces": truncateResult(ifaces, 2000),
+					"addresses":  truncateResult(ips, 1500),
+				}
+				emit(StreamEvent{
+					Type:     "tool_result",
+					Tool:     fnName,
+					Status:   "success",
+					Summary:  "تم جلب منافذ وعناوين الشبكة بنجاح",
+					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+				})
+
+			case "mikrotik_mcp_call":
+				toolName, _ := args["tool_name"].(string)
+				toolArgs, _ := args["arguments"].(map[string]interface{})
+				if toolArgs == nil {
+					toolArgs = make(map[string]interface{})
+				}
+				emit(StreamEvent{
+					Type:  "tunnel_exec",
+					Tool:  fnName,
+					Title: "محرك MCP Sidecar",
+					Text:  fmt.Sprintf("تشغيل أداة `%s` عبر محرك MCP...", toolName),
+				})
+				mcpRes, err := e.mcpBridge.CallMCPTool(ctx, toolName, toolArgs)
+				if err != nil {
+					toolResult = map[string]string{"error": err.Error()}
+				} else {
+					toolResult = truncateResult(mcpRes, 3500)
+				}
+				emit(StreamEvent{
+					Type:     "tool_result",
+					Tool:     fnName,
+					Status:   "success",
+					Summary:  fmt.Sprintf("تم استدعاء أداة `%s` من محرك MCP بنجاح", toolName),
+					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+				})
 
 			case "mikrotik_run_command":
 				cmd, _ := args["command"].(string)
