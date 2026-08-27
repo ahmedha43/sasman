@@ -22,6 +22,8 @@ import (
 	"layeh.com/radius/rfc2869"
 	"layeh.com/radius/rfc3079"
 	"layeh.com/radius/vendors/microsoft"
+
+	"mikrotik-manager/pkg/tunnel"
 )
 
 var radiusLogger *log.Logger
@@ -180,9 +182,20 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 		return
 	}
 
-	// 2. Fetch User Data from LMDB
+	// 2. Check if username specifies a cross-agent domain (e.g. user@ahmed.sas-man.net or user@ahmed)
+	if strings.Contains(username, "@") || strings.Contains(username, "/") || strings.Contains(username, "\\") {
+		if handleGlobalHotspotAuth(w, r, username) {
+			return
+		}
+	}
+
+	// 3. Fetch User Data from LMDB
 	data, err := getLMDBUserData(username)
 	if err != nil {
+		// Not found locally -> Try Central Server Global HotSpot / Voucher authentication before rejecting!
+		if handleGlobalHotspotAuth(w, r, username) {
+			return
+		}
 		if debugEnabled {
 			radiusLogger.Printf("[radius] [DEBUG] User [%s] not found in LMDB or query failed: %v", username, err)
 		}
@@ -435,6 +448,62 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	w.Write(response)
 }
 
+func handleGlobalHotspotAuth(w radius.ResponseWriter, r *radius.Request, username string) bool {
+	password := rfc2865.UserPassword_GetString(r.Packet)
+	callingStation := rfc2865.CallingStationID_GetString(r.Packet)
+	framedIP := rfc2865.FramedIPAddress_Get(r.Packet)
+	nasIP, _, _ := net.SplitHostPort(r.RemoteAddr.String())
+
+	var framedIPStr string
+	if framedIP != nil {
+		framedIPStr = framedIP.String()
+	}
+
+	gReq := tunnel.GlobalAuthRequestPayload{
+		Username:      username,
+		Password:      password,
+		UserMAC:       callingStation,
+		UserIP:        framedIPStr,
+		NasIP:         nasIP,
+	}
+
+	radiusLogger.Printf("[radius] 🌐 توجيه طلب المصادقة للسيرفر المركزي: يوزر [%s] | MAC: %s", username, callingStation)
+
+	resp, err := tunnel.RequestGlobalAuth(gReq, 4*time.Second)
+	if err != nil {
+		radiusLogger.Printf("[radius] ⚠️ تعذر الوصول للسيرفر المركزي للمستخدم [%s]: %v", username, err)
+		return false
+	}
+
+	if !resp.Allow {
+		radiusLogger.Printf("[radius] ❌ رفض المصادقة المركزية للمستخدم [%s]: %s", username, resp.RejectReason)
+		writeAccessReject(w, r, username, resp.RejectReason)
+		return true
+	}
+
+	radiusLogger.Printf("[radius] ✅ تم قبول المصادقة المركزية للمستخدم [%s] بنجاح! نوع الحساب: %s | السرعة: %s", username, resp.AccountType, resp.RateLimit)
+
+	reply := r.Response(radius.CodeAccessAccept)
+	if resp.RateLimit != "" {
+		addReplyAttribute(reply, "Mikrotik-Rate-Limit", resp.RateLimit)
+	}
+	if resp.SessionTimeout > 0 {
+		rfc2865.SessionTimeout_Add(reply, rfc2865.SessionTimeout(resp.SessionTimeout))
+	}
+	if resp.IdleTimeout > 0 {
+		rfc2865.IdleTimeout_Add(reply, rfc2865.IdleTimeout(resp.IdleTimeout))
+	}
+	if resp.ReplyMessage != "" {
+		rfc2865.ReplyMessage_Add(reply, []byte(resp.ReplyMessage))
+	} else {
+		rfc2865.ReplyMessage_Add(reply, []byte("SASMAN Global HotSpot Welcome"))
+	}
+
+	_ = signMessageAuthenticator(reply)
+	w.Write(reply)
+	return true
+}
+
 func writeAccessReject(w radius.ResponseWriter, r *radius.Request, username, reason string) {
 	response := r.Packet.Response(radius.CodeAccessReject)
 	if username != "" {
@@ -537,7 +606,33 @@ func handleAcctRequest(w radius.ResponseWriter, r *radius.Request) {
 	// 2. Persist Accounting Record into SQLite radacct
 	go recordSQLiteAccounting(username, statusType, sid, ip, cli, nasIP, inOct, outOct, sessionSecs, termCause)
 
-	// 3. Invalidate Session Cache so dashboard and user list reflect changes instantly
+	// 3. Forward to Central Server for Global Roaming / Voucher Sessions
+	go func() {
+		statusTypeStr := ""
+		switch statusType {
+		case rfc2866.AcctStatusType_Value_Start:
+			statusTypeStr = "Start"
+		case rfc2866.AcctStatusType_Value_Stop:
+			statusTypeStr = "Stop"
+		case rfc2866.AcctStatusType_Value_InterimUpdate:
+			statusTypeStr = "Interim-Update"
+		}
+		if statusTypeStr != "" {
+			_ = tunnel.SendGlobalAcct(tunnel.GlobalAcctPayload{
+				SessionID:      sid,
+				Username:       username,
+				StatusType:     statusTypeStr,
+				UserMAC:        cli,
+				UserIP:         ip,
+				NasIP:          nasIP,
+				BytesIn:        int64(inOct),
+				BytesOut:       int64(outOct),
+				SessionTimeSec: int(sessionSecs),
+			})
+		}
+	}()
+
+	// 4. Invalidate Session Cache so dashboard and user list reflect changes instantly
 	InvalidateSessionCache()
 }
 
@@ -592,6 +687,46 @@ func getLMDBUserData(username string) (string, error) {
 func updateLMDBAccounting(username string, status rfc2866.AcctStatusType, sid, ip, cli string, in, out uint64, secs int64) {
 	// We'll add this function to lmdb_sync.go
 	saveAccountingToLMDB(username, status, sid, ip, cli, in, out, secs)
+}
+
+// VerifyLocalUser checks local LMDB / SQLite user credentials for cross-agent validation
+func VerifyLocalUser(username, password string) (bool, string, string, error) {
+	data, err := getLMDBUserData(username)
+	if err != nil {
+		if DB == nil {
+			return false, "", "User not found", fmt.Errorf("user not found")
+		}
+		var dbPass string
+		err = DB.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&dbPass)
+		if err != nil {
+			return false, "", "المستخدم غير مسجل لدى هذا الوكيل", fmt.Errorf("user not found")
+		}
+		if password != "" && password != dbPass {
+			return false, "", "كلمة المرور غير صحيحة", nil
+		}
+		return true, "10M/10M", "OK", nil
+	}
+
+	lines := strings.Split(data, "\n")
+	if len(lines) < 1 {
+		return false, "", "بيانات المستخدم معطوبة", fmt.Errorf("invalid user data")
+	}
+	dbPassword := lines[0]
+	if password != "" && password != dbPassword {
+		return false, "", "كلمة المرور غير صحيحة", nil
+	}
+
+	rateLimit := "10M/10M"
+	for _, line := range lines[1:] {
+		if idx := strings.Index(line, "="); idx != -1 {
+			k := strings.ToLower(strings.TrimSpace(line[:idx]))
+			v := strings.TrimSpace(line[idx+1:])
+			if k == "mikrotik-rate-limit" {
+				rateLimit = v
+			}
+		}
+	}
+	return true, rateLimit, "OK", nil
 }
 
 // addReplyAttribute adds an attribute to the response packet.

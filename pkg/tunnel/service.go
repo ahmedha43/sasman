@@ -139,6 +139,43 @@ type SyncConfigPayload struct {
 	Credentials    map[string]interface{} `json:"credentials,omitempty"`
 }
 
+type GlobalAuthRequestPayload struct {
+	RequestID        string `json:"request_id"`
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	CHAPPassword     string `json:"chap_password,omitempty"`
+	CHAPChallenge    string `json:"chap_challenge,omitempty"`
+	UserMAC          string `json:"user_mac"`
+	UserIP           string `json:"user_ip"`
+	NasIP            string `json:"nas_ip"`
+	VisitedSubdomain string `json:"visited_subdomain"`
+}
+
+type GlobalAuthResponsePayload struct {
+	RequestID      string `json:"request_id"`
+	Allow          bool   `json:"allow"`
+	RateLimit      string `json:"rate_limit,omitempty"`
+	SessionTimeout int    `json:"session_timeout,omitempty"`
+	IdleTimeout    int    `json:"idle_timeout,omitempty"`
+	ReplyMessage   string `json:"reply_message,omitempty"`
+	RejectReason   string `json:"reject_reason,omitempty"`
+	AccountType    string `json:"account_type,omitempty"` // 'voucher' | 'roaming_user'
+}
+
+type GlobalAcctPayload struct {
+	SessionID        string `json:"session_id"`
+	Username         string `json:"username"`
+	StatusType       string `json:"status_type"` // 'Start', 'Interim-Update', 'Stop'
+	UserMAC          string `json:"user_mac"`
+	UserIP           string `json:"user_ip"`
+	NasIP            string `json:"nas_ip"`
+	VisitedSubdomain string `json:"visited_subdomain"`
+	BytesIn          int64  `json:"bytes_in"`
+	BytesOut         int64  `json:"bytes_out"`
+	SessionTimeSec   int    `json:"session_time_sec"`
+	TerminateCause   string `json:"terminate_cause,omitempty"`
+}
+
 type Service struct {
 	mu                   sync.RWMutex
 	sessions             map[string]*AgentSession
@@ -150,6 +187,8 @@ type Service struct {
 	OnBroadcastLog       func(log broadcast.BroadcastLogPayload)
 	OnAgentRegistered    func(subdomain string)
 	OnSyncConfigReceived func(subdomain string, payload SyncConfigPayload)
+	OnGlobalAuthRequest  func(subdomain string, req GlobalAuthRequestPayload) GlobalAuthResponsePayload
+	OnGlobalAcctUpdate   func(subdomain string, payload GlobalAcctPayload)
 }
 
 func NewService(db *sql.DB) *Service {
@@ -892,6 +931,37 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 					bLog.AgentID = boundSession.Subdomain
 				}
 				go s.OnBroadcastLog(bLog)
+			}
+		} else if msg.Type == "global_auth_request" {
+			var authReq GlobalAuthRequestPayload
+			if err := json.Unmarshal(msg.Payload, &authReq); err == nil && boundSession != nil {
+				go func(sub string, r GlobalAuthRequestPayload, sess *AgentSession) {
+					var resp GlobalAuthResponsePayload
+					if s.OnGlobalAuthRequest != nil {
+						resp = s.OnGlobalAuthRequest(sub, r)
+					} else {
+						resp = GlobalAuthResponsePayload{
+							RequestID:    r.RequestID,
+							Allow:        false,
+							RejectReason: "Global Auth Broker is not configured on Central Server",
+						}
+					}
+					respBytes, _ := json.Marshal(resp)
+					sess.writeMu.Lock()
+					_ = sess.WriteJSON(TunnelMessage{
+						Type:      "global_auth_response",
+						RequestID: r.RequestID,
+						Payload:   respBytes,
+					})
+					sess.writeMu.Unlock()
+				}(boundSession.Subdomain, authReq, boundSession)
+			}
+		} else if msg.Type == "global_acct_update" {
+			var acctPayload GlobalAcctPayload
+			if err := json.Unmarshal(msg.Payload, &acctPayload); err == nil && boundSession != nil {
+				if s.OnGlobalAcctUpdate != nil {
+					go s.OnGlobalAcctUpdate(boundSession.Subdomain, acctPayload)
+				}
 			}
 		} else if strings.HasPrefix(msg.Type, "relay_") || msg.Type == "telemetry_push" || msg.Type == "p2p_offer" || msg.Type == "p2p_answer" || msg.Type == "p2p_candidate" {
 			if s.OnRelayMessage != nil && boundSession != nil {

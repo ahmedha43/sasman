@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -28,6 +30,9 @@ var landingHTML string
 
 //go:embed web/*
 var webFS embed.FS
+
+//go:embed hotspot_template/*
+var hotspotFS embed.FS
 
 func main() {
 	dbPath := os.Getenv("SASMAN_DB_PATH")
@@ -193,6 +198,151 @@ func main() {
 		}
 	}
 
+	centralDomain := os.Getenv("SASMAN_CENTRAL_DOMAIN")
+	if centralDomain == "" {
+		centralDomain = "sas-man.net"
+	}
+
+	svc.OnGlobalAuthRequest = func(visitedSubdomain string, req tunnel.GlobalAuthRequestPayload) tunnel.GlobalAuthResponsePayload {
+		uname := strings.TrimSpace(req.Username)
+		if uname == "" {
+			return tunnel.GlobalAuthResponsePayload{
+				RequestID:    req.RequestID,
+				Allow:        false,
+				RejectReason: "اسم المستخدم فارغ (Empty username)",
+			}
+		}
+
+		// 1. Check if it's a Cross-Agent Roaming User (e.g. user@ahmed.sas-man.net or user@ahmed or ahmed\user or ahmed/user)
+		targetSubdomain := ""
+		actualUsername := uname
+
+		if idx := strings.Index(uname, "@"); idx != -1 {
+			actualUsername = uname[:idx]
+			targetSubdomain = uname[idx+1:]
+		} else if idx := strings.Index(uname, "\\"); idx != -1 {
+			targetSubdomain = uname[:idx]
+			actualUsername = uname[idx+1:]
+		} else if idx := strings.Index(uname, "/"); idx != -1 {
+			targetSubdomain = uname[:idx]
+			actualUsername = uname[idx+1:]
+		}
+
+		if targetSubdomain != "" {
+			targetSubdomain = tunnel.ExtractSubdomainForHost(targetSubdomain, centralDomain)
+			if targetSubdomain == "" {
+				targetSubdomain = strings.Split(uname[strings.IndexAny(uname, "@/\\")+1:], ".")[0]
+			}
+			targetSubdomain = strings.ToLower(strings.TrimSpace(targetSubdomain))
+
+			verifyReq := map[string]string{
+				"username": actualUsername,
+				"password": req.Password,
+			}
+			verifyBytes, _ := json.Marshal(verifyReq)
+
+			_, respBytes, err := svc.SendAgentHTTPRequest(targetSubdomain, "POST", "/radius/api/internal/verify-user", verifyBytes, nil)
+			if err != nil {
+				return tunnel.GlobalAuthResponsePayload{
+					RequestID:    req.RequestID,
+					Allow:        false,
+					RejectReason: fmt.Sprintf("تعذر التحقق من الوكيل الأصلي [%s]: %v", targetSubdomain, err),
+				}
+			}
+
+			var verifyResp struct {
+				Allow     bool   `json:"allow"`
+				Reason    string `json:"reason"`
+				RateLimit string `json:"rate_limit"`
+			}
+			if err := json.Unmarshal(respBytes, &verifyResp); err != nil || !verifyResp.Allow {
+				reason := verifyResp.Reason
+				if reason == "" {
+					reason = "فشل التحقق من حساب المشترك لدى الوكيل الأصلي"
+				}
+				return tunnel.GlobalAuthResponsePayload{
+					RequestID:    req.RequestID,
+					Allow:        false,
+					RejectReason: reason,
+				}
+			}
+
+			rateLimit := verifyResp.RateLimit
+			if rateLimit == "" {
+				rateLimit = "10M/10M"
+			}
+
+			return tunnel.GlobalAuthResponsePayload{
+				RequestID:      req.RequestID,
+				Allow:          true,
+				RateLimit:      rateLimit,
+				SessionTimeout: 86400,
+				AccountType:    "roaming_user",
+				ReplyMessage:   fmt.Sprintf("مرحباً بك عبر شبكة SASMAN الموحدة (وكيل: %s)", targetSubdomain),
+			}
+		}
+
+		// 2. Otherwise, treat as Global Voucher / Card PIN
+		voucher, err := repo.ValidateAndRedeemGlobalVoucher(uname, req.UserMAC, visitedSubdomain)
+		if err != nil {
+			return tunnel.GlobalAuthResponsePayload{
+				RequestID:    req.RequestID,
+				Allow:        false,
+				RejectReason: err.Error(),
+			}
+		}
+
+		remSecs := 86400
+		if voucher.ExpiresAt != nil {
+			remSecs = int(time.Until(*voucher.ExpiresAt).Seconds())
+			if remSecs <= 0 {
+				remSecs = 60
+			}
+		}
+
+		return tunnel.GlobalAuthResponsePayload{
+			RequestID:      req.RequestID,
+			Allow:          true,
+			RateLimit:      voucher.RateLimit,
+			SessionTimeout: remSecs,
+			AccountType:    "voucher",
+			ReplyMessage:   "تم تفعيل كرت SASMAN Global بنجاح",
+		}
+	}
+
+	svc.OnGlobalAcctUpdate = func(visitedSubdomain string, payload tunnel.GlobalAcctPayload) {
+		var stoppedAt *time.Time
+		if payload.StatusType == "Stop" {
+			now := time.Now().UTC()
+			stoppedAt = &now
+		}
+
+		sessType := "voucher"
+		homeSub := ""
+		if strings.Contains(payload.Username, "@") {
+			sessType = "roaming_user"
+			parts := strings.Split(payload.Username, "@")
+			if len(parts) > 1 {
+				homeSub = parts[1]
+			}
+		}
+
+		_ = repo.RecordGlobalHotspotSession(storage.GlobalHotspotSession{
+			ID:               payload.SessionID,
+			Username:         payload.Username,
+			SessionType:      sessType,
+			HomeSubdomain:    homeSub,
+			VisitedSubdomain: visitedSubdomain,
+			UserMAC:          payload.UserMAC,
+			UserIP:           payload.UserIP,
+			NasIP:            payload.NasIP,
+			BytesIn:          payload.BytesIn,
+			BytesOut:         payload.BytesOut,
+			SessionTimeSec:   payload.SessionTimeSec,
+			StoppedAt:        stoppedAt,
+		})
+	}
+
 	backupScheduler := backup.NewScheduler(svc)
 	backupScheduler.Start()
 
@@ -211,7 +361,6 @@ func main() {
 	otaAPI.RegisterRoutes(app)
 	aiAPI.RegisterRoutes(app)
 
-	centralDomain := os.Getenv("SASMAN_CENTRAL_DOMAIN")
 	if centralDomain == "" {
 		centralDomain = "sas-man.net"
 	}
@@ -1457,6 +1606,110 @@ func main() {
 			Clicked:        payload.Clicked,
 		})
 		return c.JSON(fiber.Map{"success": true})
+	})
+
+	// ==========================================
+	// SASMAN Global HotSpot & Vouchers Admin APIs
+	// ==========================================
+	app.Get("/api/global-hotspot/vouchers", func(c *fiber.Ctx) error {
+		status := c.Query("status")
+		batchID := c.Query("batch_id")
+		list, err := repo.GetGlobalVouchers(status, batchID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"success": true, "vouchers": list, "count": len(list)})
+	})
+
+	app.Get("/api/global-hotspot/batches", func(c *fiber.Ctx) error {
+		batches, err := repo.GetGlobalVoucherBatches()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"success": true, "batches": batches})
+	})
+
+	app.Post("/api/global-hotspot/vouchers/generate", func(c *fiber.Ctx) error {
+		var req struct {
+			BatchID       string  `json:"batch_id"`
+			Prefix        string  `json:"prefix"`
+			Count         int     `json:"count"`
+			ProfileName   string  `json:"profile_name"`
+			RateLimit     string  `json:"rate_limit"`
+			Price         float64 `json:"price"`
+			ValidityHours int     `json:"validity_hours"`
+			ValidityDays  int     `json:"validity_days"`
+			DataLimitMB   int64   `json:"data_limit_mb"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		if req.Count <= 0 {
+			req.Count = 10
+		}
+		vouchers, err := repo.GenerateGlobalVouchers(
+			req.BatchID, req.Prefix, req.Count, req.ProfileName, req.RateLimit,
+			req.Price, req.ValidityHours, req.ValidityDays, req.DataLimitMB, "admin",
+		)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"success": true, "message": fmt.Sprintf("تم توليد %d كرت موحد بنجاح!", len(vouchers)), "vouchers": vouchers})
+	})
+
+	app.Delete("/api/global-hotspot/vouchers/:id", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		if err := repo.DeleteGlobalVoucher(id); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"success": true, "message": "تم حذف الكرت بنجاح"})
+	})
+
+	app.Delete("/api/global-hotspot/vouchers/batch/:batch_id", func(c *fiber.Ctx) error {
+		batchID := c.Params("batch_id")
+		if err := repo.DeleteGlobalVoucherBatch(batchID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"success": true, "message": "تم حذف الدفعة بالكامل بنجاح"})
+	})
+
+	app.Get("/api/global-hotspot/sessions", func(c *fiber.Ctx) error {
+		limit := c.QueryInt("limit", 100)
+		sessions, err := repo.GetGlobalHotspotSessions(limit)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"success": true, "sessions": sessions})
+	})
+
+	app.Get("/api/global-hotspot/template.zip", func(c *fiber.Ctx) error {
+		var buf bytes.Buffer
+		zw := zip.NewWriter(&buf)
+
+		entries, err := hotspotFS.ReadDir("hotspot_template")
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("read template dir: " + err.Error())
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			fData, err := hotspotFS.ReadFile("hotspot_template/" + entry.Name())
+			if err != nil {
+				continue
+			}
+			w, err := zw.Create(entry.Name())
+			if err != nil {
+				continue
+			}
+			_, _ = w.Write(fData)
+		}
+		_ = zw.Close()
+
+		c.Set("Content-Type", "application/zip")
+		c.Set("Content-Disposition", `attachment; filename="sasman_global_hotspot_template.zip"`)
+		return c.Send(buf.Bytes())
 	})
 
 	app.Get("/api/tunnel/route/:subdomain", func(c *fiber.Ctx) error {

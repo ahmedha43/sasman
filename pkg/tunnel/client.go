@@ -61,23 +61,28 @@ type AgentClientConfig struct {
 
 // ResilientAgentClient manages persistent connection to SASMAN Central Gateway with exponential backoff
 type ResilientAgentClient struct {
-	lastPongAt   atomic.Int64
-	running      atomic.Int32
-	cfg          AgentClientConfig
-	ctx          context.Context
-	cancel       context.CancelFunc
-	connMu       sync.RWMutex
-	activeConn   *websocket.Conn
-	activeWriteMu *sync.Mutex
+	lastPongAt          atomic.Int64
+	running             atomic.Int32
+	cfg                 AgentClientConfig
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	connMu              sync.RWMutex
+	activeConn          *websocket.Conn
+	activeWriteMu       *sync.Mutex
+	pendingAuthMu       sync.RWMutex
+	pendingAuthRequests map[string]chan *GlobalAuthResponsePayload
 }
 
 func NewResilientAgentClient(cfg AgentClientConfig) *ResilientAgentClient {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &ResilientAgentClient{
-		cfg:    cfg,
-		ctx:    ctx,
-		cancel: cancel,
+	client := &ResilientAgentClient{
+		cfg:                 cfg,
+		ctx:                 ctx,
+		cancel:              cancel,
+		pendingAuthRequests: make(map[string]chan *GlobalAuthResponsePayload),
 	}
+	SetDefaultAgentClient(client)
+	return client
 }
 
 // TriggerSync pushes the latest configuration and credentials to central server in real-time
@@ -520,6 +525,20 @@ func (c *ResilientAgentClient) connectAndServe() error {
 				}
 			}
 
+		case "global_auth_response":
+			var resp GlobalAuthResponsePayload
+			if err := json.Unmarshal(msg.Payload, &resp); err == nil {
+				c.pendingAuthMu.RLock()
+				ch, ok := c.pendingAuthRequests[msg.RequestID]
+				c.pendingAuthMu.RUnlock()
+				if ok && ch != nil {
+					select {
+					case ch <- &resp:
+					default:
+					}
+				}
+			}
+
 		case "tcp_close":
 			var closePayload TcpClosePayload
 			if err := json.Unmarshal(msg.Payload, &closePayload); err == nil && closePayload.ConnID != "" {
@@ -531,6 +550,131 @@ func (c *ResilientAgentClient) connectAndServe() error {
 			}
 		}
 	}
+}
+
+// RequestGlobalAuth sends a RADIUS authentication request to Central Server over tunnel and waits for response
+func (c *ResilientAgentClient) RequestGlobalAuth(req GlobalAuthRequestPayload, timeout time.Duration) (*GlobalAuthResponsePayload, error) {
+	if timeout <= 0 {
+		timeout = 4 * time.Second
+	}
+	c.connMu.RLock()
+	conn := c.activeConn
+	writeMu := c.activeWriteMu
+	c.connMu.RUnlock()
+
+	if conn == nil || writeMu == nil {
+		return nil, fmt.Errorf("SASMAN cloud tunnel is offline")
+	}
+
+	if req.RequestID == "" {
+		req.RequestID = fmt.Sprintf("gauth-%d-%d", time.Now().UnixNano(), rand.Intn(100000))
+	}
+	if req.VisitedSubdomain == "" {
+		req.VisitedSubdomain = c.cfg.Subdomain
+	}
+
+	payloadBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	respChan := make(chan *GlobalAuthResponsePayload, 1)
+	c.pendingAuthMu.Lock()
+	if c.pendingAuthRequests == nil {
+		c.pendingAuthRequests = make(map[string]chan *GlobalAuthResponsePayload)
+	}
+	c.pendingAuthRequests[req.RequestID] = respChan
+	c.pendingAuthMu.Unlock()
+
+	defer func() {
+		c.pendingAuthMu.Lock()
+		delete(c.pendingAuthRequests, req.RequestID)
+		c.pendingAuthMu.Unlock()
+	}()
+
+	msg := TunnelMessage{
+		Type:      "global_auth_request",
+		RequestID: req.RequestID,
+		Payload:   payloadBytes,
+	}
+
+	writeMu.Lock()
+	err = conn.WriteJSON(msg)
+	writeMu.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("failed to send global auth request over tunnel: %w", err)
+	}
+
+	select {
+	case resp := <-respChan:
+		return resp, nil
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("global auth request timed out waiting for Central Server")
+	}
+}
+
+// SendGlobalAcct sends a session accounting event to Central Server
+func (c *ResilientAgentClient) SendGlobalAcct(acct GlobalAcctPayload) error {
+	c.connMu.RLock()
+	conn := c.activeConn
+	writeMu := c.activeWriteMu
+	c.connMu.RUnlock()
+
+	if conn == nil || writeMu == nil {
+		return fmt.Errorf("SASMAN cloud tunnel is offline")
+	}
+
+	if acct.VisitedSubdomain == "" {
+		acct.VisitedSubdomain = c.cfg.Subdomain
+	}
+
+	payloadBytes, err := json.Marshal(acct)
+	if err != nil {
+		return err
+	}
+
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	return conn.WriteJSON(TunnelMessage{
+		Type:    "global_acct_update",
+		Payload: payloadBytes,
+	})
+}
+
+var (
+	defaultAgentClient   *ResilientAgentClient
+	defaultAgentClientMu sync.RWMutex
+)
+
+// SetDefaultAgentClient registers the active agent client for global package access
+func SetDefaultAgentClient(client *ResilientAgentClient) {
+	defaultAgentClientMu.Lock()
+	defaultAgentClient = client
+	defaultAgentClientMu.Unlock()
+}
+
+// RequestGlobalAuth performs global hotspot/roaming authentication via active agent tunnel
+func RequestGlobalAuth(req GlobalAuthRequestPayload, timeout time.Duration) (*GlobalAuthResponsePayload, error) {
+	defaultAgentClientMu.RLock()
+	c := defaultAgentClient
+	defaultAgentClientMu.RUnlock()
+
+	if c == nil {
+		return nil, fmt.Errorf("no active SASMAN tunnel client")
+	}
+	return c.RequestGlobalAuth(req, timeout)
+}
+
+// SendGlobalAcct sends accounting update via active agent tunnel
+func SendGlobalAcct(acct GlobalAcctPayload) error {
+	defaultAgentClientMu.RLock()
+	c := defaultAgentClient
+	defaultAgentClientMu.RUnlock()
+
+	if c == nil {
+		return fmt.Errorf("no active SASMAN tunnel client")
+	}
+	return c.SendGlobalAcct(acct)
 }
 
 type wsRelaySignaler struct {

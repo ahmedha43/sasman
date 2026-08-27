@@ -115,6 +115,43 @@ type SubdomainTakeoverRequest struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
+type GlobalVoucher struct {
+	ID                   string     `json:"id"`
+	Code                 string     `json:"code"`
+	BatchID              string     `json:"batch_id"`
+	ProfileName          string     `json:"profile_name"`
+	RateLimit            string     `json:"rate_limit"`
+	Price                float64    `json:"price"`
+	ValidityHours        int        `json:"validity_hours"`
+	ValidityDays         int        `json:"validity_days"`
+	DataLimitMB          int64      `json:"data_limit_mb"`
+	Status               string     `json:"status"` // 'active', 'in_use', 'expired', 'disabled'
+	FirstActivatedAt     *time.Time `json:"first_activated_at,omitempty"`
+	ExpiresAt            *time.Time `json:"expires_at,omitempty"`
+	UsedByMAC            string     `json:"used_by_mac"`
+	UsedAtAgentSubdomain string     `json:"used_at_agent_subdomain"`
+	CreatedBy            string     `json:"created_by"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+}
+
+type GlobalHotspotSession struct {
+	ID               string     `json:"id"`
+	Username         string     `json:"username"`
+	SessionType      string     `json:"session_type"` // 'voucher' | 'roaming_user'
+	HomeSubdomain    string     `json:"home_subdomain"`
+	VisitedSubdomain string     `json:"visited_subdomain"`
+	UserMAC          string     `json:"user_mac"`
+	UserIP           string     `json:"user_ip"`
+	NasIP            string     `json:"nas_ip"`
+	BytesIn          int64      `json:"bytes_in"`
+	BytesOut         int64      `json:"bytes_out"`
+	SessionTimeSec   int        `json:"session_time_sec"`
+	StartedAt        time.Time  `json:"started_at"`
+	LastSeenAt       time.Time  `json:"last_seen_at"`
+	StoppedAt        *time.Time `json:"stopped_at,omitempty"`
+}
+
 type SQLiteRepository struct {
 	db *sql.DB
 }
@@ -285,6 +322,46 @@ func (r *SQLiteRepository) CreateSchema() error {
             notes TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );`,
+		`CREATE TABLE IF NOT EXISTS global_vouchers (
+            id TEXT PRIMARY KEY,
+            code TEXT NOT NULL UNIQUE,
+            batch_id TEXT NOT NULL DEFAULT '',
+            profile_name TEXT NOT NULL DEFAULT 'Default',
+            rate_limit TEXT NOT NULL DEFAULT '10M/10M',
+            price REAL NOT NULL DEFAULT 0,
+            validity_hours INTEGER NOT NULL DEFAULT 0,
+            validity_days INTEGER NOT NULL DEFAULT 1,
+            data_limit_mb INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'active',
+            first_activated_at TEXT,
+            expires_at TEXT,
+            used_by_mac TEXT NOT NULL DEFAULT '',
+            used_at_agent_subdomain TEXT NOT NULL DEFAULT '',
+            created_by TEXT NOT NULL DEFAULT 'admin',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+		`CREATE INDEX IF NOT EXISTS idx_global_vouchers_code ON global_vouchers(code);`,
+		`CREATE INDEX IF NOT EXISTS idx_global_vouchers_batch ON global_vouchers(batch_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_global_vouchers_status ON global_vouchers(status);`,
+		`CREATE TABLE IF NOT EXISTS global_hotspot_sessions (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            session_type TEXT NOT NULL DEFAULT 'voucher',
+            home_subdomain TEXT NOT NULL DEFAULT '',
+            visited_subdomain TEXT NOT NULL,
+            user_mac TEXT NOT NULL DEFAULT '',
+            user_ip TEXT NOT NULL DEFAULT '',
+            nas_ip TEXT NOT NULL DEFAULT '',
+            bytes_in INTEGER NOT NULL DEFAULT 0,
+            bytes_out INTEGER NOT NULL DEFAULT 0,
+            session_time_sec INTEGER NOT NULL DEFAULT 0,
+            started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            stopped_at TEXT
+        );`,
+		`CREATE INDEX IF NOT EXISTS idx_global_sessions_username ON global_hotspot_sessions(username);`,
+		`CREATE INDEX IF NOT EXISTS idx_global_sessions_visited ON global_hotspot_sessions(visited_subdomain);`,
 	}
 
 	for _, q := range queries {
@@ -1673,5 +1750,395 @@ func (r *SQLiteRepository) GetAIAuditLogs(subdomain string, limit int) ([]AIAudi
 		}
 	}
 	return logs, nil
+}
+
+// ==========================================
+// SASMAN Global HotSpot & Vouchers Repository
+// ==========================================
+
+// GenerateGlobalVouchers generates a batch of global vouchers
+func (r *SQLiteRepository) GenerateGlobalVouchers(batchID, prefix string, count int, profileName, rateLimit string, price float64, validityHours, validityDays int, dataLimitMB int64, createdBy string) ([]GlobalVoucher, error) {
+	if count <= 0 {
+		count = 1
+	}
+	if count > 1000 {
+		count = 1000
+	}
+	if batchID == "" {
+		batchID = fmt.Sprintf("batch-%d", time.Now().Unix())
+	}
+	if profileName == "" {
+		profileName = "Default"
+	}
+	if rateLimit == "" {
+		rateLimit = "10M/10M"
+	}
+	if createdBy == "" {
+		createdBy = "admin"
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	now := time.Now().UTC()
+	nowStr := now.Format(time.RFC3339)
+
+	var vouchers []GlobalVoucher
+	const charset = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+
+	for i := 0; i < count; i++ {
+		var code string
+		for attempt := 0; attempt < 10; attempt++ {
+			raw := make([]byte, 12)
+			for j := range raw {
+				raw[j] = charset[time.Now().UnixNano()%int64(len(charset))]
+				time.Sleep(1 * time.Nanosecond)
+			}
+			cand := fmt.Sprintf("%s-%s-%s", string(raw[0:4]), string(raw[4:8]), string(raw[8:12]))
+			if prefix != "" {
+				cand = strings.ToUpper(strings.TrimSpace(prefix)) + "-" + cand
+			}
+
+			var exists int
+			_ = tx.QueryRow("SELECT COUNT(*) FROM global_vouchers WHERE code = ?", cand).Scan(&exists)
+			if exists == 0 {
+				code = cand
+				break
+			}
+		}
+
+		if code == "" {
+			return nil, fmt.Errorf("failed to generate unique voucher code")
+		}
+
+		id := fmt.Sprintf("gv-%d-%d", now.UnixNano(), i)
+		v := GlobalVoucher{
+			ID:            id,
+			Code:          code,
+			BatchID:       batchID,
+			ProfileName:   profileName,
+			RateLimit:     rateLimit,
+			Price:         price,
+			ValidityHours: validityHours,
+			ValidityDays:  validityDays,
+			DataLimitMB:   dataLimitMB,
+			Status:        "active",
+			CreatedBy:     createdBy,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		_, err = tx.Exec(`
+			INSERT INTO global_vouchers (id, code, batch_id, profile_name, rate_limit, price, validity_hours, validity_days, data_limit_mb, status, created_by, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+		`, v.ID, v.Code, v.BatchID, v.ProfileName, v.RateLimit, v.Price, v.ValidityHours, v.ValidityDays, v.DataLimitMB, v.CreatedBy, nowStr, nowStr)
+		if err != nil {
+			return nil, fmt.Errorf("insert voucher: %w", err)
+		}
+
+		vouchers = append(vouchers, v)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return vouchers, nil
+}
+
+// GetGlobalVouchers retrieves global vouchers with optional filtering
+func (r *SQLiteRepository) GetGlobalVouchers(status, batchID string) ([]GlobalVoucher, error) {
+	query := `
+		SELECT id, code, batch_id, profile_name, rate_limit, price, validity_hours, validity_days, data_limit_mb,
+		       status, first_activated_at, expires_at, used_by_mac, used_at_agent_subdomain, created_by, created_at, updated_at
+		FROM global_vouchers
+		WHERE 1=1
+	`
+	var args []interface{}
+	if status != "" {
+		query += " AND status = ?"
+		args = append(args, status)
+	}
+	if batchID != "" {
+		query += " AND batch_id = ?"
+		args = append(args, batchID)
+	}
+	query += " ORDER BY created_at DESC LIMIT 500"
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []GlobalVoucher
+	for rows.Next() {
+		var v GlobalVoucher
+		var firstAct, exp, created, updated sql.NullString
+		err := rows.Scan(
+			&v.ID, &v.Code, &v.BatchID, &v.ProfileName, &v.RateLimit, &v.Price, &v.ValidityHours, &v.ValidityDays, &v.DataLimitMB,
+			&v.Status, &firstAct, &exp, &v.UsedByMAC, &v.UsedAtAgentSubdomain, &v.CreatedBy, &created, &updated,
+		)
+		if err != nil {
+			continue
+		}
+		if firstAct.Valid && firstAct.String != "" {
+			if t, err := time.Parse(time.RFC3339, firstAct.String); err == nil {
+				v.FirstActivatedAt = &t
+			}
+		}
+		if exp.Valid && exp.String != "" {
+			if t, err := time.Parse(time.RFC3339, exp.String); err == nil {
+				v.ExpiresAt = &t
+			}
+		}
+		if created.Valid {
+			v.CreatedAt, _ = time.Parse(time.RFC3339, created.String)
+		}
+		if updated.Valid {
+			v.UpdatedAt, _ = time.Parse(time.RFC3339, updated.String)
+		}
+		list = append(list, v)
+	}
+	return list, nil
+}
+
+// GetGlobalVoucherBatches returns summary of all voucher batches
+func (r *SQLiteRepository) GetGlobalVoucherBatches() ([]map[string]interface{}, error) {
+	rows, err := r.db.Query(`
+		SELECT batch_id, profile_name, rate_limit, validity_hours, validity_days, data_limit_mb, price,
+		       COUNT(*) as total_count,
+		       SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_count,
+		       SUM(CASE WHEN status = 'in_use' THEN 1 ELSE 0 END) as in_use_count,
+		       SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired_count,
+		       MIN(created_at) as created_at
+		FROM global_vouchers
+		GROUP BY batch_id
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var batches []map[string]interface{}
+	for rows.Next() {
+		var batchID, profileName, rateLimit, createdAt string
+		var validityHours, validityDays, totalCount, activeCount, inUseCount, expiredCount int
+		var dataLimitMB int64
+		var price float64
+
+		if err := rows.Scan(&batchID, &profileName, &rateLimit, &validityHours, &validityDays, &dataLimitMB, &price,
+			&totalCount, &activeCount, &inUseCount, &expiredCount, &createdAt); err == nil {
+			batches = append(batches, map[string]interface{}{
+				"batch_id":       batchID,
+				"profile_name":   profileName,
+				"rate_limit":     rateLimit,
+				"validity_hours": validityHours,
+				"validity_days":  validityDays,
+				"data_limit_mb":  dataLimitMB,
+				"price":          price,
+				"total_count":    totalCount,
+				"active_count":   activeCount,
+				"in_use_count":   inUseCount,
+				"expired_count":  expiredCount,
+				"created_at":     createdAt,
+			})
+		}
+	}
+	return batches, nil
+}
+
+// DeleteGlobalVoucher deletes a single global voucher
+func (r *SQLiteRepository) DeleteGlobalVoucher(id string) error {
+	_, err := r.db.Exec("DELETE FROM global_vouchers WHERE id = ?", id)
+	return err
+}
+
+// DeleteGlobalVoucherBatch deletes all vouchers in a batch
+func (r *SQLiteRepository) DeleteGlobalVoucherBatch(batchID string) error {
+	_, err := r.db.Exec("DELETE FROM global_vouchers WHERE batch_id = ?", batchID)
+	return err
+}
+
+// ValidateAndRedeemGlobalVoucher validates, activates, and locks a global voucher on MAC
+func (r *SQLiteRepository) ValidateAndRedeemGlobalVoucher(code, mac, visitedSubdomain string) (*GlobalVoucher, error) {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	mac = strings.ToUpper(strings.TrimSpace(mac))
+	if code == "" {
+		return nil, fmt.Errorf("رمز الكرت فارغ (Empty voucher code)")
+	}
+
+	var v GlobalVoucher
+	var firstAct, exp, created, updated sql.NullString
+
+	err := r.db.QueryRow(`
+		SELECT id, code, batch_id, profile_name, rate_limit, price, validity_hours, validity_days, data_limit_mb,
+		       status, first_activated_at, expires_at, used_by_mac, used_at_agent_subdomain, created_by, created_at, updated_at
+		FROM global_vouchers
+		WHERE code = ?
+	`, code).Scan(
+		&v.ID, &v.Code, &v.BatchID, &v.ProfileName, &v.RateLimit, &v.Price, &v.ValidityHours, &v.ValidityDays, &v.DataLimitMB,
+		&v.Status, &firstAct, &exp, &v.UsedByMAC, &v.UsedAtAgentSubdomain, &v.CreatedBy, &created, &updated,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("الكرت غير موجود أو تم إدخال الرمز بشكل خاطئ")
+		}
+		return nil, err
+	}
+
+	if firstAct.Valid && firstAct.String != "" {
+		if t, err := time.Parse(time.RFC3339, firstAct.String); err == nil {
+			v.FirstActivatedAt = &t
+		}
+	}
+	if exp.Valid && exp.String != "" {
+		if t, err := time.Parse(time.RFC3339, exp.String); err == nil {
+			v.ExpiresAt = &t
+		}
+	}
+
+	now := time.Now().UTC()
+
+	// 1. Status checks
+	if v.Status == "disabled" {
+		return nil, fmt.Errorf("تم تعطيل هذا الكرت من قبل إدارة النظام")
+	}
+
+	if v.Status == "expired" {
+		return nil, fmt.Errorf("انتهت صلاحية هذا الكرت")
+	}
+
+	// 2. If already in use, check expiration & MAC binding
+	if v.Status == "in_use" {
+		if v.ExpiresAt != nil && now.After(*v.ExpiresAt) {
+			_, _ = r.db.Exec("UPDATE global_vouchers SET status = 'expired', updated_at = ? WHERE id = ?", now.Format(time.RFC3339), v.ID)
+			return nil, fmt.Errorf("انتهت صلاحية هذا الكرت")
+		}
+
+		if mac != "" && v.UsedByMAC != "" && !strings.EqualFold(v.UsedByMAC, mac) {
+			return nil, fmt.Errorf("هذا الكرت مقفل ومستخدم على جهاز آخر (MAC Mismatch)")
+		}
+
+		return &v, nil
+	}
+
+	// 3. If active -> Activate it on first login!
+	if v.Status == "active" {
+		var expiresAt time.Time
+		if v.ValidityHours > 0 {
+			expiresAt = now.Add(time.Duration(v.ValidityHours) * time.Hour)
+		} else {
+			days := v.ValidityDays
+			if days <= 0 {
+				days = 1
+			}
+			expiresAt = now.Add(time.Duration(days) * 24 * time.Hour)
+		}
+
+		v.Status = "in_use"
+		v.FirstActivatedAt = &now
+		v.ExpiresAt = &expiresAt
+		v.UsedByMAC = mac
+		v.UsedAtAgentSubdomain = visitedSubdomain
+		v.UpdatedAt = now
+
+		_, err = r.db.Exec(`
+			UPDATE global_vouchers
+			SET status = 'in_use',
+			    first_activated_at = ?,
+			    expires_at = ?,
+			    used_by_mac = ?,
+			    used_at_agent_subdomain = ?,
+			    updated_at = ?
+			WHERE id = ?
+		`, now.Format(time.RFC3339), expiresAt.Format(time.RFC3339), mac, visitedSubdomain, now.Format(time.RFC3339), v.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to activate voucher: %w", err)
+		}
+
+		return &v, nil
+	}
+
+	return &v, nil
+}
+
+// RecordGlobalHotspotSession records or updates a global roaming / voucher hotspot session
+func (r *SQLiteRepository) RecordGlobalHotspotSession(s GlobalHotspotSession) error {
+	if s.ID == "" {
+		s.ID = fmt.Sprintf("ghs-%d", time.Now().UnixNano())
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	var stoppedStr sql.NullString
+	if s.StoppedAt != nil {
+		stoppedStr.String = s.StoppedAt.UTC().Format(time.RFC3339)
+		stoppedStr.Valid = true
+	}
+
+	_, err := r.db.Exec(`
+		INSERT INTO global_hotspot_sessions (
+			id, username, session_type, home_subdomain, visited_subdomain,
+			user_mac, user_ip, nas_ip, bytes_in, bytes_out, session_time_sec,
+			started_at, last_seen_at, stopped_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			bytes_in = excluded.bytes_in,
+			bytes_out = excluded.bytes_out,
+			session_time_sec = excluded.session_time_sec,
+			last_seen_at = excluded.last_seen_at,
+			stopped_at = excluded.stopped_at
+	`, s.ID, s.Username, s.SessionType, s.HomeSubdomain, s.VisitedSubdomain,
+		s.UserMAC, s.UserIP, s.NasIP, s.BytesIn, s.BytesOut, s.SessionTimeSec,
+		now, now, stoppedStr)
+	return err
+}
+
+// GetGlobalHotspotSessions returns recent global hotspot sessions
+func (r *SQLiteRepository) GetGlobalHotspotSessions(limit int) ([]GlobalHotspotSession, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := r.db.Query(`
+		SELECT id, username, session_type, home_subdomain, visited_subdomain,
+		       user_mac, user_ip, nas_ip, bytes_in, bytes_out, session_time_sec,
+		       started_at, last_seen_at, stopped_at
+		FROM global_hotspot_sessions
+		ORDER BY last_seen_at DESC LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []GlobalHotspotSession
+	for rows.Next() {
+		var s GlobalHotspotSession
+		var started, lastSeen, stopped sql.NullString
+		err := rows.Scan(
+			&s.ID, &s.Username, &s.SessionType, &s.HomeSubdomain, &s.VisitedSubdomain,
+			&s.UserMAC, &s.UserIP, &s.NasIP, &s.BytesIn, &s.BytesOut, &s.SessionTimeSec,
+			&started, &lastSeen, &stopped,
+		)
+		if err != nil {
+			continue
+		}
+		if started.Valid {
+			s.StartedAt, _ = time.Parse(time.RFC3339, started.String)
+		}
+		if lastSeen.Valid {
+			s.LastSeenAt, _ = time.Parse(time.RFC3339, lastSeen.String)
+		}
+		if stopped.Valid && stopped.String != "" {
+			if t, err := time.Parse(time.RFC3339, stopped.String); err == nil {
+				s.StoppedAt = &t
+			}
+		}
+		list = append(list, s)
+	}
+	return list, nil
 }
 

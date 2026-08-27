@@ -425,6 +425,9 @@
       <button class="tab-btn" onclick="switchTab('backup', this)">
         <i class="fa-solid fa-hard-drive"></i> النسخ الاحتياطي المركزي
       </button>
+      <button class="tab-btn" onclick="switchTab('global-hotspot', this)">
+        <i class="fa-solid fa-ticket"></i> 🎫 كروت HotSpot الموحدة
+      </button>
       <button class="tab-btn" onclick="openAICopilot()" style="background:linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25)); color:#d8b4fe; border:1px solid #7e22ce; font-weight:bold;">
         <i class="fa-solid fa-wand-magic-sparkles" style="color:#c084fc;"></i> 🤖 المساعد الذكي (AI Copilot)
       </button>
@@ -700,6 +703,143 @@
       </div>
     </div>
 
+    <!-- ================= TAB 5: SASMAN GLOBAL HOTSPOT & VOUCHERS ================= -->
+    <div id="tab-global-hotspot" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-ticket" style="color:#38bdf8;"></i>
+            <span>إدارة وتوليد كروت SASMAN Global HotSpot والتجوال الموحد</span>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button class="btn btn-primary" onclick="openGenerateVoucherModal()" style="background:linear-gradient(135deg, #0284c7, #38bdf8); font-weight:bold;">
+              <i class="fa-solid fa-plus"></i> + توليد دفعة كروت جديدة
+            </button>
+            <a href="/api/global-hotspot/template.zip" class="btn btn-success" style="font-weight:bold;">
+              <i class="fa-solid fa-file-zipper"></i> 📥 تحميل قالب المايكروتك (Template ZIP)
+            </a>
+            <button class="btn btn-warning" onclick="openPrintVouchersModal()" style="font-weight:bold;">
+              <i class="fa-solid fa-print"></i> 🖨️ طباعة الكروت
+            </button>
+            <button class="btn btn-dark" onclick="loadGlobalVouchers()" title="تحديث القائمة">
+              <i class="fa-solid fa-rotate-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div style="display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; align-items:center; background:#0b1329; padding:12px 16px; border-radius:12px; border:1px solid #334155;">
+          <div style="font-size:13px; font-weight:bold; color:#94a3b8;">🔍 التصفية:</div>
+          <select id="voucher-status-filter" onchange="loadGlobalVouchers()" style="padding:6px 12px; border-radius:8px; background:#1e293b; color:#fff; border:1px solid #475569;">
+            <option value="">جميع الحالات</option>
+            <option value="active">جاهز للاستخدام (Active)</option>
+            <option value="in_use">مستخدم ومقفل (In Use)</option>
+            <option value="expired">منتهي الصلاحية (Expired)</option>
+            <option value="disabled">معطل (Disabled)</option>
+          </select>
+          <select id="voucher-batch-filter" onchange="loadGlobalVouchers()" style="padding:6px 12px; border-radius:8px; background:#1e293b; color:#fff; border:1px solid #475569;">
+            <option value="">جميع الدفعات (Batches)</option>
+          </select>
+          <input type="text" id="voucher-search" placeholder="بحث برقم الكرت أو الماك..." oninput="filterVouchersTable()" style="padding:6px 12px; border-radius:8px; background:#1e293b; color:#fff; border:1px solid #475569; width:220px;">
+          <div style="margin-right:auto; font-size:13px; color:#38bdf8; font-weight:bold;" id="voucher-count-badge">0 كرت</div>
+        </div>
+
+        <!-- Vouchers Table -->
+        <div class="table-responsive">
+          <table class="table" style="width:100%;">
+            <thead>
+              <tr>
+                <th>رمز الكرت (PIN / Code)</th>
+                <th>الدفعة (Batch)</th>
+                <th>الباقة والسرعة</th>
+                <th>الصلاحية</th>
+                <th>السعر</th>
+                <th>الحالة</th>
+                <th>قفل الماك (MAC Lock)</th>
+                <th>الوكيل المستخدم عنده</th>
+                <th>تاريخ التفعيل / الانتهاء</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="global-vouchers-tbody">
+              <tr>
+                <td colspan="10" style="text-align:center; padding:30px; color:#94a3b8;">جاري تحميل الكروت...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Generate Vouchers Modal -->
+  <div id="generate-voucher-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:550px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:17px;"><i class="fa-solid fa-ticket" style="color:#38bdf8;"></i> توليد دفعة كروت SASMAN Global HotSpot</h3>
+        <button class="btn btn-dark btn-xs" onclick="closeGenerateVoucherModal()">✕</button>
+      </div>
+      <form onsubmit="handleGenerateVouchers(event)">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:12.5px; font-weight:bold; display:block; margin-bottom:4px;">عدد الكروت (Count):</label>
+            <input type="number" id="gv-count" min="1" max="500" value="20" required style="width:100%; padding:8px; border-radius:8px; background:#0f172a; border:1px solid #334155; color:#fff;">
+          </div>
+          <div>
+            <label style="font-size:12.5px; font-weight:bold; display:block; margin-bottom:4px;">بادئة الكرت (Prefix اختياري):</label>
+            <input type="text" id="gv-prefix" placeholder="مثال: IQ" style="width:100%; padding:8px; border-radius:8px; background:#0f172a; border:1px solid #334155; color:#fff; text-transform:uppercase;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:12.5px; font-weight:bold; display:block; margin-bottom:4px;">اسم الباقة (Profile Name):</label>
+            <input type="text" id="gv-profile" value="Global VIP" required style="width:100%; padding:8px; border-radius:8px; background:#0f172a; border:1px solid #334155; color:#fff;">
+          </div>
+          <div>
+            <label style="font-size:12.5px; font-weight:bold; display:block; margin-bottom:4px;">سرعة المايكروتك (Rate Limit):</label>
+            <input type="text" id="gv-rate" value="10M/10M" required style="width:100%; padding:8px; border-radius:8px; background:#0f172a; border:1px solid #334155; color:#fff;">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
+          <div>
+            <label style="font-size:12.5px; font-weight:bold; display:block; margin-bottom:4px;">الصلاحية بالأيام (Days):</label>
+            <input type="number" id="gv-days" min="0" max="365" value="1" style="width:100%; padding:8px; border-radius:8px; background:#0f172a; border:1px solid #334155; color:#fff;">
+          </div>
+          <div>
+            <label style="font-size:12.5px; font-weight:bold; display:block; margin-bottom:4px;">أو بالساعات (Hours):</label>
+            <input type="number" id="gv-hours" min="0" max="8760" value="0" style="width:100%; padding:8px; border-radius:8px; background:#0f172a; border:1px solid #334155; color:#fff;">
+          </div>
+          <div>
+            <label style="font-size:12.5px; font-weight:bold; display:block; margin-bottom:4px;">السعر (IQD):</label>
+            <input type="number" id="gv-price" min="0" value="1000" style="width:100%; padding:8px; border-radius:8px; background:#0f172a; border:1px solid #334155; color:#fff;">
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-dark" onclick="closeGenerateVoucherModal()">إلغاء</button>
+          <button type="submit" class="btn btn-primary" id="gv-submit-btn">🚀 بدء التوليد الآن</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Print Vouchers Modal -->
+  <div id="print-vouchers-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:900px; max-height:90vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:17px;"><i class="fa-solid fa-print" style="color:#eab308;"></i> معاينة وطباعة كروت الهوتسبوت الموحدة</h3>
+        <div>
+          <button class="btn btn-warning btn-sm" onclick="window.print()" style="font-weight:bold;"><i class="fa-solid fa-print"></i> أمر الطباعة</button>
+          <button class="btn btn-dark btn-sm" onclick="closePrintVouchersModal()">✕ إغلاق</button>
+        </div>
+      </div>
+      <div id="printable-cards-container" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px; padding:10px; background:#fff; color:#000; border-radius:12px;">
+        <!-- Injected Cards -->
+      </div>
+    </div>
   </div>
 
   <!-- License Activation / Extension Modal -->
@@ -1503,6 +1643,7 @@
       if (tabId === 'relay') loadRelayServices();
       if (tabId === 'broadcasts') loadBroadcasts();
       if (tabId === 'ota') loadOTAReleases();
+      if (tabId === 'global-hotspot') loadGlobalVouchers();
     }
 
     // ─── AGENTS MANAGEMENT ──────────────────────────────────────────────────
@@ -4191,6 +4332,215 @@ ${setupCmd}`;
       } catch (e) {
         alert('خطأ في الاتصال بالسيرفر');
       }
+    }
+
+    // ─── SASMAN GLOBAL HOTSPOT & VOUCHERS MANAGEMENT ───────────────────────────
+    let allVouchersCache = [];
+
+    async function loadGlobalVouchers() {
+      const status = document.getElementById('voucher-status-filter').value;
+      const batchID = document.getElementById('voucher-batch-filter').value;
+      const tbody = document.getElementById('global-vouchers-tbody');
+
+      try {
+        let url = `/api/global-hotspot/vouchers?status=${encodeURIComponent(status)}&batch_id=${encodeURIComponent(batchID)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'فشل جلب الكروت');
+        allVouchersCache = data.vouchers || [];
+
+        // Update Batches dropdown
+        loadVoucherBatches();
+
+        renderVouchersTable(allVouchersCache);
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:20px; color:#ef4444;">❌ ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    async function loadVoucherBatches() {
+      try {
+        const res = await fetch('/api/global-hotspot/batches');
+        const data = await res.json();
+        if (!res.ok || !data.success) return;
+        const select = document.getElementById('voucher-batch-filter');
+        const cur = select.value;
+        let html = '<option value="">جميع الدفعات (Batches)</option>';
+        (data.batches || []).forEach(b => {
+          html += `<option value="${escapeHtml(b.batch_id)}">${escapeHtml(b.batch_id)} (${escapeHtml(b.profile_name)} - ${b.total_count} كرت)</option>`;
+        });
+        select.innerHTML = html;
+        select.value = cur;
+      } catch (e) {}
+    }
+
+    function renderVouchersTable(vouchers) {
+      const tbody = document.getElementById('global-vouchers-tbody');
+      document.getElementById('voucher-count-badge').textContent = `${vouchers.length} كرت`;
+
+      if (!vouchers || vouchers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:30px; color:#94a3b8;">لا توجد كروت مطابقة لمعايير التصفية. انقر على "+ توليد دفعة كروت جديدة" للبدء.</td></tr>`;
+        return;
+      }
+
+      let html = '';
+      vouchers.forEach(v => {
+        let statusBadge = '';
+        if (v.status === 'active') {
+          statusBadge = '<span style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid #059669; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:bold;">🟢 جاهز (Active)</span>';
+        } else if (v.status === 'in_use') {
+          statusBadge = '<span style="background:rgba(2,132,199,0.15); color:#38bdf8; border:1px solid #0284c7; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:bold;">🔵 مستخدم (In Use)</span>';
+        } else if (v.status === 'expired') {
+          statusBadge = '<span style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid #dc2626; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:bold;">🔴 منتهي (Expired)</span>';
+        } else {
+          statusBadge = '<span style="background:rgba(100,116,139,0.15); color:#94a3b8; border:1px solid #475569; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:bold;">⚪ معطل</span>';
+        }
+
+        let validityStr = '';
+        if (v.validity_hours > 0) {
+          validityStr = `${v.validity_hours} ساعة`;
+        } else {
+          validityStr = `${v.validity_days} يوم`;
+        }
+
+        let firstActStr = v.first_activated_at ? new Date(v.first_activated_at).toLocaleString('ar-IQ') : '<span style="color:#64748b;">لم يفعل بعد</span>';
+        let expStr = v.expires_at ? new Date(v.expires_at).toLocaleString('ar-IQ') : '-';
+
+        html += `
+          <tr>
+            <td style="font-family:monospace; font-weight:bold; font-size:14px; color:#38bdf8; letter-spacing:1px;">${escapeHtml(v.code)}</td>
+            <td style="font-size:12px; color:#94a3b8;">${escapeHtml(v.batch_id)}</td>
+            <td>
+              <div style="font-weight:bold;">${escapeHtml(v.profile_name)}</div>
+              <div style="font-size:11px; color:#38bdf8; font-family:monospace;">⚡ ${escapeHtml(v.rate_limit)}</div>
+            </td>
+            <td>${validityStr}</td>
+            <td style="font-weight:bold; color:#facc15;">${v.price ? v.price.toLocaleString() + ' د.ع' : 'مجاني'}</td>
+            <td>${statusBadge}</td>
+            <td style="font-family:monospace; font-size:12px; color:#a5b4fc;">${v.used_by_mac ? escapeHtml(v.used_by_mac) : '<span style="color:#64748b;">غير مقفل</span>'}</td>
+            <td style="font-weight:bold; color:#e2e8f0;">${v.used_at_agent_subdomain ? escapeHtml(v.used_at_agent_subdomain) : '<span style="color:#64748b;">-</span>'}</td>
+            <td style="font-size:11.5px;">
+              <div>بدء: ${firstActStr}</div>
+              ${v.expires_at ? `<div style="color:#f87171;">انتهاء: ${expStr}</div>` : ''}
+            </td>
+            <td>
+              <button class="btn btn-danger btn-xs" onclick="deleteVoucher('${escapeHtml(v.id)}', '${escapeHtml(v.code)}')" title="حذف الكرت">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function filterVouchersTable() {
+      const q = document.getElementById('voucher-search').value.trim().toLowerCase();
+      if (!q) {
+        renderVouchersTable(allVouchersCache);
+        return;
+      }
+      const filtered = allVouchersCache.filter(v => 
+        (v.code && v.code.toLowerCase().includes(q)) ||
+        (v.used_by_mac && v.used_by_mac.toLowerCase().includes(q)) ||
+        (v.used_at_agent_subdomain && v.used_at_agent_subdomain.toLowerCase().includes(q)) ||
+        (v.profile_name && v.profile_name.toLowerCase().includes(q))
+      );
+      renderVouchersTable(filtered);
+    }
+
+    function openGenerateVoucherModal() {
+      document.getElementById('generate-voucher-modal').classList.add('active');
+    }
+
+    function closeGenerateVoucherModal() {
+      document.getElementById('generate-voucher-modal').classList.remove('active');
+    }
+
+    async function handleGenerateVouchers(e) {
+      e.preventDefault();
+      const btn = document.getElementById('gv-submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'جاري التوليد... ⏳';
+
+      const payload = {
+        count: parseInt(document.getElementById('gv-count').value, 10),
+        prefix: document.getElementById('gv-prefix').value.trim(),
+        profile_name: document.getElementById('gv-profile').value.trim(),
+        rate_limit: document.getElementById('gv-rate').value.trim(),
+        validity_days: parseInt(document.getElementById('gv-days').value, 10) || 0,
+        validity_hours: parseInt(document.getElementById('gv-hours').value, 10) || 0,
+        price: parseFloat(document.getElementById('gv-price').value) || 0,
+      };
+
+      try {
+        const res = await fetch('/api/global-hotspot/vouchers/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'فشل توليد الكروت');
+        alert(`✅ ${data.message}`);
+        closeGenerateVoucherModal();
+        loadGlobalVouchers();
+      } catch (err) {
+        alert('❌ خطأ: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🚀 بدء التوليد الآن';
+      }
+    }
+
+    async function deleteVoucher(id, code) {
+      if (!confirm(`هل أنت متأكد من حذف الكرت [${code}]؟`)) return;
+      try {
+        const res = await fetch(`/api/global-hotspot/vouchers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'فشل حذف الكرت');
+        loadGlobalVouchers();
+      } catch (err) {
+        alert('❌ ' + err.message);
+      }
+    }
+
+    function openPrintVouchersModal() {
+      if (!allVouchersCache || allVouchersCache.length === 0) {
+        alert('يرجى توليد كروت أولاً لعرضها للطباعة.');
+        return;
+      }
+      const container = document.getElementById('printable-cards-container');
+      let html = '';
+      allVouchersCache.forEach(v => {
+        let valStr = v.validity_hours > 0 ? `${v.validity_hours} ساعة` : `${v.validity_days} يوم`;
+        let qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(v.code)}`;
+        html += `
+          <div style="border:2px dashed #0284c7; border-radius:12px; padding:14px; background:#f8fafc; color:#0f172a; page-break-inside:avoid; display:flex; flex-direction:column; justify-content:space-between; position:relative;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #cbd5e1; padding-bottom:6px; margin-bottom:8px;">
+              <div style="font-weight:900; font-size:14px; color:#0284c7;">⚡ SASMAN HotSpot</div>
+              <div style="font-size:11px; font-weight:bold; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:999px;">${escapeHtml(v.profile_name)}</div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+              <div>
+                <div style="font-size:11px; color:#64748b;">رقم الكرت الموحد (PIN):</div>
+                <div style="font-size:16px; font-weight:900; font-family:monospace; color:#0f172a; letter-spacing:1px;">${escapeHtml(v.code)}</div>
+                <div style="font-size:11px; color:#475569; margin-top:4px;">⏱️ الصلاحية: <strong>${valStr}</strong> | 🚀 السرعة: <strong>${escapeHtml(v.rate_limit)}</strong></div>
+                <div style="font-size:12px; font-weight:bold; color:#b45309; margin-top:2px;">💰 السعر: ${v.price ? v.price.toLocaleString() + ' د.ع' : 'مجاني'}</div>
+              </div>
+              <img src="${qrUrl}" alt="QR" style="width:65px; height:65px; border-radius:6px; border:1px solid #cbd5e1;">
+            </div>
+            <div style="font-size:9.5px; color:#94a3b8; text-align:center; border-top:1px solid #e2e8f0; padding-top:4px;">
+              صالح في جميع شبكات وهوتبست وكلاء SASMAN المعتمدين
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+      document.getElementById('print-vouchers-modal').classList.add('active');
+    }
+
+    function closePrintVouchersModal() {
+      document.getElementById('print-vouchers-modal').classList.remove('active');
     }
 
     async function logout() {

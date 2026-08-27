@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SASMAN Global HotSpot | حالة الاتصال</title>
+    <meta http-equiv="refresh" content="$(refresh-timeout-secs)">
+    <meta http-equiv="pragma" content="no-cache">
+    <meta http-equiv="expires" content="-1">
+    <style>
+        :root {
+            --primary: #0284c7;
+            --primary-hover: #0369a1;
+            --bg-dark: #090d16;
+            --card-bg: rgba(15, 23, 42, 0.88);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --radius-lg: 20px;
+            --radius-md: 12px;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(2, 132, 199, 0.15) 0px, transparent 50%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 16px;
+            color: var(--text-main);
+        }
+
+        .status-card {
+            width: 100%;
+            max-width: 440px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 30px 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(16px);
+        }
+
+        .status-header {
+            text-align: center;
+            margin-bottom: 22px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--success);
+            font-size: 13px;
+            font-weight: 700;
+            padding: 5px 16px;
+            border-radius: 999px;
+            margin-bottom: 12px;
+        }
+
+        .status-title {
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .info-grid {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            margin-bottom: 20px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            font-size: 13.5px;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: #fff;
+            font-weight: 700;
+            direction: ltr;
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: var(--radius-md);
+            color: #fca5a5;
+            font-size: 14.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="status-card">
+        <div class="status-header">
+            <div class="status-badge">● متصل بالإنترنت بنجاح</div>
+            <h1 class="status-title">مرحباً $(username)</h1>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-row">
+                <span class="info-label">عنوان الـ IP:</span>
+                <span class="info-value">$(ip)</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">عنوان الـ MAC:</span>
+                <span class="info-value">$(mac)</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">الوقت المتصل:</span>
+                <span class="info-value">$(uptime)</span>
+            </div>
+            $(if session-time-left)
+            <div class="info-row">
+                <span class="info-label">الوقت المتبقي:</span>
+                <span class="info-value">$(session-time-left)</span>
+            </div>
+            $(endif)
+            <div class="info-row">
+                <span class="info-label">البيانات المستلمة:</span>
+                <span class="info-value">$(bytes-in-nice)</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">البيانات المرسلة:</span>
+                <span class="info-value">$(bytes-out-nice)</span>
+            </div>
+        </div>
+
+        <form action="$(link-logout)" name="logout" method="post">
+            <input type="hidden" name="erase-cookie" value="true" />
+            <button type="submit" class="logout-btn">تسجيل الخروج (قطع الاتصال) 🚪</button>
+        </form>
+    </div>
+
+</body>
+</html>

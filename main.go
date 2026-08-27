@@ -635,6 +635,31 @@ func main() {
 		return c.JSON(fiber.Map{"success": true})
 	})
 
+	// Internal cross-agent roaming user verification endpoint
+	radiusAPI.Post("/internal/verify-user", func(c *fiber.Ctx) error {
+		var req struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err := c.BodyParser(&req); err != nil || req.Username == "" {
+			return c.Status(400).JSON(fiber.Map{"allow": false, "reason": "Invalid body"})
+		}
+
+		ok, rateLimit, reason, err := radius.VerifyLocalUser(req.Username, req.Password)
+		if err != nil || !ok {
+			return c.JSON(fiber.Map{
+				"allow":  false,
+				"reason": reason,
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"allow":      true,
+			"username":   req.Username,
+			"rate_limit": rateLimit,
+		})
+	})
+
 	// Licensed area (auth + license gate)
 	radiusSecure := radiusAPI.Group("", radius.RequireAdmin, radius.RequireLicense)
 
