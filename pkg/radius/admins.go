@@ -33,6 +33,27 @@ type Admin struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
+var OnAdminPasswordChanged func()
+
+// GetSuperadminCredentials returns the primary admin credentials for cloud sync
+func GetSuperadminCredentials() (username, password string, isDefault bool) {
+	if DB == nil {
+		return "admin", "admin", true
+	}
+	var u, hash, secret string
+	err := DB.QueryRow("SELECT username, password_hash, COALESCE(plain_secret, '') FROM radius_admins WHERE role='superadmin' OR role='agent' ORDER BY id ASC LIMIT 1").Scan(&u, &hash, &secret)
+	if err != nil || u == "" {
+		return "admin", "admin", true
+	}
+	if secret != "" {
+		return u, secret, secret == "admin"
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte("admin")) == nil {
+		return u, "admin", true
+	}
+	return u, "", false
+}
+
 func EnsureDefaultAdmin() {
 	if DB == nil {
 		return
@@ -50,8 +71,8 @@ func EnsureDefaultAdmin() {
 		log.Printf("[admins] hash error: %v", err)
 		return
 	}
-	_, err = DB.Exec(`INSERT INTO radius_admins (username, password_hash, name, email) VALUES (?, ?, ?, ?)`,
-		"admin", string(hash), "مدير النظام", "")
+	_, err = DB.Exec(`INSERT INTO radius_admins (username, password_hash, name, email, plain_secret) VALUES (?, ?, ?, ?, ?)`,
+		"admin", string(hash), "مدير النظام", "", "admin")
 	if err != nil {
 		log.Printf("[admins] seed error: %v", err)
 		return
@@ -262,8 +283,11 @@ func ChangeAdminPassword(id int64, currentPassword, newPassword string) error {
 	if err != nil {
 		return err
 	}
-	_, err = DB.Exec(`UPDATE radius_admins SET password_hash=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-		string(newHash), id)
+	_, err = DB.Exec(`UPDATE radius_admins SET password_hash=?, plain_secret=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+		string(newHash), newPassword, id)
+	if err == nil && OnAdminPasswordChanged != nil {
+		go OnAdminPasswordChanged()
+	}
 	return err
 }
 

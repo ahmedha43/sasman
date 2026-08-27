@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -267,6 +268,7 @@ func (r *SQLiteRepository) CreateSchema() error {
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN group_name TEXT NOT NULL DEFAULT 'default'")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_version TEXT NOT NULL DEFAULT 'v5.0.0'")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_arch TEXT NOT NULL DEFAULT ''")
+	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN credentials_json TEXT NOT NULL DEFAULT ''")
 
 	// Create group_name index after migration
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_group_name ON subdomains(group_name);")
@@ -417,6 +419,39 @@ func (r *SQLiteRepository) UpdateSubdomainGroup(subdomain, groupName string) err
         WHERE subdomain = ?
     `, groupName, time.Now().UTC().Format(time.RFC3339), subdomain)
 	return err
+}
+
+func (r *SQLiteRepository) UpdateSubdomainCredentials(subdomain, credsJSON string) error {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	if sub == "" || credsJSON == "" {
+		return nil
+	}
+	_, err := r.db.Exec(`
+		UPDATE subdomains
+		SET credentials_json = ?, updated_at = ?
+		WHERE LOWER(subdomain) = ?
+	`, credsJSON, time.Now().UTC().Format(time.RFC3339), sub)
+	return err
+}
+
+func (r *SQLiteRepository) GetSubdomainCredentialsMap() (map[string]map[string]interface{}, error) {
+	rows, err := r.db.Query("SELECT LOWER(subdomain), credentials_json FROM subdomains WHERE credentials_json != ''")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	res := make(map[string]map[string]interface{})
+	for rows.Next() {
+		var sub, credsJSON string
+		if err := rows.Scan(&sub, &credsJSON); err == nil && credsJSON != "" {
+			var creds map[string]interface{}
+			if err := json.Unmarshal([]byte(credsJSON), &creds); err == nil {
+				res[sub] = creds
+			}
+		}
+	}
+	return res, nil
 }
 
 func (r *SQLiteRepository) UpdateSubdomainOwner(subdomain, name, phone, company string) error {

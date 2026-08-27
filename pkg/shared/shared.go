@@ -142,9 +142,14 @@ func LoadConfig() {
 	log.Printf("[Config] Loaded previous session for %s\n", RouterConfigState.Address)
 }
 
+var OnConfigSaved func()
+
 func SaveConfig() {
 	data, _ := json.MarshalIndent(RouterConfigState, "", "  ")
 	_ = ioutil.WriteFile("data/config.json", data, 0644)
+	if OnConfigSaved != nil {
+		go OnConfigSaved()
+	}
 }
 
 func RemoveConfig() {
@@ -153,4 +158,7 @@ func RemoveConfig() {
 	RouterConfigState.Password = ""
 	RouterConfigState.Serial = ""
 	_ = os.Remove("data/config.json")
+	if OnConfigSaved != nil {
+		go OnConfigSaved()
+	}
 }

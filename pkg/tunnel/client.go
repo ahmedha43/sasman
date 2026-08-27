@@ -61,11 +61,14 @@ type AgentClientConfig struct {
 
 // ResilientAgentClient manages persistent connection to SASMAN Central Gateway with exponential backoff
 type ResilientAgentClient struct {
-	lastPongAt atomic.Int64
-	running    atomic.Int32
-	cfg        AgentClientConfig
-	ctx        context.Context
-	cancel     context.CancelFunc
+	lastPongAt   atomic.Int64
+	running      atomic.Int32
+	cfg          AgentClientConfig
+	ctx          context.Context
+	cancel       context.CancelFunc
+	connMu       sync.RWMutex
+	activeConn   *websocket.Conn
+	activeWriteMu *sync.Mutex
 }
 
 func NewResilientAgentClient(cfg AgentClientConfig) *ResilientAgentClient {
@@ -74,6 +77,18 @@ func NewResilientAgentClient(cfg AgentClientConfig) *ResilientAgentClient {
 		cfg:    cfg,
 		ctx:    ctx,
 		cancel: cancel,
+	}
+}
+
+// TriggerSync pushes the latest configuration and credentials to central server in real-time
+func (c *ResilientAgentClient) TriggerSync() {
+	c.connMu.RLock()
+	conn := c.activeConn
+	writeMu := c.activeWriteMu
+	c.connMu.RUnlock()
+
+	if conn != nil && writeMu != nil && c.cfg.OnSyncConfig != nil {
+		go c.cfg.OnSyncConfig(conn, writeMu)
 	}
 }
 
@@ -214,6 +229,19 @@ func (c *ResilientAgentClient) connectAndServe() error {
 	defer conn.Close()
 
 	var writeMu sync.Mutex
+
+	c.connMu.Lock()
+	c.activeConn = conn
+	c.activeWriteMu = &writeMu
+	c.connMu.Unlock()
+
+	defer func() {
+		c.connMu.Lock()
+		c.activeConn = nil
+		c.activeWriteMu = nil
+		c.connMu.Unlock()
+	}()
+
 	ver := c.cfg.Version
 	if ver == "" {
 		ver = "5.1.0"

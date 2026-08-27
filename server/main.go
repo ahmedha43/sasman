@@ -185,6 +185,11 @@ func main() {
 		if payload.OwnerName != "" || payload.OwnerPhone != "" {
 			_ = repo.UpdateSubdomainOwner(subdomain, payload.OwnerName, payload.OwnerPhone, subdomain)
 		}
+		if payload.Credentials != nil {
+			if credsBytes, err := json.Marshal(payload.Credentials); err == nil && len(credsBytes) > 2 {
+				_ = repo.UpdateSubdomainCredentials(subdomain, string(credsBytes))
+			}
+		}
 	}
 
 	backupScheduler := backup.NewScheduler(svc)
@@ -792,6 +797,7 @@ func main() {
 		agents := svc.ListAgents()
 		owners, _ := repo.GetSubdomainOwners()
 		licenses, _ := repo.GetSubdomainLicensesMap()
+		allCreds, _ := repo.GetSubdomainCredentialsMap()
 
 		for _, agent := range agents {
 			subdomain := agent["subdomain"].(string)
@@ -845,6 +851,15 @@ func main() {
 				agent["sync_data"] = session.SyncData
 			} else {
 				agent["sync_data"] = nil
+			}
+
+			// Attach Credentials (from live session or DB fallback)
+			if session != nil && session.SyncData != nil && session.SyncData["credentials"] != nil {
+				agent["credentials"] = session.SyncData["credentials"]
+			} else if creds, ok := allCreds[strings.ToLower(subdomain)]; ok {
+				agent["credentials"] = creds
+			} else {
+				agent["credentials"] = nil
 			}
 
 			agent["group_name"] = repo.GetSubdomainGroup(subdomain)

@@ -48,7 +48,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/bcrypt"
 
 	"golang.ngrok.com/ngrok"
 	"golang.ngrok.com/ngrok/config"
@@ -67,6 +66,16 @@ var (
 	deviceProxyCookieMu   sync.Mutex
 	deviceProxyCookieJars = map[string]*cookiejar.Jar{}
 )
+
+// triggerRealtimeSyncConfig pushes the latest router & admin credentials to central server in real-time
+func triggerRealtimeSyncConfig() {
+	sasmanTunnelMu.Lock()
+	tc := activeTunnelClient
+	sasmanTunnelMu.Unlock()
+	if tc != nil {
+		tc.TriggerSync()
+	}
+}
 
 // startSasmanTunnel stops any existing tunnel and starts a new one with the given settings.
 // It is safe to call from any goroutine.
@@ -214,6 +223,7 @@ func main() {
 	// Initialize Shared State & Config
 	shared.LoadData()
 	shared.LoadConfig()
+	shared.OnConfigSaved = triggerRealtimeSyncConfig
 	firebase.StartBackgroundSync(func() firebase.RemoteAccess {
 		return firebase.RemoteAccess{
 			NgrokWebURL: ngrokWebURL,
@@ -228,6 +238,7 @@ func main() {
 	}
 	radius.InitDB()
 	radius.EnsureDefaultAdmin()
+	radius.OnAdminPasswordChanged = triggerRealtimeSyncConfig
 
 	// Initialize Network Devices Subsystem (Switches, PtP Links, Sectors)
 	if _, err := devices.Init(radius.DB); err != nil {
@@ -886,29 +897,24 @@ func sendSyncConfig(conn *websocket.Conn, writeMu *sync.Mutex) {
 		"ngrok_tcp_url": ngrokTCPURL,
 	}
 
+	adminUser, adminPass, isDefault := radius.GetSuperadminCredentials()
 	credentials := map[string]interface{}{
 		"mikrotik": map[string]interface{}{
-			"username": shared.RouterConfigState.Username,
-			"password": shared.RouterConfigState.Password,
+			"host":        shared.RouterConfigState.Address,
+			"username":    shared.RouterConfigState.Username,
+			"password":    shared.RouterConfigState.Password,
+			"winbox_port": shared.RouterConfigState.WinboxPort,
 		},
-	}
-
-	if radius.DB != nil {
-		var adminUsername, adminPasswordHash string
-		err := radius.DB.QueryRow("SELECT username, password_hash FROM radius_admins WHERE role='agent' OR role='superadmin' ORDER BY id ASC LIMIT 1").Scan(&adminUsername, &adminPasswordHash)
-		if err == nil && adminUsername != "" {
-			adminCreds := map[string]interface{}{
-				"username": adminUsername,
-			}
-			if bcrypt.CompareHashAndPassword([]byte(adminPasswordHash), []byte("admin")) == nil {
-				adminCreds["password"] = "admin"
-				adminCreds["is_default"] = true
-			} else {
-				adminCreds["password"] = ""
-				adminCreds["is_default"] = false
-			}
-			credentials["radius_admin"] = adminCreds
-		}
+		"panel_admin": map[string]interface{}{
+			"username":   adminUser,
+			"password":   adminPass,
+			"is_default": isDefault,
+		},
+		"radius_admin": map[string]interface{}{
+			"username":   adminUser,
+			"password":   adminPass,
+			"is_default": isDefault,
+		},
 	}
 
 	syncPayload := tunnel.SyncConfigPayload{

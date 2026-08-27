@@ -190,6 +190,7 @@ func EnsureSchema() {
 			balance REAL NOT NULL DEFAULT 0,
 			can_manage_profiles INTEGER NOT NULL DEFAULT 0,
 			can_manage_nas INTEGER NOT NULL DEFAULT 0,
+			plain_secret TEXT NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -284,4 +285,5 @@ func EnsureSchema() {
 	DB.Exec("DELETE FROM radius_whatsapp_config WHERE id NOT IN (SELECT MAX(id) FROM radius_whatsapp_config GROUP BY admin_id)")
 	DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_admin ON radius_whatsapp_config(admin_id)")
 	DB.Exec("ALTER TABLE radius_streams ADD COLUMN local_relay INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN plain_secret TEXT NOT NULL DEFAULT ''")
 }

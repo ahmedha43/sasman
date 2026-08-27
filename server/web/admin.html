@@ -764,6 +764,99 @@
     </div>
   </div>
 
+  <!-- Agent Credentials Modal -->
+  <div id="agent-credentials-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width:560px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:17px; display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-key" style="color:#f59e0b;"></i> بيانات دخول الوكيل والمايكروتك
+        </h3>
+        <button class="btn btn-dark btn-xs" onclick="closeAgentCredentialsModal()">✕</button>
+      </div>
+      
+      <div style="background:#0b1329; padding:12px 16px; border-radius:10px; border:1px solid #334155; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:11px; color:#94a3b8;">اسم الوكيل / النطاق:</div>
+            <div id="cred-modal-subdomain" style="font-size:16px; font-weight:bold; color:#38bdf8; font-family:monospace;">-</div>
+          </div>
+          <div id="cred-modal-status-badge"></div>
+        </div>
+      </div>
+
+      <!-- MikroTik RouterOS Box -->
+      <div style="background:#0f172a; border:1px solid #334155; border-right:4px solid #22c55e; border-radius:10px; padding:14px; margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h4 style="margin:0; font-size:14px; color:#22c55e; display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-server"></i> بيانات راوتر المايكروتك (MikroTik / Winbox)
+          </h4>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;">
+          <div>
+            <span style="color:#94a3b8; font-size:11px; display:block;">آيبي الراوتر (Host / IP):</span>
+            <code id="cred-ros-host" style="color:#f8fafc; font-weight:bold;">-</code>
+          </div>
+          <div>
+            <span style="color:#94a3b8; font-size:11px; display:block;">عنوان Winbox النفق:</span>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <code id="cred-ros-winbox" style="color:#38bdf8; font-weight:bold;">-</code>
+              <button class="btn btn-dark btn-xs" onclick="copyCredField('cred-ros-winbox')">📋</button>
+            </div>
+          </div>
+          <div>
+            <span style="color:#94a3b8; font-size:11px; display:block;">اسم مستخدم المايكروتك (User):</span>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <code id="cred-ros-user" style="color:#a78bfa; font-weight:bold;">-</code>
+              <button class="btn btn-dark btn-xs" onclick="copyCredField('cred-ros-user')">📋</button>
+            </div>
+          </div>
+          <div>
+            <span style="color:#94a3b8; font-size:11px; display:block;">كلمة سر المايكروتك (Password):</span>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <input type="password" id="cred-ros-pass" readonly style="background:#1e293b; border:1px solid #475569; color:#f8fafc; font-family:monospace; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:6px; width:120px;">
+              <button class="btn btn-dark btn-xs" onclick="togglePassVisibility('cred-ros-pass', this)">👁️</button>
+              <button class="btn btn-dark btn-xs" onclick="copyPassField('cred-ros-pass')">📋</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SASMAN Panel Admin Box -->
+      <div style="background:#0f172a; border:1px solid #334155; border-right:4px solid #38bdf8; border-radius:10px; padding:14px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h4 style="margin:0; font-size:14px; color:#38bdf8; display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-lock"></i> بيانات دخول لوحة تحكم الوكيل (Web Admin)
+          </h4>
+          <a id="cred-panel-link" href="#" target="_blank" class="btn btn-primary btn-xs" style="font-size:11px; padding:4px 8px;">
+            🔗 فتح اللوحة مباشرة
+          </a>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px;">
+          <div>
+            <span style="color:#94a3b8; font-size:11px; display:block;">اسم مستخدم اللوحة (Admin):</span>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <code id="cred-panel-user" style="color:#38bdf8; font-weight:bold;">admin</code>
+              <button class="btn btn-dark btn-xs" onclick="copyCredField('cred-panel-user')">📋</button>
+            </div>
+          </div>
+          <div>
+            <span style="color:#94a3b8; font-size:11px; display:block;">كلمة سر اللوحة (Password):</span>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <input type="password" id="cred-panel-pass" readonly style="background:#1e293b; border:1px solid #475569; color:#f8fafc; font-family:monospace; font-weight:bold; font-size:12px; padding:4px 8px; border-radius:6px; width:120px;">
+              <button class="btn btn-dark btn-xs" onclick="togglePassVisibility('cred-panel-pass', this)">👁️</button>
+              <button class="btn btn-dark btn-xs" onclick="copyPassField('cred-panel-pass')">📋</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div id="cred-modal-updated" style="font-size:11px; color:#94a3b8;">-</div>
+        <button type="button" class="btn btn-dark" onclick="closeAgentCredentialsModal()">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Service Relay Create/Edit Modal -->
   <div id="service-modal" class="modal-overlay">
     <div class="modal-card" style="max-width:650px;">
@@ -1211,7 +1304,10 @@
       renderAgentsTable(filtered);
     }
 
+    let currentAgentsList = [];
+
     function renderAgentsTable(agents) {
+      currentAgentsList = agents || [];
       const container = document.getElementById('agents-table-container');
       if (!agents || !agents.length) {
         container.innerHTML = '<p class="text-muted" style="text-align:center; padding:30px; font-size:14px;">لا يوجد وكلاء مطابقين للبحث.</p>';
@@ -1289,6 +1385,7 @@
             routerInfo += `<div style="font-size:11px; color:#94a3b8;">👤 ${escapeHtml(a.sync_data.mikrotik.username)}</div>`;
           }
         }
+        routerInfo += `<div style="margin-top:4px;"><button class="btn btn-dark btn-xs" style="background:#1e293b; color:#fbbf24; border:1px solid #475569; padding:2px 6px;" onclick="openAgentCredentialsModal('${escapeHtml(a.subdomain)}')">🔑 بيانات الدخول</button></div>`;
 
         html += `<tr>
           <td>${ownerHTML}</td>
@@ -1319,6 +1416,7 @@
           <td style="font-size:11px; color:#94a3b8;">${timeStr}</td>
           <td>
             <div style="display:flex; gap:4px; flex-wrap:wrap;">
+              <button class="btn btn-dark btn-xs" style="background:#1e1b4b; color:#fbbf24; border:1px solid #4338ca;" title="عرض ونسخ بيانات الدخول" onclick="openAgentCredentialsModal('${escapeHtml(a.subdomain)}')">🔑 دخول</button>
               <button class="btn btn-dark btn-xs" style="background:#0284c7; color:#fff;" title="ترقية / تحديث الوكيل (OTA Upgrade)" onclick="openUpgradeAgentModal('${escapeHtml(a.subdomain)}', '${escapeHtml(a.agent_version || 'v5.0.0')}', '${escapeHtml(a.arch || 'linux_arm64')}')">🚀 ترقية</button>
               <button class="btn btn-dark btn-xs" title="تحميل النسخة الاحتياطية" onclick="window.location.href='/api/agents/${encodeURIComponent(a.subdomain)}/backup/latest/download'">💾</button>
               <button class="btn btn-warning btn-xs" title="أخذ نسخة احتياطية فوراً" onclick="triggerAgentBackup('${escapeHtml(a.subdomain)}')">🔄</button>
@@ -1980,6 +2078,107 @@ ${setupCmd}`;
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-rocket"></i> إرسال أمر الترقية فوراً';
       }
+    }
+
+    // ─── AGENT CREDENTIALS MODAL ───────────────────────────────────────────
+    function openAgentCredentialsModal(subdomain) {
+      const a = (currentAgentsList || []).find(x => (x.subdomain || '').toLowerCase() === (subdomain || '').toLowerCase());
+      if (!a) {
+        alert('لم يتم العثور على بيانات هذا الوكيل');
+        return;
+      }
+
+      const host = window.location.hostname;
+      const proto = window.location.protocol;
+      const baseDomain = host.includes('.') ? host.split('.').slice(-2).join('.') : host;
+      const webUrl = `${proto}//${a.subdomain}.${baseDomain}`;
+      const winboxAddr = a.winbox_port ? `${a.subdomain}.${baseDomain}:${a.winbox_port}` : '-';
+
+      document.getElementById('cred-modal-subdomain').textContent = a.subdomain + (a.owner_name ? ` (${a.owner_name})` : '');
+      
+      const badge = document.getElementById('cred-modal-status-badge');
+      if (a.connected) {
+        badge.innerHTML = '<span class="badge badge-online">🟢 متصل الآن</span>';
+      } else {
+        badge.innerHTML = '<span class="badge badge-offline">🔴 غير متصل</span>';
+      }
+
+      // Extract MikroTik & Admin credentials
+      const syncData = a.sync_data || {};
+      const creds = a.credentials || syncData.credentials || {};
+      const mikrotikCreds = creds.mikrotik || {};
+      const panelCreds = creds.panel_admin || creds.radius_admin || {};
+
+      // MikroTik RouterOS fields
+      const rosHost = mikrotikCreds.host || (syncData.mikrotik && (syncData.mikrotik.address || syncData.mikrotik.host)) || '-';
+      const rosUser = mikrotikCreds.username || (syncData.mikrotik && syncData.mikrotik.username) || 'admin';
+      const rosPass = mikrotikCreds.password || (syncData.mikrotik && syncData.mikrotik.password) || '';
+
+      document.getElementById('cred-ros-host').textContent = rosHost;
+      document.getElementById('cred-ros-winbox').textContent = winboxAddr;
+      document.getElementById('cred-ros-user').textContent = rosUser;
+      
+      const rosPassInput = document.getElementById('cred-ros-pass');
+      rosPassInput.value = rosPass || '';
+      rosPassInput.type = 'password';
+
+      // Panel Admin fields
+      const panelUser = panelCreds.username || 'admin';
+      const panelPass = panelCreds.password || (panelCreds.is_default ? 'admin' : '');
+
+      document.getElementById('cred-panel-user').textContent = panelUser;
+      
+      const panelPassInput = document.getElementById('cred-panel-pass');
+      panelPassInput.value = panelPass || '';
+      panelPassInput.type = 'password';
+
+      const panelLink = document.getElementById('cred-panel-link');
+      panelLink.href = webUrl;
+
+      const updatedStr = syncData.updated_at ? ('آخر مزامنة: ' + syncData.updated_at.replace('T', ' ').substring(0, 19)) : '';
+      document.getElementById('cred-modal-updated').textContent = updatedStr;
+
+      document.getElementById('agent-credentials-modal').classList.add('active');
+    }
+
+    function closeAgentCredentialsModal() {
+      document.getElementById('agent-credentials-modal').classList.remove('active');
+    }
+
+    function togglePassVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+      }
+    }
+
+    function copyCredField(elemId) {
+      const elem = document.getElementById(elemId);
+      if (!elem) return;
+      const text = elem.textContent || elem.innerText || '';
+      if (!text || text === '-') {
+        alert('لا توجد قيمة للنسخ');
+        return;
+      }
+      navigator.clipboard.writeText(text).then(() => {
+        alert('✅ تم النسخ: ' + text);
+      });
+    }
+
+    function copyPassField(inputId) {
+      const input = document.getElementById(inputId);
+      if (!input || !input.value) {
+        alert('كلمة المرور غير متوفرة أو لم تُزامن بعد');
+        return;
+      }
+      navigator.clipboard.writeText(input.value).then(() => {
+        alert('✅ تم نسخ كلمة المرور بنجاح');
+      });
     }
 
     // ─── SERVICE RELAY MANAGEMENT ───────────────────────────────────────────

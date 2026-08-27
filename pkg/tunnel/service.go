@@ -843,6 +843,7 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 					"mikrotik":        syncPayload.Mikrotik,
 					"license":         syncPayload.License,
 					"remote_access":   syncPayload.RemoteAccess,
+					"credentials":     syncPayload.Credentials,
 				}
 				boundSession.writeMu.Unlock()
 				if s.OnSyncConfigReceived != nil {
