@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "scan_for_attacks",
+  "type": "object",
+  "properties": {
+    "devices": {
+      "description": "Limit to these devices (default: all).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "online_only": {
+      "default": false,
+      "description": "Skip devices the health probe currently reports as unreachable. A device not yet probed is still scanned — never probed is not the same as known-offline.",
+      "type": "boolean"
+    },
+    "window_minutes": {
+      "description": "How far back to read. Default from config (10).",
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 1440
+    }
+  },
+  "required": ["online_only"],
+  "additionalProperties": false
+}

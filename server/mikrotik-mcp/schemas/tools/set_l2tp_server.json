@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "set_l2tp_server",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "description": "Enable or disable the L2TP server",
+      "type": "boolean"
+    },
+    "default_profile": {
+      "type": "string"
+    },
+    "authentication": {
+      "description": "Comma-separated, e.g. 'mschap2,mschap1'",
+      "type": "string"
+    },
+    "use_ipsec": {
+      "type": "string",
+      "enum": ["yes", "no", "required"]
+    },
+    "ipsec_secret": {
+      "description": "Pre-shared key for L2TP/IPsec",
+      "type": "string"
+    },
+    "max_mtu": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "max_mru": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "mrru": {
+      "description": "Max receive reconstructed unit for MRRU (multilink)",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "keepalive_timeout": {
+      "description": "Seconds before an idle tunnel is considered down",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "max_sessions": {
+      "description": "Maximum simultaneous client sessions",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "one_session_per_host": {
+      "description": "Allow only one active session per host",
+      "type": "boolean"
+    },
+    "caller_id_type": {
+      "description": "Caller ID format: ip-address or number",
+      "type": "string",
+      "enum": ["ip-address", "number"]
+    }
+  },
+  "additionalProperties": false
+}

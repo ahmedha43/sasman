@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "update_routing_rule",
+  "type": "object",
+  "properties": {
+    "rule_id": {
+      "type": "string",
+      "description": "Rule id, e.g. \"*3\""
+    },
+    "action": {
+      "type": "string",
+      "enum": ["lookup", "lookup-only-in-table", "drop", "unreachable"]
+    },
+    "table": {
+      "type": "string"
+    },
+    "src_address": {
+      "type": "string"
+    },
+    "dst_address": {
+      "type": "string"
+    },
+    "routing_mark": {
+      "type": "string"
+    },
+    "interface": {
+      "type": "string"
+    },
+    "min_prefix": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "type": "boolean"
+    }
+  },
+  "required": ["rule_id"],
+  "additionalProperties": false
+}

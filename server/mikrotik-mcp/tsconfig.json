@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "types": ["bun"],
+    // The observability dashboard's shadcn layer. Declared here (not just in
+    // ui/tsconfig.json) because the shadcn CLI reads the root tsconfig to resolve
+    // the aliases in components.json.
+    "paths": {
+      "@/*": ["./ui/observability/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["**/node_modules", "dist", "coverage", "tests"]
+}

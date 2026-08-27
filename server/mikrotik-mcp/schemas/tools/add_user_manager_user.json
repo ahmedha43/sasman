@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "add_user_manager_user",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Login name for the user"
+    },
+    "password": {
+      "type": "string",
+      "description": "Login password for the user"
+    },
+    "group": {
+      "type": "string"
+    },
+    "shared_users": {
+      "description": "Max simultaneous sessions",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "attributes": {
+      "description": "Custom RADIUS attributes",
+      "type": "string"
+    },
+    "caller_id": {
+      "description": "Caller ID the user is restricted to (e.g. MAC)",
+      "type": "string"
+    },
+    "otp_secret": {
+      "description": "Base32 OTP shared secret for two-factor auth",
+      "type": "string"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "required": ["name", "password", "disabled"],
+  "additionalProperties": false
+}

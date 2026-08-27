@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "upload_file",
+  "type": "object",
+  "properties": {
+    "filename": {
+      "type": "string",
+      "description": "Destination path on the device, e.g. 'config.rsc' or 'disk1/cert.pem'"
+    },
+    "content_base64": {
+      "type": "string",
+      "description": "File bytes, base64-encoded (binary-safe)"
+    }
+  },
+  "required": ["filename", "content_base64"],
+  "additionalProperties": false
+}

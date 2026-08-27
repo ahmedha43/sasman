@@ -1,0 +1,42 @@
+# Bundles are packed from a staging directory built by `bun run build:mcp`
+# (scripts/build-mcpb.ts), which copies in only the files a bundle needs.
+#
+# This file is a guard against an accidental `mcpb pack .` at the repo root: it
+# strips the development tree so such a bundle is small and obviously incomplete,
+# rather than a huge archive of node_modules and git history.
+
+# Sources — a bundle ships the built dist/ instead
+src/
+ui/
+scripts/
+raycast/
+tests/
+schemas/
+*.ts
+
+# Development tree
+.git/
+.github/
+.vscode/
+.idea/
+.agents/
+.claude/
+.vite-hooks/
+node_modules/
+coverage/
+.mcpb-build/
+.mcpb-cache/
+dist-mcpb/
+*.mcpb
+
+# Docs and packaging metadata (README/LICENSE are copied in by the build script)
+docs/
+CLAUDE.md
+CONTRIBUTING.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+bun.lock
+*.log
+*.sh
+*.ps1

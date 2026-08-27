@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "download_file",
+  "type": "object",
+  "properties": {
+    "filename": {
+      "type": "string",
+      "description": "Name of the file on the device, e.g. 'cert.p12' or 'backup.backup'"
+    }
+  },
+  "required": ["filename"],
+  "additionalProperties": false
+}

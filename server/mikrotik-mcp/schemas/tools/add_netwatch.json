@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "add_netwatch",
+  "type": "object",
+  "properties": {
+    "host": {
+      "type": "string",
+      "description": "Host to monitor"
+    },
+    "type": {
+      "description": "Probe type: simple, icmp, tcp-conn, or http-get",
+      "type": "string",
+      "enum": ["simple", "icmp", "tcp-conn", "http-get"]
+    },
+    "port": {
+      "description": "Target port (tcp-conn/http-get types)",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "src_address": {
+      "description": "Source address for the probe",
+      "type": "string"
+    },
+    "interval": {
+      "description": "Probe interval, e.g. '00:00:10'",
+      "type": "string"
+    },
+    "timeout": {
+      "description": "Probe timeout, e.g. '00:00:01'",
+      "type": "string"
+    },
+    "up_script": {
+      "description": "Script to run when the host comes up",
+      "type": "string"
+    },
+    "down_script": {
+      "description": "Script to run when the host goes down",
+      "type": "string"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "required": ["host", "disabled"],
+  "additionalProperties": false
+}

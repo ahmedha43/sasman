@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "update_rip_instance",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Existing RIP instance name"
+    },
+    "router_id": {
+      "type": "string"
+    },
+    "routing_table": {
+      "description": "Routing table to install routes into",
+      "type": "string"
+    },
+    "redistribute": {
+      "type": "string"
+    },
+    "in_filter_chain": {
+      "type": "string"
+    },
+    "out_filter_chain": {
+      "type": "string"
+    },
+    "originate_default": {
+      "type": "string"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "type": "boolean"
+    }
+  },
+  "required": ["name"],
+  "additionalProperties": false
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "set_user_manager_settings",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "description": "Enable or disable the User Manager server",
+      "type": "boolean"
+    },
+    "certificate": {
+      "description": "TLS certificate name for RADIUS over TLS",
+      "type": "string"
+    },
+    "radsec_certificate": {
+      "description": "Certificate name for RadSec (RADIUS over TLS)",
+      "type": "string"
+    },
+    "accounting_port": {
+      "description": "UDP port for RADIUS accounting",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "authentication_port": {
+      "description": "UDP port for RADIUS authentication",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "use_profiles": {
+      "description": "Enable the profile/payment subsystem",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

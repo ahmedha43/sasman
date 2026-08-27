@@ -19,13 +19,30 @@ services:
       - SASMAN_DB_PATH=/app/data/sasman-central.db
       - SASMAN_ADMIN_USER=admin
       - SASMAN_ADMIN_PASSWORD=Mushtaq@Sasman#9977!
+      - MIKROTIK_MCP_URL=http://mikrotik-mcp:8000
     volumes:
       - ./data:/app/data                       # Persist SQLite DB
+    depends_on:
+      - mikrotik-mcp
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  mikrotik-mcp:
+    build:
+      context: ./mikrotik-mcp
+      dockerfile: Dockerfile
+    container_name: sasman-mikrotik-mcp
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - MIKROTIK_MCP__TRANSPORT=streamable-http
+      - MIKROTIK_MCP__HOST=0.0.0.0
+      - MIKROTIK_MCP__PORT=8000
+    ports:
+      - "8000:8000"
 
 volumes: {}

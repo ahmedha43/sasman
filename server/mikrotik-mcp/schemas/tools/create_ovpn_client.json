@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "create_ovpn_client",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^\\S+$",
+      "description": "Name for the new OpenVPN client interface"
+    },
+    "connect_to": {
+      "type": "string",
+      "description": "Remote OpenVPN server address"
+    },
+    "port": {
+      "default": 1194,
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "user": {
+      "type": "string"
+    },
+    "password": {
+      "type": "string"
+    },
+    "certificate": {
+      "type": "string"
+    },
+    "cipher": {
+      "type": "string"
+    },
+    "auth": {
+      "type": "string"
+    },
+    "tls_version": {
+      "description": "Accepted TLS version",
+      "type": "string",
+      "enum": ["any", "only-1.2"]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["ip", "ethernet"]
+    },
+    "protocol": {
+      "type": "string",
+      "enum": ["tcp", "udp"]
+    },
+    "mac_address": {
+      "description": "Client MAC for ethernet mode",
+      "type": "string"
+    },
+    "max_mtu": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "profile": {
+      "type": "string"
+    },
+    "add_default_route": {
+      "type": "boolean"
+    },
+    "route_nopull": {
+      "description": "Ignore routes pushed by the server",
+      "type": "boolean"
+    },
+    "use_peer_dns": {
+      "description": "Use DNS servers pushed by the server",
+      "type": "boolean"
+    },
+    "verify_server_certificate": {
+      "type": "boolean"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "required": ["name", "connect_to", "port", "disabled"],
+  "additionalProperties": false
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "speed_test",
+  "type": "object",
+  "properties": {
+    "address": {
+      "type": "string",
+      "description": "Target RouterOS device address"
+    },
+    "duration": {
+      "default": 10,
+      "description": "Per-test duration in seconds (maps to RouterOS `test-duration`)",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "connection_count": {
+      "description": "Parallel connections to use (RouterOS `connection-count`, default 20)",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "user": {
+      "description": "Username for the target device",
+      "type": "string"
+    },
+    "password": {
+      "description": "Password for the target device",
+      "type": "string"
+    }
+  },
+  "required": ["address", "duration"],
+  "additionalProperties": false
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "update_vlan_interface",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Current name of the VLAN interface to update"
+    },
+    "new_name": {
+      "description": "Rename the interface to this (no spaces).",
+      "type": "string",
+      "pattern": "^\\S+$"
+    },
+    "vlan_id": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4094
+    },
+    "interface": {
+      "type": "string"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "type": "boolean"
+    },
+    "mtu": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "use_service_tag": {
+      "type": "boolean"
+    },
+    "arp": {
+      "type": "string",
+      "enum": ["enabled", "disabled", "proxy-arp", "reply-only"]
+    },
+    "arp_timeout": {
+      "type": "string"
+    },
+    "loop_protect": {
+      "description": "Loop protection: default, on, off",
+      "type": "string",
+      "enum": ["default", "on", "off"]
+    },
+    "loop_protect_disable_time": {
+      "description": "Time to disable interface on loop detection, e.g. '5m' (0 = forever)",
+      "type": "string"
+    },
+    "loop_protect_send_interval": {
+      "description": "Interval between loop-protect probe packets, e.g. '5s'",
+      "type": "string"
+    }
+  },
+  "required": ["name"],
+  "additionalProperties": false
+}

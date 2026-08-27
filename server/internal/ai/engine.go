@@ -17,6 +17,7 @@ type Engine struct {
 	repo      *storage.SQLiteRepository
 	tunnelSvc *tunnel.Service
 	llm       *LLMClient
+	mcpBridge *MCPBridge
 }
 
 func NewEngine(repo *storage.SQLiteRepository, tunnelSvc *tunnel.Service) *Engine {
@@ -24,6 +25,7 @@ func NewEngine(repo *storage.SQLiteRepository, tunnelSvc *tunnel.Service) *Engin
 		repo:      repo,
 		tunnelSvc: tunnelSvc,
 		llm:       NewLLMClient(),
+		mcpBridge: NewMCPBridge(),
 	}
 }
 

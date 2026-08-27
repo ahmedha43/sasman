@@ -1,0 +1,254 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "mikrotik-mcp",
+  "description": "MikroTik MCP Dashboard",
+  "categories": [
+    "Applications",
+    "Developer Tools"
+  ],
+  "keywords": [
+    "ai",
+    "bun",
+    "claude",
+    "mcp",
+    "mikrotik",
+    "mikrotik mcp"
+  ],
+  "license": "MIT",
+  "author": "usestrict",
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "test:types": "tsc --noEmit",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "npx @raycast/api@latest publish"
+  },
+  "dependencies": {
+    "@raycast/api": "^1.104.9",
+    "@raycast/utils": "^2.2.7",
+    "@visx/curve": "^4.0.0",
+    "@visx/gradient": "^4.0.0",
+    "@visx/group": "^4.0.0",
+    "@visx/scale": "^4.0.0",
+    "@visx/shape": "^4.0.0",
+    "raycast-notifier": "^0.1.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "26.1.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.22.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3"
+  },
+  "icon": "extension-icon.png",
+  "access": "public",
+  "commands": [
+    {
+      "name": "menubar",
+      "title": "Fleet Menu Bar",
+      "description": "Live MikroTik fleet cockpit in the menu bar \u2014 health, activity, alerts",
+      "icon": "extension-icon.png",
+      "mode": "menu-bar",
+      "interval": "1m"
+    },
+    {
+      "name": "overview",
+      "title": "Overview",
+      "description": "Tool-call volume, latency, error rate and risk at a glance",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "devices",
+      "title": "Devices",
+      "description": "Router connectivity, system health (CPU/MEM/DISK) and SSH pool",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "clients",
+      "title": "Clients",
+      "description": "LAN devices on a router \u2014 live traffic, block/allow, pin IP, rate limits",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "packets",
+      "title": "Packet Capture",
+      "description": "Live decoded TZSP packet capture \u2014 protocols, talkers, pcap export",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "flows",
+      "title": "Flows",
+      "description": "NetFlow/IPFIX top talkers, conversations and applications",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "radius-um",
+      "title": "RADIUS & UM",
+      "description": "RADIUS client and User Manager \u2014 users, profiles, limitations, NAS, sessions",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "capsman",
+      "title": "CAPsMAN",
+      "description": "Wi-Fi fabric \u2014 radios, co-channel conflicts, weak-signal clients and roaming/HA audit",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "topology",
+      "title": "Topology",
+      "description": "Configured devices and discovered Layer-2 neighbours (MNDP/CDP/LLDP)",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "snapshots",
+      "title": "Snapshots",
+      "description": "Browse stored config snapshots and time-travel diff any two",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "drift",
+      "title": "Drift Guard",
+      "description": "Golden config baselines and live drift detection per device",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "explain",
+      "title": "Explain",
+      "description": "Plain-language architecture document for a router, from its configuration",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "policies",
+      "title": "Policies",
+      "description": "Policy-as-code findings and compliance score per device",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "transactions",
+      "title": "Transactions",
+      "description": "Cross-device two-phase commit \u2014 swimlane, assertions, abort",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "change-plan",
+      "title": "Change Plan",
+      "description": "Dry-run intended RouterOS commands \u2014 risk-scored, safely ordered",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "s3-backups",
+      "title": "S3 Backups",
+      "description": "List, download and delete S3 backup objects",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "backups",
+      "title": "Backups",
+      "description": "Local config vault \u2014 create, download, rename, restore, delete",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "modules",
+      "title": "Modules",
+      "description": "Enable/disable tool modules \u2014 curate the exposed MCP surface",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "config",
+      "title": "Config",
+      "description": "Effective configuration, safe editor, version history and field guide",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "reload-server",
+      "title": "Reload Server",
+      "description": "Reload the MCP server config live, or restart the process",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "releases",
+      "title": "Releases",
+      "description": "Browse versions with release notes; upgrade, downgrade or reinstall the server",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "catalog",
+      "title": "Catalog",
+      "description": "Browse every tool, module and prompt with search and kind/group filters",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "memory",
+      "title": "Memory",
+      "description": "Knowledge graph \u2014 entities, relations, observations and activity",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "feed",
+      "title": "Live Feed",
+      "description": "Every MCP tool call in real time (WebSocket, SSE fallback)",
+      "icon": "extension-icon.png",
+      "mode": "view"
+    },
+    {
+      "name": "monitor-devices",
+      "title": "Monitor Devices",
+      "description": "Background health check that notifies when a router goes offline or comes back online",
+      "icon": "extension-icon.png",
+      "mode": "no-view",
+      "interval": "1m"
+    }
+  ],
+  "owner": "usex",
+  "platforms": [
+    "macOS",
+    "Windows"
+  ],
+  "preferences": [
+    {
+      "name": "dashboardUrl",
+      "title": "Dashboard URL",
+      "description": "Base URL of the MikroTik MCP observability dashboard (e.g. http://127.0.0.1:9090)",
+      "type": "textfield",
+      "required": true,
+      "default": "http://127.0.0.1:9090",
+      "placeholder": "http://127.0.0.1:9090"
+    },
+    {
+      "name": "token",
+      "title": "Access Token",
+      "description": "Bearer token if the dashboard is token-gated (leave empty otherwise)",
+      "type": "password",
+      "required": false
+    }
+  ],
+  "title": "MikroTik MCP"
+}

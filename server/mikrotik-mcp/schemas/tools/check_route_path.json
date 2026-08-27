@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "check_route_path",
+  "type": "object",
+  "properties": {
+    "destination": {
+      "type": "string"
+    },
+    "routing_table": {
+      "description": "Policy-routing table name (v7) or routing-mark (v6), e.g. \"VPN\"",
+      "type": "string"
+    }
+  },
+  "required": ["destination"],
+  "additionalProperties": false
+}

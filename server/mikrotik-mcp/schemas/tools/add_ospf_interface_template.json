@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "add_ospf_interface_template",
+  "type": "object",
+  "properties": {
+    "area": {
+      "type": "string",
+      "description": "OSPF area name to attach matched interfaces to"
+    },
+    "interfaces": {
+      "description": "Interface or interface-list name",
+      "type": "string"
+    },
+    "networks": {
+      "description": "Network prefix(es) to enable OSPF on, e.g. \"10.0.0.0/24\"",
+      "type": "string"
+    },
+    "cost": {
+      "description": "Output cost / metric",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "priority": {
+      "description": "DR election priority (0 = never DR)",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "broadcast",
+        "ptp",
+        "ptp-unnumbered",
+        "ptmp",
+        "ptmp-broadcast",
+        "nbma",
+        "virtual-link"
+      ]
+    },
+    "passive": {
+      "type": "boolean"
+    },
+    "hello_interval": {
+      "description": "e.g. \"10s\"",
+      "type": "string"
+    },
+    "dead_interval": {
+      "description": "e.g. \"40s\"",
+      "type": "string"
+    },
+    "retransmit_interval": {
+      "description": "Interval between LSA retransmissions, e.g. \"5s\"",
+      "type": "string"
+    },
+    "transmit_delay": {
+      "description": "Estimated LSA transmit delay, e.g. \"1s\"",
+      "type": "string"
+    },
+    "instance_id": {
+      "description": "OSPF instance-id carried in hello packets",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "prefix_list": {
+      "description": "Prefix-list name filtering which connected networks are advertised",
+      "type": "string"
+    },
+    "vlink_neighbor_id": {
+      "description": "Virtual-link remote router-id (type=virtual-link)",
+      "type": "string"
+    },
+    "vlink_transit_area": {
+      "description": "Transit area the virtual-link traverses (type=virtual-link)",
+      "type": "string"
+    },
+    "auth": {
+      "type": "string",
+      "enum": ["simple", "md5", "sha1", "sha256", "sha384", "sha512"]
+    },
+    "auth_id": {
+      "description": "Key id for keyed authentication",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "auth_key": {
+      "description": "Authentication key/password",
+      "type": "string"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "default": false,
+      "type": "boolean"
+    }
+  },
+  "required": ["area", "disabled"],
+  "additionalProperties": false
+}

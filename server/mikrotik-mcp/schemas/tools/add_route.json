@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "add_route",
+  "type": "object",
+  "properties": {
+    "dst_address": {
+      "type": "string",
+      "description": "CIDR e.g. \"0.0.0.0/0\", \"192.168.1.0/24\""
+    },
+    "gateway": {
+      "type": "string"
+    },
+    "distance": {
+      "description": "1-255 (lower = higher priority)",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "scope": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "target_scope": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "routing_table": {
+      "description": "Policy-routing table name, e.g. \"main\" or a custom table (RouterOS v7)",
+      "type": "string"
+    },
+    "routing_mark": {
+      "description": "Deprecated alias for routing_table (RouterOS v6 name)",
+      "type": "string"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "default": false,
+      "type": "boolean"
+    },
+    "vrf_interface": {
+      "type": "string"
+    },
+    "pref_src": {
+      "type": "string"
+    },
+    "check_gateway": {
+      "description": "\"ping\" or \"arp\"",
+      "type": "string"
+    },
+    "suppress_hw_offload": {
+      "description": "Exclude route from hardware (HW) offloading",
+      "type": "boolean"
+    },
+    "type": {
+      "description": "\"unicast\" (default) or \"blackhole\" (drop silently). RouterOS v7 has no \"unreachable\"/\"prohibit\" route types.",
+      "type": "string",
+      "enum": ["unicast", "blackhole"]
+    }
+  },
+  "required": ["dst_address", "gateway", "disabled"],
+  "additionalProperties": false
+}

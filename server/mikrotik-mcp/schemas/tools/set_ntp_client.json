@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "set_ntp_client",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "description": "Enable or disable the NTP client",
+      "type": "boolean"
+    },
+    "servers": {
+      "description": "Comma-separated NTP server list",
+      "type": "string"
+    },
+    "mode": {
+      "description": "NTP client operating mode",
+      "type": "string",
+      "enum": ["unicast", "broadcast", "multicast", "manycast"]
+    },
+    "vrf": {
+      "description": "VRF the NTP client operates in (e.g. 'main')",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "update_mangle_rule",
+  "type": "object",
+  "properties": {
+    "rule_id": {
+      "type": "string"
+    },
+    "chain": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "src_address": {
+      "type": "string"
+    },
+    "dst_address": {
+      "type": "string"
+    },
+    "src_port": {
+      "type": "string"
+    },
+    "dst_port": {
+      "type": "string"
+    },
+    "port": {
+      "type": "string"
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "src_mac_address": {
+      "type": "string"
+    },
+    "in_interface": {
+      "type": "string"
+    },
+    "out_interface": {
+      "type": "string"
+    },
+    "in_interface_list": {
+      "type": "string"
+    },
+    "out_interface_list": {
+      "type": "string"
+    },
+    "src_address_list": {
+      "description": "Negate with \"!name\" (e.g. \"!IR\")",
+      "type": "string"
+    },
+    "dst_address_list": {
+      "description": "Negate with \"!name\" (e.g. \"!IR\")",
+      "type": "string"
+    },
+    "src_address_type": {
+      "type": "string"
+    },
+    "dst_address_type": {
+      "type": "string"
+    },
+    "connection_mark": {
+      "type": "string"
+    },
+    "packet_mark": {
+      "type": "string"
+    },
+    "routing_mark": {
+      "type": "string"
+    },
+    "connection_state": {
+      "type": "string"
+    },
+    "connection_nat_state": {
+      "type": "string"
+    },
+    "connection_type": {
+      "type": "string"
+    },
+    "connection_bytes": {
+      "type": "string"
+    },
+    "connection_limit": {
+      "type": "string"
+    },
+    "connection_rate": {
+      "type": "string"
+    },
+    "per_connection_classifier": {
+      "type": "string"
+    },
+    "tcp_flags": {
+      "type": "string"
+    },
+    "dscp": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string"
+    },
+    "packet_size": {
+      "type": "string"
+    },
+    "ttl": {
+      "type": "string"
+    },
+    "tcp_mss": {
+      "type": "string"
+    },
+    "fragment": {
+      "type": "boolean"
+    },
+    "icmp_options": {
+      "type": "string"
+    },
+    "ipv4_options": {
+      "type": "string"
+    },
+    "limit": {
+      "type": "string"
+    },
+    "dst_limit": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "psd": {
+      "type": "string"
+    },
+    "layer7_protocol": {
+      "type": "string"
+    },
+    "ipsec_policy": {
+      "type": "string"
+    },
+    "nth": {
+      "type": "string"
+    },
+    "random": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string"
+    },
+    "hotspot": {
+      "type": "string"
+    },
+    "p2p": {
+      "type": "string"
+    },
+    "new_connection_mark": {
+      "type": "string"
+    },
+    "new_packet_mark": {
+      "type": "string"
+    },
+    "new_routing_mark": {
+      "type": "string"
+    },
+    "new_dscp": {
+      "type": "string"
+    },
+    "new_ttl": {
+      "type": "string"
+    },
+    "new_mss": {
+      "type": "string"
+    },
+    "new_priority": {
+      "type": "string"
+    },
+    "routing_table": {
+      "type": "string"
+    },
+    "route_dst": {
+      "type": "string"
+    },
+    "jump_target": {
+      "type": "string"
+    },
+    "sniff_target": {
+      "type": "string"
+    },
+    "sniff_target_port": {
+      "type": "string"
+    },
+    "address_list": {
+      "type": "string"
+    },
+    "address_list_timeout": {
+      "type": "string"
+    },
+    "passthrough": {
+      "type": "boolean"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "disabled": {
+      "type": "boolean"
+    },
+    "log": {
+      "type": "boolean"
+    },
+    "log_prefix": {
+      "type": "string"
+    }
+  },
+  "required": ["rule_id"],
+  "additionalProperties": false
+}
