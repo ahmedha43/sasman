@@ -79,82 +79,64 @@ func (c *LLMClient) Complete(ctx context.Context, settings *storage.AISettings, 
 		}
 	}
 
-	// Attempt request with automatic retry and model fallback on 503/429 errors
+	// Attempt request strictly using the user-configured model (no model switching)
+	bodyBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request error: %w", err)
+	}
+
 	var respBytes []byte
 	var lastErr error
 
-	modelsToTry := []string{req.Model}
-	if provider == "gemini" {
-		fallbackList := []string{"gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"}
-		for _, m := range fallbackList {
-			if m != req.Model {
-				modelsToTry = append(modelsToTry, m)
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(1500 * time.Millisecond):
 			}
 		}
-	}
 
-	for _, modelName := range modelsToTry {
-		req.Model = modelName
-		bodyBytes, err := json.Marshal(req)
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyBytes))
 		if err != nil {
-			return nil, fmt.Errorf("marshal request error: %w", err)
+			return nil, fmt.Errorf("create request error: %w", err)
 		}
 
-		for attempt := 0; attempt < 2; attempt++ {
-			if attempt > 0 {
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case <-time.After(1200 * time.Millisecond):
-				}
-			}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 
-			httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(bodyBytes))
-			if err != nil {
-				return nil, fmt.Errorf("create request error: %w", err)
-			}
-
-			httpReq.Header.Set("Content-Type", "application/json")
-			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-
-			resp, err := c.httpClient.Do(httpReq)
-			if err != nil {
-				lastErr = fmt.Errorf("AI service request failed: %w", err)
-				continue
-			}
-
-			respBytes, err = io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if err != nil {
-				lastErr = fmt.Errorf("read response error: %w", err)
-				continue
-			}
-
-			if resp.StatusCode == 404 {
-				lastErr = fmt.Errorf("AI provider error (HTTP 404): %s", string(respBytes))
-				break // Model deprecated/not found, immediately switch to next fallback model
-			}
-
-			if resp.StatusCode == 503 || resp.StatusCode == 429 {
-				lastErr = fmt.Errorf("AI provider error (HTTP %d): %s", resp.StatusCode, string(respBytes))
-				continue // retry or fallback model
-			}
-
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				return nil, fmt.Errorf("AI provider error (HTTP %d): %s", resp.StatusCode, string(respBytes))
-			}
-
-			var chatResp ChatCompletionResponse
-			if err := json.Unmarshal(respBytes, &chatResp); err != nil {
-				return nil, fmt.Errorf("unmarshal response error: %w (%s)", err, string(respBytes))
-			}
-
-			if chatResp.Error != nil {
-				return nil, fmt.Errorf("AI error: %s", chatResp.Error.Message)
-			}
-
-			return &chatResp, nil
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = fmt.Errorf("AI service request failed: %w", err)
+			continue
 		}
+
+		respBytes, err = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("read response error: %w", err)
+			continue
+		}
+
+		if resp.StatusCode == 503 || resp.StatusCode == 429 {
+			lastErr = fmt.Errorf("AI provider error (HTTP %d): %s", resp.StatusCode, string(respBytes))
+			continue // retry once
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("AI provider error (HTTP %d): %s", resp.StatusCode, string(respBytes))
+		}
+
+		var chatResp ChatCompletionResponse
+		if err := json.Unmarshal(respBytes, &chatResp); err != nil {
+			return nil, fmt.Errorf("unmarshal response error: %w (%s)", err, string(respBytes))
+		}
+
+		if chatResp.Error != nil {
+			return nil, fmt.Errorf("AI error: %s", chatResp.Error.Message)
+		}
+
+		return &chatResp, nil
 	}
 
 	return nil, lastErr
