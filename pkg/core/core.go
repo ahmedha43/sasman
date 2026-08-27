@@ -364,12 +364,66 @@ func ActivateLicense(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "تم تفعيل النظام بنجاح!"})
 }
 
+// GetClientWithAuth returns a working routeros.Client, trying the shared client first, then fallback to provided credentials
+func GetClientWithAuth(host, user, pass string) (*routeros.Client, func(), error) {
+	client, err := GetSharedClient()
+	if err == nil && client != nil {
+		return client, func() {}, nil
+	}
+
+	// Try with provided explicit credentials
+	if user != "" {
+		targetHost := host
+		if targetHost == "" {
+			targetHost = strings.TrimSpace(shared.RouterConfigState.Address)
+		}
+		if targetHost == "" {
+			targetHost = "192.168.88.1"
+		}
+
+		newClient, dialErr := routeros.Dial(targetHost, user, pass)
+		if dialErr == nil && newClient != nil {
+			// Update local config if successful
+			shared.RouterConfigState.Address = targetHost
+			shared.RouterConfigState.Username = user
+			shared.RouterConfigState.Password = pass
+			shared.SaveConfig()
+			ResetSharedClient()
+			return newClient, func() { newClient.Close() }, nil
+		}
+
+		// Also try standard fallbacks
+		for _, fb := range []string{"172.17.0.1", "192.168.88.1", "127.0.0.1", "172.16.0.1"} {
+			if fb == targetHost {
+				continue
+			}
+			fbClient, fbErr := routeros.Dial(fb, user, pass)
+			if fbErr == nil && fbClient != nil {
+				shared.RouterConfigState.Address = fb
+				shared.RouterConfigState.Username = user
+				shared.RouterConfigState.Password = pass
+				shared.SaveConfig()
+				ResetSharedClient()
+				return fbClient, func() { fbClient.Close() }, nil
+			}
+		}
+	}
+
+	return nil, func() {}, fmt.Errorf("router connection error: %w", err)
+}
+
 // RunCommand executes a single RouterOS command safely with commandMu and returns structured maps
 func RunCommand(sentence ...string) ([]map[string]string, error) {
-	client, err := GetSharedClient()
+	return RunCommandWithAuth("", "", "", sentence...)
+}
+
+// RunCommandWithAuth executes a single RouterOS command with fallback credentials
+func RunCommandWithAuth(host, user, pass string, sentence ...string) ([]map[string]string, error) {
+	client, cleanup, err := GetClientWithAuth(host, user, pass)
 	if err != nil {
-		return nil, fmt.Errorf("router connection error: %w", err)
+		return nil, err
 	}
+	defer cleanup()
 
 	commandMu.Lock()
 	reply, err := client.Run(sentence...)
@@ -392,10 +446,16 @@ func RunCommand(sentence ...string) ([]map[string]string, error) {
 
 // RunCommandsBatch executes multiple RouterOS commands and returns their combined results
 func RunCommandsBatch(commands [][]string) (map[string]interface{}, error) {
-	client, err := GetSharedClient()
+	return RunCommandsBatchWithAuth("", "", "", commands)
+}
+
+// RunCommandsBatchWithAuth executes multiple RouterOS commands with fallback credentials
+func RunCommandsBatchWithAuth(host, user, pass string, commands [][]string) (map[string]interface{}, error) {
+	client, cleanup, err := GetClientWithAuth(host, user, pass)
 	if err != nil {
-		return nil, fmt.Errorf("router connection error: %w", err)
+		return nil, err
 	}
+	defer cleanup()
 
 	commandMu.Lock()
 	defer commandMu.Unlock()
@@ -440,10 +500,16 @@ func RunCommandsBatch(commands [][]string) (map[string]interface{}, error) {
 
 // RunSystemAudit gathers a complete RouterOS health, firewall, resource, and interface audit snapshot
 func RunSystemAudit() (map[string]interface{}, error) {
-	client, err := GetSharedClient()
+	return RunSystemAuditWithAuth("", "", "")
+}
+
+// RunSystemAuditWithAuth gathers a complete RouterOS snapshot with fallback credentials
+func RunSystemAuditWithAuth(host, user, pass string) (map[string]interface{}, error) {
+	client, cleanup, err := GetClientWithAuth(host, user, pass)
 	if err != nil {
-		return nil, fmt.Errorf("router connection error: %w", err)
+		return nil, err
 	}
+	defer cleanup()
 
 	commandMu.Lock()
 	defer commandMu.Unlock()

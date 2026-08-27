@@ -573,16 +573,21 @@ func main() {
 	// Internal AI / RouterOS Execution API (reachable from Central Server via tunnel)
 	radiusAPI.Post("/internal/routeros/exec", func(c *fiber.Ctx) error {
 		var req struct {
-			Commands [][]string `json:"commands"`
-			Command  []string   `json:"command"`
-			Audit    bool       `json:"audit"`
+			Commands   [][]string `json:"commands"`
+			Command    []string   `json:"command"`
+			Audit      bool       `json:"audit"`
+			RouterAuth struct {
+				Host string `json:"host"`
+				User string `json:"user"`
+				Pass string `json:"pass"`
+			} `json:"router_auth"`
 		}
 		if err := c.BodyParser(&req); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
 		}
 
 		if req.Audit {
-			auditData, err := core.RunSystemAudit()
+			auditData, err := core.RunSystemAuditWithAuth(req.RouterAuth.Host, req.RouterAuth.User, req.RouterAuth.Pass)
 			if err != nil {
 				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 			}
@@ -590,7 +595,7 @@ func main() {
 		}
 
 		if len(req.Command) > 0 {
-			items, err := core.RunCommand(req.Command...)
+			items, err := core.RunCommandWithAuth(req.RouterAuth.Host, req.RouterAuth.User, req.RouterAuth.Pass, req.Command...)
 			if err != nil {
 				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 			}
@@ -598,7 +603,7 @@ func main() {
 		}
 
 		if len(req.Commands) > 0 {
-			res, err := core.RunCommandsBatch(req.Commands)
+			res, err := core.RunCommandsBatchWithAuth(req.RouterAuth.Host, req.RouterAuth.User, req.RouterAuth.Pass, req.Commands)
 			if err != nil {
 				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 			}

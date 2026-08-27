@@ -27,6 +27,56 @@ func NewEngine(repo *storage.SQLiteRepository, tunnelSvc *tunnel.Service) *Engin
 	}
 }
 
+// getAgentRouterAuth retrieves the stored router credentials for the target agent
+func (e *Engine) getAgentRouterAuth(subdomain string) map[string]string {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	if sub == "" {
+		return nil
+	}
+
+	credsMap, err := e.repo.GetSubdomainCredentialsMap()
+	if err == nil {
+		if creds, ok := credsMap[sub]; ok {
+			if m, ok := creds["mikrotik"].(map[string]interface{}); ok {
+				host, _ := m["host"].(string)
+				if host == "" {
+					host, _ = m["address"].(string)
+				}
+				user, _ := m["username"].(string)
+				pass, _ := m["password"].(string)
+				if user != "" || pass != "" {
+					return map[string]string{
+						"host": host,
+						"user": user,
+						"pass": pass,
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback to active agent session sync data
+	if agent := e.tunnelSvc.GetAgentBySubdomain(subdomain); agent != nil {
+		if agent.SyncData != nil {
+			if m, ok := agent.SyncData["credentials"].(map[string]interface{}); ok {
+				if mt, ok := m["mikrotik"].(map[string]interface{}); ok {
+					host, _ := mt["host"].(string)
+					user, _ := mt["username"].(string)
+					pass, _ := mt["password"].(string)
+					if user != "" || pass != "" {
+						return map[string]string{
+							"host": host,
+							"user": user,
+							"pass": pass,
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // ExecuteRouterCommand sends a RouterOS CLI command to the specified agent router
 func (e *Engine) ExecuteRouterCommand(subdomain string, command string) (map[string]interface{}, error) {
 	subdomain = strings.TrimSpace(subdomain)
@@ -39,9 +89,14 @@ func (e *Engine) ExecuteRouterCommand(subdomain string, command string) (map[str
 		return nil, fmt.Errorf("أمر المايكروتك فارغ")
 	}
 
-	reqBody, _ := json.Marshal(map[string]interface{}{
+	payload := map[string]interface{}{
 		"command": cmdParts,
-	})
+	}
+	if auth := e.getAgentRouterAuth(subdomain); auth != nil {
+		payload["router_auth"] = auth
+	}
+
+	reqBody, _ := json.Marshal(payload)
 
 	_, respBytes, err := e.tunnelSvc.SendAgentHTTPRequest(subdomain, "POST", "/radius/api/internal/routeros/exec", reqBody, nil)
 	if err != nil {
@@ -62,9 +117,14 @@ func (e *Engine) ExecuteSystemAudit(subdomain string) (map[string]interface{}, e
 		return nil, fmt.Errorf("يجب تحديد اسم نطاق الوكيل")
 	}
 
-	reqBody, _ := json.Marshal(map[string]interface{}{
+	payload := map[string]interface{}{
 		"audit": true,
-	})
+	}
+	if auth := e.getAgentRouterAuth(subdomain); auth != nil {
+		payload["router_auth"] = auth
+	}
+
+	reqBody, _ := json.Marshal(payload)
 
 	_, respBytes, err := e.tunnelSvc.SendAgentHTTPRequest(subdomain, "POST", "/radius/api/internal/routeros/exec", reqBody, nil)
 	if err != nil {
@@ -104,9 +164,14 @@ func (e *Engine) ExecuteBatchCommands(subdomain string, commands []string) (map[
 		return nil, fmt.Errorf("لا توجد أوامر صالحة للتنفيذ")
 	}
 
-	reqBody, _ := json.Marshal(map[string]interface{}{
+	payload := map[string]interface{}{
 		"commands": cmdList,
-	})
+	}
+	if auth := e.getAgentRouterAuth(subdomain); auth != nil {
+		payload["router_auth"] = auth
+	}
+
+	reqBody, _ := json.Marshal(payload)
 
 	_, respBytes, err := e.tunnelSvc.SendAgentHTTPRequest(subdomain, "POST", "/radius/api/internal/routeros/exec", reqBody, nil)
 	if err != nil {
