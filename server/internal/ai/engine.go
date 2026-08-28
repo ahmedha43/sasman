@@ -87,14 +87,7 @@ func (e *Engine) ExecuteRouterCommand(subdomain string, command string) (map[str
 		return nil, fmt.Errorf("يجب تحديد اسم نطاق الوكيل")
 	}
 
-	cleanCmd := strings.TrimSpace(command)
-	// Auto-correct erroneous pppoe-client command when looking for active subscribers
-	if strings.Contains(strings.ToLower(cleanCmd), "pppoe-client") && strings.Contains(strings.ToLower(cleanCmd), "print") {
-		log.Printf("[ai-engine] auto-correcting pppoe-client query to /ppp/active/print for subscriber count accuracy")
-		cleanCmd = "/ppp/active/print"
-	}
-
-	cmdParts := strings.Fields(cleanCmd)
+	cmdParts := strings.Fields(strings.TrimSpace(command))
 	if len(cmdParts) == 0 {
 		return nil, fmt.Errorf("أمر المايكروتك فارغ")
 	}
@@ -816,35 +809,20 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 					toolArgs = make(map[string]interface{})
 				}
 
-				// Safe Context & Credential Verification before MCP execution
-				auth := e.getAgentRouterAuth(sub)
-				session := e.tunnelSvc.GetAgentBySubdomain(sub)
-				if auth == nil && session == nil {
-					toolResult = map[string]string{
-						"error": fmt.Sprintf("تعذر استدعاء أداة MCP للوكيل (%s) لعدم وجود جلسة اتصال نشطة أو بيانات مصادقة موثوقة للراوتر. يرجى استخدام أدوات نفق SASMAN المباشرة.", sub),
-					}
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "error",
-						Summary:  "تخطي MCP لعدم وجود اتصال موثوق بالوكيل",
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
-					break
+				// Strip sensitive credentials to prevent secret leakage in MCP logs
+				delete(toolArgs, "password")
+				delete(toolArgs, "pass")
+				delete(toolArgs, "router_auth")
+
+				if sub != "" {
+					toolArgs["subdomain"] = sub
 				}
-				if auth != nil {
-					toolArgs["router_auth"] = auth
-					toolArgs["host"] = auth["host"]
-					toolArgs["username"] = auth["user"]
-					toolArgs["password"] = auth["pass"]
-				}
-				toolArgs["subdomain"] = sub
 
 				emit(StreamEvent{
 					Type:  "tunnel_exec",
 					Tool:  fnName,
-					Title: "محرك MCP Sidecar",
-					Text:  fmt.Sprintf("تشغيل أداة `%s` عبر محرك MCP بسياق آمن...", toolName),
+					Title: "محرك MCP التحليلي",
+					Text:  fmt.Sprintf("تشغيل أداة `%s` عبر محرك MCP للتحليل والمحاكاة الآمنة...", toolName),
 				})
 				mcpRes, err := e.mcpBridge.CallMCPTool(ctx, toolName, toolArgs)
 				if err != nil {
