@@ -460,18 +460,27 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 	tools := GetRouterOSToolDefinitions()
 	var finalPlan *ChangePlan
 
-	// Execute Tool Calling loop (max 3 iterations: Round 1 for Parallel Reads, Round 2 for Final Synthesis, Round 3 for Optional Follow-up/Plan)
-	for iter := 0; iter < 3; iter++ {
+	// Execute Tool Calling loop: Round 1 for Parallel Reads, Round 2 for Instant Forced Synthesis
+	for iter := 0; iter < 2; iter++ {
 		emit(StreamEvent{
 			Type:  "thought",
 			Title: "استدعاء نموذج الذكاء الاصطناعي",
-			Text:  fmt.Sprintf("جاري التخطيط والتنفيذ بواسطة %s (%s) [دورة %d/3]...", settings.Provider, settings.Model, iter+1),
+			Text:  fmt.Sprintf("جاري التخطيط والتلخيص بواسطة %s (%s) [دورة %d/2]...", settings.Provider, settings.Model, iter+1),
 		})
+
+		var currentTools []ToolDefinition
+		if iter == 0 {
+			currentTools = tools
+		} else {
+			// On Round 2, all tool results have been collected.
+			// Passing nil tools forces the LLM to output the final Arabic synthesis & Mermaid diagram without getting trapped in recursive tool calls.
+			currentTools = nil
+		}
 
 		req := ChatCompletionRequest{
 			Model:       settings.Model,
 			Messages:    conversation,
-			Tools:       tools,
+			Tools:       currentTools,
 			Temperature: settings.Temperature,
 		}
 
