@@ -189,15 +189,38 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 		}
 	}
 
-	// 3. Fetch User Data from LMDB
+	// 3. Fetch User Data from LMDB (with SQLite fallback for local users)
 	data, err := getLMDBUserData(username)
-	if err != nil {
+	if err != nil || data == "" {
+		if DB != nil {
+			var dbPass string
+			errDB := DB.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&dbPass)
+			if errDB == nil && dbPass != "" {
+				var lines []string
+				lines = append(lines, dbPass)
+				// Fetch other attributes from radreply
+				rows, errRows := DB.Query("SELECT attribute, value FROM radreply WHERE username = ?", username)
+				if errRows == nil && rows != nil {
+					for rows.Next() {
+						var attr, val string
+						if rows.Scan(&attr, &val) == nil {
+							lines = append(lines, fmt.Sprintf("%s=%s", attr, val))
+						}
+					}
+					rows.Close()
+				}
+				data = strings.Join(lines, "\n")
+				err = nil
+			}
+		}
+	}
+	if err != nil || data == "" {
 		// Not found locally -> Try Central Server Global HotSpot / Voucher authentication before rejecting!
 		if handleGlobalHotspotAuth(w, r, username) {
 			return
 		}
 		if debugEnabled {
-			radiusLogger.Printf("[radius] [DEBUG] User [%s] not found in LMDB or query failed: %v", username, err)
+			radiusLogger.Printf("[radius] [DEBUG] User [%s] not found in LMDB/SQLite or query failed: %v", username, err)
 		}
 		writeAccessReject(w, r, username, "user not found")
 		return

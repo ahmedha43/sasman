@@ -254,7 +254,7 @@
                 🎫 كرت إنترنت (Voucher)
             </button>
             <button type="button" class="tab-btn" id="tab-account-btn" onclick="switchTab('account')">
-                🏢 حساب وكيل SASMAN
+                🏢 حساب المشترك (محلي / تجوال)
             </button>
         </div>
 
@@ -274,22 +274,22 @@
                 </div>
             </div>
 
-            <!-- Tab 2: Cross-Agent Roaming Account Entry -->
+            <!-- Tab 2: Local & Cross-Agent Roaming Account Entry -->
             <div id="tab-account-pane" style="display: none;">
                 <div class="form-group">
-                    <label class="form-label" for="agent-domain">نطاق الوكيل (Domain / Subdomain):</label>
-                    <input type="text" id="agent-domain" class="form-input" placeholder="مثال: ahmed أو ahmed.sas-man.net" autocomplete="off" autocorrect="off" autocapitalize="none">
-                    <div class="form-hint">نطاق الوكيل المشترك معه (مثال: ahmed أو yaser110).</div>
-                </div>
-
-                <div class="form-group">
                     <label class="form-label" for="agent-user">اسم المستخدم (Username):</label>
-                    <input type="text" id="agent-user" class="form-input" placeholder="اسم حسابك لدى الوكيل" autocomplete="off" autocorrect="off" autocapitalize="none">
+                    <input type="text" id="agent-user" class="form-input" placeholder="اسم حسابك" autocomplete="off" autocorrect="off" autocapitalize="none">
                 </div>
 
                 <div class="form-group">
                     <label class="form-label" for="agent-pass">كلمة المرور (Password):</label>
                     <input type="password" id="agent-pass" class="form-input" placeholder="••••••••">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="agent-domain">نطاق الوكيل (Subdomain / اختياري للتجوال):</label>
+                    <input type="text" id="agent-domain" class="form-input" placeholder="اتركه فارغاً للدخول المحلي، أو اكتب نطاق الوكيل" autocomplete="off" autocorrect="off" autocapitalize="none">
+                    <div class="form-hint">⚡ اتركه فارغاً للدخول على هذا السيرفر المحلي مباشرة، أو أدخل نطاق الوكيل (مثل: ahmed) في حال التجوال من شبكة أخرى.</div>
                 </div>
             </div>
 
@@ -299,7 +299,7 @@
         </form>
 
         <div class="footer-note">
-            مدعوم بواسطة نظام <strong>SASMAN HotSpot Roaming</strong> المركزي
+            مدعوم بواسطة نظام <strong>SASMAN HotSpot</strong> الموحد (دخول محلي + تجوال مركزي)
         </div>
     </div>
 
@@ -334,7 +334,7 @@
                 accountPane.style.display = 'block';
                 tabAccountBtn.classList.add('active');
                 tabVoucherBtn.classList.remove('active');
-                document.getElementById('agent-domain').focus();
+                document.getElementById('agent-user').focus();
             }
         }
 
@@ -352,25 +352,24 @@
                 mtUser.value = code;
                 mtPass.value = code;
             } else {
-                var domain = document.getElementById('agent-domain').value.trim().toLowerCase();
                 var user = document.getElementById('agent-user').value.trim();
                 var pass = document.getElementById('agent-pass').value;
+                var domain = document.getElementById('agent-domain').value.trim().toLowerCase();
 
-                if (!domain) {
-                    showClientError('يرجى إدخال نطاق الوكيل (Domain)');
-                    return false;
-                }
                 if (!user) {
-                    showClientError('يرجى إدخال اسم المستخدم');
+                    showClientError('يرجى إدخال اسم المستخدم أولاً');
                     return false;
                 }
 
-                // Strip domain suffixes if entered
-                domain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-                if (domain.indexOf(':') !== -1) domain = domain.split(':')[0];
-
-                // Build username@domain format
-                mtUser.value = user + '@' + domain;
+                // If domain was entered, format as user@domain for central roaming
+                if (domain) {
+                    domain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                    if (domain.indexOf(':') !== -1) domain = domain.split(':')[0];
+                    mtUser.value = user + '@' + domain;
+                } else {
+                    // No domain entered -> authenticate locally on the current running server!
+                    mtUser.value = user;
+                }
                 mtPass.value = pass;
             }
 
