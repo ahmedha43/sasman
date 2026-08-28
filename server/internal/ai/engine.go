@@ -197,10 +197,8 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 func isCompoundQuery(q string) bool {
 	compoundIndicators := []string{
 		" و", " ثم ", " وايضا", " وأيضا", " وكذلك", " وافحص", " وفحص", " مع ",
-		"فايروول", "جدار", "firewall", "سجلات", "log", "هجمات", "attack",
-		"منافذ", "واجهات", "interface", "بورتات", "توجيه", "routing", "mangle",
-		"خطة", "صلح", "عدل", "حل", "fix", "vpn", "dns", "drop", "nat",
-		"ثغرات", "مشاكل", "تقرير", "كامل", "شامل", "audit", "security",
+		"خطة", "صلح", "عدل", "حل", "fix", "vpn", "drop",
+		"ثغرات", "مشاكل", "تقرير كامل", "شامل", "audit", "security",
 	}
 	for _, ind := range compoundIndicators {
 		if strings.Contains(q, ind) {
@@ -221,14 +219,14 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 		return nil, false
 	}
 
-	// If query is compound (contains multiple tasks like CPU + Interfaces + Firewall + PPPoE), hand off to LLM
+	// If query is compound (contains multiple complex tasks), hand off to LLM
 	if isCompoundQuery(q) {
 		return nil, false
 	}
 
 	// 1. INTENT: PPPoE / Broadband Active Users Count (/ppp/active/print)
-	isPPPoECountIntent := (strings.Contains(q, "متصل") || strings.Contains(q, "المتصلين") || strings.Contains(q, "مشترك") || strings.Contains(q, "pppoe") || strings.Contains(q, "broadband") || strings.Contains(q, "active")) &&
-		(strings.Contains(q, "عدد") || strings.Contains(q, "كم") || strings.Contains(q, "count") || strings.Contains(q, "حاليا") || strings.Contains(q, "الآن") || strings.Contains(q, "قائمة") || strings.Contains(q, "منو") || strings.Contains(q, "مين") || q == "active" || q == "pppoe" || q == "broadband")
+	isPPPoECountIntent := (strings.Contains(q, "متصل") || strings.Contains(q, "المتصلين") || strings.Contains(q, "مشترك") || strings.Contains(q, "مشتركين") || strings.Contains(q, "pppoe") || strings.Contains(q, "broadband") || strings.Contains(q, "active") || strings.Contains(q, "يوزرات") || strings.Contains(q, "يوزرية") || strings.Contains(q, "جلسات") || strings.Contains(q, "اونلاين") || strings.Contains(q, "online")) &&
+		(strings.Contains(q, "عدد") || strings.Contains(q, "كم") || strings.Contains(q, "count") || strings.Contains(q, "حاليا") || strings.Contains(q, "الآن") || strings.Contains(q, "قائمة") || strings.Contains(q, "منو") || strings.Contains(q, "مين") || strings.Contains(q, "عرض") || strings.Contains(q, "جدول") || q == "active" || q == "pppoe" || q == "broadband" || q == "users" || q == "online")
 
 	if isPPPoECountIntent {
 		emit(StreamEvent{
@@ -253,7 +251,7 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 				Status:   "error",
 				Summary:  "تعذر الاتصال بالراوتر: " + err.Error(),
 			})
-			return nil, false // fallback to full model if fast intent fails
+			return nil, false
 		}
 
 		emit(StreamEvent{
@@ -269,7 +267,7 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 		if c, ok := res["count"].(float64); ok {
 			count = int(c)
 		}
-		if items, ok := res["items"].([]interface{}); ok {
+		if items := extractResultItems(res); len(items) > 0 {
 			count = len(items)
 			for _, it := range items {
 				if m, ok := it.(map[string]interface{}); ok {
@@ -318,24 +316,13 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 		sb.WriteString("\n---\n*⚡ تم جلب النتيجة فورياً وبشكل مباشر عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
 
 		content := sb.String()
-		msg := &ChatMessage{
-			Role:    "assistant",
-			Content: content,
-		}
-
-		emit(StreamEvent{
-			Type:    "done",
-			Title:   "اكتمل الاستعلام الفوري",
-			Text:    content,
-			Message: msg,
-		})
-
+		msg := &ChatMessage{Role: "assistant", Content: content}
+		emit(StreamEvent{Type: "done", Title: "اكتمل الاستعلام الفوري", Text: content, Message: msg})
 		return msg, true
 	}
 
 	// 2. INTENT: System Resources / CPU / Memory / Uptime (/system/resource/print)
-	isResourceIntent := (strings.Contains(q, "معالج") || strings.Contains(q, "cpu") || strings.Contains(q, "رام") || strings.Contains(q, "ram") || strings.Contains(q, "ذاكرة") || strings.Contains(q, "حرارة") || strings.Contains(q, "uptime") || strings.Contains(q, "مواصفات") || strings.Contains(q, "موارد") || strings.Contains(q, "تشغيل") || q == "cpu" || q == "uptime") &&
-		(strings.Contains(q, "فحص") || strings.Contains(q, "استهلاك") || strings.Contains(q, "كم") || strings.Contains(q, "حالة") || strings.Contains(q, "نسبة") || strings.Contains(q, "مواصفات") || strings.Contains(q, "حرارة") || q == "cpu" || q == "uptime")
+	isResourceIntent := (strings.Contains(q, "معالج") || strings.Contains(q, "cpu") || strings.Contains(q, "رام") || strings.Contains(q, "ram") || strings.Contains(q, "ذاكرة") || strings.Contains(q, "حرارة") || strings.Contains(q, "uptime") || strings.Contains(q, "مواصفات") || strings.Contains(q, "موارد") || strings.Contains(q, "تشغيل") || strings.Contains(q, "بورد") || strings.Contains(q, "موديل") || strings.Contains(q, "ضغط") || strings.Contains(q, "memory") || q == "cpu" || q == "uptime" || q == "ram" || q == "resources")
 
 	if isResourceIntent {
 		emit(StreamEvent{
@@ -346,28 +333,35 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 
 		res, err := e.ExecuteRouterCommand(subdomain, "/system/resource/print")
 		if err == nil {
-			var cpuLoad, freeMem, totalMem, uptime, version, boardName string
-			if items, ok := res["items"].([]interface{}); ok && len(items) > 0 {
+			var cpuLoad, freeMem, totalMem, uptime, version, boardName, cpuCount, cpuFreq, freeHdd, totalHdd string
+			if items := extractResultItems(res); len(items) > 0 {
 				if m, ok := items[0].(map[string]interface{}); ok {
-					cpuLoad, _ = m["cpu-load"].(string)
-					freeMem, _ = m["free-memory"].(string)
-					totalMem, _ = m["total-memory"].(string)
-					uptime, _ = m["uptime"].(string)
-					version, _ = m["version"].(string)
-					boardName, _ = m["board-name"].(string)
+					cpuLoad = fmt.Sprintf("%v", m["cpu-load"])
+					freeMem = fmt.Sprintf("%v", m["free-memory"])
+					totalMem = fmt.Sprintf("%v", m["total-memory"])
+					uptime = fmt.Sprintf("%v", m["uptime"])
+					version = fmt.Sprintf("%v", m["version"])
+					boardName = fmt.Sprintf("%v", m["board-name"])
+					cpuCount = fmt.Sprintf("%v", m["cpu-count"])
+					cpuFreq = fmt.Sprintf("%v", m["cpu-frequency"])
+					freeHdd = fmt.Sprintf("%v", m["free-hdd-space"])
+					totalHdd = fmt.Sprintf("%v", m["total-hdd-space"])
 				}
 			}
 
-			if cpuLoad != "" || uptime != "" {
+			if cpuLoad != "" && cpuLoad != "<nil>" {
 				var sb strings.Builder
-				sb.WriteString(fmt.Sprintf("### ⚡ تقرير موارد وحالة الراوتر\n\n"))
+				sb.WriteString(fmt.Sprintf("### ⚡ تقرير موارد ومواصفات الراوتر\n\n"))
 				sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s` (%s)\n", subdomain, boardName))
 				sb.WriteString(fmt.Sprintf("⚙️ **إصدار RouterOS:** `%s`\n", version))
 				sb.WriteString(fmt.Sprintf("⏱️ **مدة التشغيل (Uptime):** `%s`\n\n", uptime))
 				sb.WriteString("| المورد | الحالة الحالية |\n")
 				sb.WriteString("| :--- | :--- |\n")
-				sb.WriteString(fmt.Sprintf("| 🧠 **استهلاك المعالج (CPU Load)** | **%s%%** |\n", cpuLoad))
+				sb.WriteString(fmt.Sprintf("| 🧠 **استهلاك المعالج (CPU Load)** | **%s%%** (الأنوية: %s @ %s MHz) |\n", cpuLoad, cpuCount, cpuFreq))
 				sb.WriteString(fmt.Sprintf("| 💾 **الذاكرة المتبقية (Free RAM)** | %s / %s |\n", formatBytesStr(freeMem), formatBytesStr(totalMem)))
+				if freeHdd != "" && freeHdd != "<nil>" {
+					sb.WriteString(fmt.Sprintf("| 💽 **مساحة التخزين (Free Disk)** | %s / %s |\n", formatBytesStr(freeHdd), formatBytesStr(totalHdd)))
+				}
 				sb.WriteString("\n---\n*⚡ تم جلب التقرير فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
 
 				content := sb.String()
@@ -379,8 +373,8 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 	}
 
 	// 3. INTENT: IP Addresses Listing (/ip/address/print)
-	isIPIntent := (strings.Contains(q, "عناوين") || strings.Contains(q, "ايبي") || strings.Contains(q, "ip") || strings.Contains(q, "address")) &&
-		(strings.Contains(q, "قائمة") || strings.Contains(q, "شنو") || strings.Contains(q, "شو") || strings.Contains(q, "عرض") || strings.Contains(q, "جدول") || strings.Contains(q, "عناوين") || q == "ip" || q == "address" || q == "addresses")
+	isIPIntent := (strings.Contains(q, "عناوين") || strings.Contains(q, "ايبي") || strings.Contains(q, "ip") || strings.Contains(q, "address") || strings.Contains(q, "الشبكات") || strings.Contains(q, "شبكات")) &&
+		(strings.Contains(q, "قائمة") || strings.Contains(q, "شنو") || strings.Contains(q, "شو") || strings.Contains(q, "عرض") || strings.Contains(q, "جدول") || strings.Contains(q, "عناوين") || strings.Contains(q, "ايبيات") || q == "ip" || q == "address" || q == "addresses" || q == "ips")
 
 	if isIPIntent {
 		emit(StreamEvent{
@@ -423,8 +417,8 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 	}
 
 	// 4. INTENT: Interfaces / Ports Status (/interface/print)
-	isInterfacesIntent := (strings.Contains(q, "منافذ") || strings.Contains(q, "واجهات") || strings.Contains(q, "بورتات") || strings.Contains(q, "interfaces") || strings.Contains(q, "ports")) &&
-		(strings.Contains(q, "حالة") || strings.Contains(q, "قائمة") || strings.Contains(q, "عرض") || strings.Contains(q, "شغالة") || strings.Contains(q, "طافية") || strings.Contains(q, "منافذ") || q == "interfaces" || q == "ports")
+	isInterfacesIntent := (strings.Contains(q, "منافذ") || strings.Contains(q, "واجهات") || strings.Contains(q, "بورتات") || strings.Contains(q, "بورت") || strings.Contains(q, "منفذ") || strings.Contains(q, "واجهة") || strings.Contains(q, "interfaces") || strings.Contains(q, "ports") || strings.Contains(q, "link")) &&
+		(strings.Contains(q, "حالة") || strings.Contains(q, "قائمة") || strings.Contains(q, "عرض") || strings.Contains(q, "شغالة") || strings.Contains(q, "طافية") || strings.Contains(q, "منافذ") || strings.Contains(q, "بورتات") || q == "interfaces" || q == "ports" || q == "interface")
 
 	if isInterfacesIntent {
 		emit(StreamEvent{
@@ -470,8 +464,8 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 	}
 
 	// 5. INTENT: DNS Servers (/ip/dns/print)
-	isDNSIntent := (strings.Contains(q, "dns") || strings.Contains(q, "دي ان اس")) &&
-		(strings.Contains(q, "سيرفر") || strings.Contains(q, "خادم") || strings.Contains(q, "خوادم") || strings.Contains(q, "شنو") || strings.Contains(q, "عرض") || strings.Contains(q, "فحص") || q == "dns")
+	isDNSIntent := (strings.Contains(q, "dns") || strings.Contains(q, "دي ان اس") || strings.Contains(q, "nameserver")) &&
+		(strings.Contains(q, "سيرفر") || strings.Contains(q, "خادم") || strings.Contains(q, "خوادم") || strings.Contains(q, "شنو") || strings.Contains(q, "عرض") || strings.Contains(q, "فحص") || strings.Contains(q, "اعدادات") || strings.Contains(q, "settings") || q == "dns" || q == "dns servers")
 
 	if isDNSIntent {
 		emit(StreamEvent{
@@ -509,6 +503,229 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 					return msg, true
 				}
 			}
+		}
+	}
+
+	// 6. INTENT: DHCP Leases & Active Clients (/ip/dhcp-server/lease/print)
+	isDHCPIntent := (strings.Contains(q, "dhcp") || strings.Contains(q, "توزيع الايبيات") || strings.Contains(q, "ليسات") || strings.Contains(q, "مستأجرين")) &&
+		(strings.Contains(q, "lease") || strings.Contains(q, "يوزرات") || strings.Contains(q, "عناوين") || strings.Contains(q, "قائمة") || strings.Contains(q, "عرض") || strings.Contains(q, "كم") || q == "dhcp" || q == "dhcp leases")
+
+	if isDHCPIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد استعلام مستأجري DHCP لراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/ip/dhcp-server/lease/print")
+		if err == nil {
+			items := extractResultItems(res)
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("### ⚡ مستأجري وموزعي الـ DHCP النشطين (DHCP Leases)\n\n"))
+			sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s`\n", subdomain))
+			sb.WriteString(fmt.Sprintf("🔌 **إجمالي الأجهزة المستأجرة:** `%d` جهاز\n\n", len(items)))
+
+			if len(items) > 0 {
+				sb.WriteString("| عنوان IP | الماك أدرس (MAC) | اسم الجهاز (Host Name) | الحالة (Status) |\n")
+				sb.WriteString("| :--- | :--- | :--- | :--- |\n")
+				limit := len(items)
+				if limit > 25 {
+					limit = 25
+				}
+				for i := 0; i < limit; i++ {
+					if m, ok := items[i].(map[string]interface{}); ok {
+						addr := fmt.Sprintf("%v", m["address"])
+						mac := fmt.Sprintf("%v", m["mac-address"])
+						host := fmt.Sprintf("%v", m["host-name"])
+						if host == "<nil>" || host == "" {
+							host = "-"
+						}
+						status := fmt.Sprintf("%v", m["status"])
+						sb.WriteString(fmt.Sprintf("| **%s** | `%s` | %s | %s |\n", addr, mac, host, status))
+					}
+				}
+				if len(items) > 25 {
+					sb.WriteString(fmt.Sprintf("\n> ℹ️ *تم عرض أول 25 جهاز من أصل %d جهاز.*\n", len(items)))
+				}
+			} else {
+				sb.WriteString("> ℹ️ **لا توجد أي عناوين DHCP مستأجرة حالياً على هذا الراوتر.**\n")
+			}
+
+			sb.WriteString("\n---\n*⚡ تم جلب بيانات DHCP فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+			content := sb.String()
+			msg := &ChatMessage{Role: "assistant", Content: content}
+			emit(StreamEvent{Type: "done", Title: "اكتمل فحص DHCP", Text: content, Message: msg})
+			return msg, true
+		}
+	}
+
+	// 7. INTENT: Default Gateways & Routing Table (/ip/route/print)
+	isRouteIntent := (strings.Contains(q, "توجيه") || strings.Contains(q, "راوت") || strings.Contains(q, "بوابة") || strings.Contains(q, "بوابات") || strings.Contains(q, "route") || strings.Contains(q, "gateway")) &&
+		(strings.Contains(q, "جدول") || strings.Contains(q, "افتراضي") || strings.Contains(q, "خروج") || strings.Contains(q, "قائمة") || strings.Contains(q, "عرض") || strings.Contains(q, "كم") || q == "routes" || q == "route" || q == "gateway")
+
+	if isRouteIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد استعلام مسارات وجدول التوجيه لراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/ip/route/print")
+		if err == nil {
+			items := extractResultItems(res)
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("### ⚡ جدول التوجيه والبوابات الحالية (IP Routes)\n\n"))
+			sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s`\n\n", subdomain))
+
+			if len(items) > 0 {
+				sb.WriteString("| شبكة الوجهة (Dst-Address) | البوابة (Gateway) | الحالة (Status) | مسافة (Distance) |\n")
+				sb.WriteString("| :--- | :--- | :--- | :--- |\n")
+				limit := len(items)
+				if limit > 20 {
+					limit = 20
+				}
+				for i := 0; i < limit; i++ {
+					if m, ok := items[i].(map[string]interface{}); ok {
+						dst := fmt.Sprintf("%v", m["dst-address"])
+						gw := fmt.Sprintf("%v", m["gateway"])
+						active := fmt.Sprintf("%v", m["active"])
+						dist := fmt.Sprintf("%v", m["distance"])
+						status := "🟢 نشط"
+						if active == "false" || active == "no" {
+							status = "⚪ غير نشط"
+						}
+						sb.WriteString(fmt.Sprintf("| **%s** | `%s` | %s | %s |\n", dst, gw, status, dist))
+					}
+				}
+				if len(items) > 20 {
+					sb.WriteString(fmt.Sprintf("\n> ℹ️ *تم عرض أول 20 مسار من أصل %d مسار.*\n", len(items)))
+				}
+			}
+
+			sb.WriteString("\n---\n*⚡ تم جلب جدول التوجيه فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+			content := sb.String()
+			msg := &ChatMessage{Role: "assistant", Content: content}
+			emit(StreamEvent{Type: "done", Title: "اكتمل فحص المسارات", Text: content, Message: msg})
+			return msg, true
+		}
+	}
+
+	// 8. INTENT: Router Identity / Name (/system/identity/print)
+	isIdentityIntent := (strings.Contains(q, "اسم الراوتر") || strings.Contains(q, "هوية الراوتر") || strings.Contains(q, "اسم الوكيل") || strings.Contains(q, "هذا الراوتر") || q == "identity" || q == "whoami" || q == "name")
+
+	if isIdentityIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد استعلام هوية واسم الراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/system/identity/print")
+		if err == nil {
+			items := extractResultItems(res)
+			if len(items) > 0 {
+				if idm, ok := items[0].(map[string]interface{}); ok {
+					name := fmt.Sprintf("%v", idm["name"])
+					var sb strings.Builder
+					sb.WriteString(fmt.Sprintf("### ⚡ هوية واسم الراوتر\n\n"))
+					sb.WriteString(fmt.Sprintf("📡 **اسم النطاق (Subdomain):** `%s`\n", subdomain))
+					sb.WriteString(fmt.Sprintf("🏷️ **اسم الراوتر المسجل (Identity):** <span style=\"font-size:18px; font-weight:800; color:#38bdf8;\">%s</span>\n", name))
+					sb.WriteString("\n---\n*⚡ تم جلب الهوية فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+
+					content := sb.String()
+					msg := &ChatMessage{Role: "assistant", Content: content}
+					emit(StreamEvent{Type: "done", Title: "اكتمل فحص الهوية", Text: content, Message: msg})
+					return msg, true
+				}
+			}
+		}
+	}
+
+	// 9. INTENT: Recent Logs (/log/print)
+	isLogIntent := (strings.Contains(q, "سجلات") || strings.Contains(q, "اللوج") || strings.Contains(q, "سجل الأحداث") || strings.Contains(q, "لوقات") || strings.Contains(q, "logs") || strings.Contains(q, "log")) &&
+		(strings.Contains(q, "آخر") || strings.Contains(q, "عرض") || strings.Contains(q, "قائمة") || strings.Contains(q, "شنو") || strings.Contains(q, "جدول") || q == "logs" || q == "log")
+
+	if isLogIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد طلب عرض آخر سجلات وأحداث الراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/log/print")
+		if err == nil {
+			items := extractResultItems(res)
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("### ⚡ آخر سجلات وأحداث الراوتر (System Logs)\n\n"))
+			sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s`\n\n", subdomain))
+
+			if len(items) > 0 {
+				sb.WriteString("| الوقت (Time) | التصنيف (Topics) | الرسالة (Message) |\n")
+				sb.WriteString("| :--- | :--- | :--- |\n")
+				start := 0
+				if len(items) > 20 {
+					start = len(items) - 20
+				}
+				for i := len(items) - 1; i >= start; i-- {
+					if m, ok := items[i].(map[string]interface{}); ok {
+						t := fmt.Sprintf("%v", m["time"])
+						top := fmt.Sprintf("%v", m["topics"])
+						msgStr := fmt.Sprintf("%v", m["message"])
+						sb.WriteString(fmt.Sprintf("| `%s` | `%s` | %s |\n", t, top, msgStr))
+					}
+				}
+			} else {
+				sb.WriteString("> ℹ️ **لا توجد سجلات مسجلة حالياً في الراوتر.**\n")
+			}
+
+			sb.WriteString("\n---\n*⚡ تم جلب آخر السجلات فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+			content := sb.String()
+			msg := &ChatMessage{Role: "assistant", Content: content}
+			emit(StreamEvent{Type: "done", Title: "اكتمل عرض السجلات", Text: content, Message: msg})
+			return msg, true
+		}
+	}
+
+	// 10. INTENT: Discovered Neighbors (/ip/neighbor/print)
+	isNeighborIntent := (strings.Contains(q, "المجاورة") || strings.Contains(q, "المجاورين") || strings.Contains(q, "جيران") || strings.Contains(q, "neighbors") || strings.Contains(q, "neighbor") || strings.Contains(q, "mndp")) &&
+		(strings.Contains(q, "اكتشاف") || strings.Contains(q, "منو") || strings.Contains(q, "عرض") || strings.Contains(q, "قائمة") || q == "neighbors" || q == "neighbor")
+
+	if isNeighborIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد استكشاف الأجهزة المجاورة (MNDP) لراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/ip/neighbor/print")
+		if err == nil {
+			items := extractResultItems(res)
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("### ⚡ الأجهزة المجاورة المكتشفة (Discovered Neighbors - MNDP/CDP)\n\n"))
+			sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s`\n\n", subdomain))
+
+			if len(items) > 0 {
+				sb.WriteString("| اسم الجهاز (Identity) | المنفذ | عنوان IP | الماك (MAC) | المنصة/الموديل |\n")
+				sb.WriteString("| :--- | :--- | :--- | :--- | :--- |\n")
+				for _, it := range items {
+					if m, ok := it.(map[string]interface{}); ok {
+						id := fmt.Sprintf("%v", m["identity"])
+						iface := fmt.Sprintf("%v", m["interface"])
+						ip := fmt.Sprintf("%v", m["address"])
+						mac := fmt.Sprintf("%v", m["mac-address"])
+						plat := fmt.Sprintf("%v", m["platform"])
+						sb.WriteString(fmt.Sprintf("| **%s** | `%s` | `%s` | `%s` | %s |\n", id, iface, ip, mac, plat))
+					}
+				}
+			} else {
+				sb.WriteString("> ℹ️ **لم يتم العثور على أي أجهزة مجاورة متصلة على الطبقة الثانية حالياً.**\n")
+			}
+
+			sb.WriteString("\n---\n*⚡ تم جلب قائمة الجيران فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+			content := sb.String()
+			msg := &ChatMessage{Role: "assistant", Content: content}
+			emit(StreamEvent{Type: "done", Title: "اكتمل كشف الجيران", Text: content, Message: msg})
+			return msg, true
 		}
 	}
 
