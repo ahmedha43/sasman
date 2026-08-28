@@ -104,7 +104,8 @@ type StreamEvent struct {
 	Duration  string            `json:"duration,omitempty"`
 	Plan      *ChangePlan       `json:"plan,omitempty"`
 	Message   *ChatMessage      `json:"message,omitempty"`
-	Report    *DiagnosticReport `json:"report,omitempty"`
-	Usage     *ChatUsage        `json:"usage,omitempty"`
-	Timestamp string            `json:"timestamp"`
+	Report      *DiagnosticReport `json:"report,omitempty"`
+	Usage       *ChatUsage        `json:"usage,omitempty"`
+	BudgetAlert string            `json:"budget_alert,omitempty"`
+	Timestamp   string            `json:"timestamp"`
 }

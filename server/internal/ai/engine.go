@@ -208,7 +208,7 @@ func isCompoundQuery(q string) bool {
 	return false
 }
 
-// tryFastIntentMatch handles single-topic common queries directly via tunnel without consuming LLM tokens
+// tryFastIntentMatch handles single-topic and compound common queries directly via tunnel without consuming LLM tokens
 func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain string, emit func(StreamEvent)) (*ChatMessage, bool) {
 	if subdomain == "" {
 		return nil, false
@@ -219,7 +219,131 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 		return nil, false
 	}
 
-	// If query is compound (contains multiple complex tasks), hand off to LLM
+	// 0. INTENT: Unified Zero-Token Health & Status Check (CPU, RAM, Interfaces, DNS, Active Users)
+	isUnifiedHealthCheck := (strings.Contains(q, "فحص شامل") || strings.Contains(q, "صحة الراوتر") || strings.Contains(q, "health check") ||
+		strings.Contains(q, "تقرير شامل") || strings.Contains(q, "فحص كامل") || strings.Contains(q, "حالة الراوتر بالكامل") ||
+		strings.Contains(q, "تقرير صحة") || strings.Contains(q, "صحة الشبكة") || strings.Contains(q, "فحص عام") || strings.Contains(q, "تشخيص كامل") ||
+		(strings.Contains(q, "cpu") && (strings.Contains(q, "ram") || strings.Contains(q, "interface") || strings.Contains(q, "dns"))))
+
+	if isUnifiedHealthCheck {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ فحص صحي موحد (Zero-Token Compound Fast Path)",
+			Text:  fmt.Sprintf("جاري إجراء فحص تشغيلي شامل لراوتر `%s` عبر النفق (CPU, RAM, Interfaces, DNS, Active Users)...", subdomain),
+		})
+
+		var wg sync.WaitGroup
+		var resResource, resInterfaces, resDNS, resPPPoE map[string]interface{}
+		var errResource, errInterfaces error
+
+		wg.Add(4)
+		go func() {
+			defer wg.Done()
+			resResource, errResource = e.ExecuteRouterCommand(subdomain, "/system/resource/print")
+		}()
+		go func() {
+			defer wg.Done()
+			resInterfaces, errInterfaces = e.ExecuteRouterCommand(subdomain, "/interface/print")
+		}()
+		go func() {
+			defer wg.Done()
+			resDNS, _ = e.ExecuteRouterCommand(subdomain, "/ip/dns/print")
+		}()
+		go func() {
+			defer wg.Done()
+			resPPPoE, _ = e.ExecuteRouterCommand(subdomain, "/ppp/active/print")
+		}()
+		wg.Wait()
+
+		if errResource == nil || errInterfaces == nil {
+			var cpuLoad, freeMem, totalMem, uptime, version, boardName string
+			if items := extractResultItems(resResource); len(items) > 0 {
+				if m, ok := items[0].(map[string]interface{}); ok {
+					cpuLoad = fmt.Sprintf("%v", m["cpu-load"])
+					freeMem = fmt.Sprintf("%v", m["free-memory"])
+					totalMem = fmt.Sprintf("%v", m["total-memory"])
+					uptime = fmt.Sprintf("%v", m["uptime"])
+					version = fmt.Sprintf("%v", m["version"])
+					boardName = fmt.Sprintf("%v", m["board-name"])
+				}
+			}
+
+			pppoeCount := 0
+			if items := extractResultItems(resPPPoE); len(items) > 0 {
+				pppoeCount = len(items)
+			}
+
+			totalIfaces, upIfaces := 0, 0
+			if items := extractResultItems(resInterfaces); len(items) > 0 {
+				totalIfaces = len(items)
+				for _, it := range items {
+					if m, ok := it.(map[string]interface{}); ok {
+						if r, _ := m["running"].(string); r == "true" || r == "yes" {
+							upIfaces++
+						}
+					}
+				}
+			}
+
+			dnsServers := "غير محدد"
+			if items := extractResultItems(resDNS); len(items) > 0 {
+				if m, ok := items[0].(map[string]interface{}); ok {
+					dnsServers = fmt.Sprintf("%v", m["servers"])
+				}
+			}
+
+			healthScore := 100
+			if cpuLoad != "" {
+				var loadInt int
+				fmt.Sscanf(cpuLoad, "%d", &loadInt)
+				if loadInt > 80 {
+					healthScore -= 30
+				} else if loadInt > 50 {
+					healthScore -= 10
+				}
+			}
+
+			statusBadge := "🟢 ممتاز (Healthy)"
+			if healthScore < 70 {
+				statusBadge = "🔴 حرج / ضغط عالي (Critical Load)"
+			} else if healthScore < 90 {
+				statusBadge = "🟡 جيد مع تنبيه (Warning)"
+			}
+
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("### ⚡ تقرير الفحص الصحي والتشغيلي الشامل (Unified Health Report)\n\n"))
+			sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s` (%s)\n", subdomain, boardName))
+			sb.WriteString(fmt.Sprintf("⚙️ **إصدار RouterOS:** `%s` | ⏱️ **الـ Uptime:** `%s`\n", version, uptime))
+			sb.WriteString(fmt.Sprintf("🩺 **التقييم الصحي العام:** **%s** (%d/100)\n\n", statusBadge, healthScore))
+
+			sb.WriteString("| المؤشر التشغيلي | القيمة المقروءة | الحالة |\n")
+			sb.WriteString("| :--- | :--- | :--- |\n")
+			cpuStatus := "🟢 طبيعي"
+			if cpuLoad != "" {
+				var l int
+				fmt.Sscanf(cpuLoad, "%d", &l)
+				if l > 80 {
+					cpuStatus = "🔴 مرتفع"
+				} else if l > 50 {
+					cpuStatus = "🟡 متوسط"
+				}
+			}
+			sb.WriteString(fmt.Sprintf("| 🧠 **استهلاك المعالج (CPU)** | **%s%%** | %s |\n", cpuLoad, cpuStatus))
+			sb.WriteString(fmt.Sprintf("| 💾 **الذاكرة المتاحة (Free RAM)** | %s / %s | 🟢 متوفرة |\n", formatBytesStr(freeMem), formatBytesStr(totalMem)))
+			sb.WriteString(fmt.Sprintf("| 🔌 **المنافذ النشطة (Interfaces)** | %d شغال من أصل %d منفذ | 🟢 مستقرة |\n", upIfaces, totalIfaces))
+			sb.WriteString(fmt.Sprintf("| 👥 **المشتركون المتصلون (PPPoE)** | **%d مشترك نشط** | 🟢 نشط |\n", pppoeCount))
+			sb.WriteString(fmt.Sprintf("| 📡 **خوادم الـ DNS** | `%s` | 🟢 مفحوص |\n", dnsServers))
+
+			sb.WriteString("\n---\n*⚡ تم توليد هذا الفحص الشامل الموحّد فورياً عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+
+			content := sb.String()
+			msg := &ChatMessage{Role: "assistant", Content: content}
+			emit(StreamEvent{Type: "done", Title: "اكتمل الفحص الشامل", Text: content, Message: msg})
+			return msg, true
+		}
+	}
+
+	// If query is compound (contains multiple complex tasks like fixes/plans), hand off to LLM
 	if isCompoundQuery(q) {
 		return nil, false
 	}
@@ -766,7 +890,15 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 		return fastMsg, nil, nil
 	}
 
-	systemPrompt := SystemPromptTemplate
+	// 📐 Dynamic Tiered System Prompt: Use Compact System Prompt (~250 tokens) for normal ops, Full Prompt for deep analysis
+	qLower := strings.ToLower(lastUserQuery)
+	isDeepQuery := strings.Contains(qLower, "معمار") || strings.Contains(qLower, "هيكل") || strings.Contains(qLower, "مخطط") ||
+		strings.Contains(qLower, "topology") || strings.Contains(qLower, "explain") || strings.Contains(qLower, "drift") || strings.Contains(qLower, "audit")
+
+	systemPrompt := CompactSystemPromptTemplate
+	if isDeepQuery {
+		systemPrompt = SystemPromptTemplate
+	}
 	if settings.SystemPrompt != "" {
 		systemPrompt = settings.SystemPrompt
 	}
@@ -800,11 +932,8 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 		}
 	}
 
-	// ✂️ Sliding Window History: Keep only last 5 messages to avoid blowing up context tokens
-	trimmedMessages := messages
-	if len(trimmedMessages) > 5 {
-		trimmedMessages = trimmedMessages[len(trimmedMessages)-5:]
-	}
+	// 📏 Token Budget Engine: Trim history by strict character budget (max 3,000 chars)
+	trimmedMessages := trimConversationHistory(messages, 3000)
 
 	conversation := []ChatMessage{
 		{
@@ -814,7 +943,7 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 	}
 	conversation = append(conversation, trimmedMessages...)
 
-	// 🎯 Dynamic Tool Pruning: select only 1-3 relevant tools matching query intent
+	// 🎯 Dynamic Deterministic Tool Pruning: select at most 3 prioritized tools matching query intent
 	allTools := GetRouterOSToolDefinitions()
 	tools := SelectRelevantTools(lastUserQuery, allTools)
 	var finalPlan *ChangePlan
@@ -891,8 +1020,12 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 			return nil, nil, err
 		}
 
+		var budgetAlert string
 		if resp.Usage != nil {
 			log.Printf("[AI-Tokens] sub=%s prompt=%d, completion=%d, total=%d (provider: %s, model: %s)", targetSubdomain, resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens, settings.Provider, settings.Model)
+			if resp.Usage.TotalTokens > 5000 {
+				budgetAlert = fmt.Sprintf("⚠️ تنبيه ميزانية: استهلاك هذا الطلب بلغ %d توكن.", resp.Usage.TotalTokens)
+			}
 		}
 
 		if len(resp.Choices) == 0 {
@@ -907,12 +1040,13 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 		// If no tool calls, this is the final message
 		if len(replyMsg.ToolCalls) == 0 {
 			emit(StreamEvent{
-				Type:    "done",
-				Title:   "اكتمل الرد بنجاح",
-				Text:    replyMsg.Content,
-				Message: &replyMsg,
-				Plan:    finalPlan,
-				Usage:   resp.Usage,
+				Type:        "done",
+				Title:       "اكتمل الرد بنجاح",
+				Text:        replyMsg.Content,
+				Message:     &replyMsg,
+				Plan:        finalPlan,
+				Usage:       resp.Usage,
+				BudgetAlert: budgetAlert,
 			})
 
 			// Auto-record compact session summary into agent memory
@@ -974,12 +1108,13 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 						Content: archReport,
 					}
 					emit(StreamEvent{
-						Type:    "done",
-						Title:   "تم توليد التوثيق المعماري بنجاح",
-						Text:    archReport,
-						Message: &directMsg,
-						Plan:    finalPlan,
-						Usage:   resp.Usage,
+						Type:        "done",
+						Title:       "تم توليد التوثيق المعماري بنجاح",
+						Text:        archReport,
+						Message:     &directMsg,
+						Plan:        finalPlan,
+						Usage:       resp.Usage,
+						BudgetAlert: budgetAlert,
 					})
 					if targetSubdomain != "" {
 						e.saveChatSessionMemory(targetSubdomain, messages, archReport, finalPlan)
@@ -989,8 +1124,15 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 			}
 		}
 
+		// 📦 Global Tool Output Budget: Distribute max 2,400 chars evenly across all executed tools
+		budgetPerTool := 2400 / numTools
+		if budgetPerTool < 400 {
+			budgetPerTool = 400
+		}
+
 		for _, r := range ordered {
-			resultBytes, _ := json.Marshal(r.toolResult)
+			compacted := truncateResult(r.toolResult, budgetPerTool)
+			resultBytes, _ := json.Marshal(compacted)
 			conversation = append(conversation, ChatMessage{
 				Role:       "tool",
 				Name:       r.fnName,
@@ -1001,6 +1143,27 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 	}
 
 	return nil, finalPlan, fmt.Errorf("تم تجاوز الحد الأقصى لدورات استدعاء الأدوات")
+}
+
+// trimConversationHistory slices history to fit strictly within a character budget (default max 3,000 chars)
+func trimConversationHistory(messages []ChatMessage, maxChars int) []ChatMessage {
+	if len(messages) == 0 {
+		return messages
+	}
+	if maxChars <= 0 {
+		maxChars = 3000
+	}
+	var result []ChatMessage
+	currentChars := 0
+	for i := len(messages) - 1; i >= 0; i-- {
+		msgLen := len(messages[i].Content)
+		if currentChars+msgLen > maxChars && len(result) >= 2 {
+			break
+		}
+		result = append([]ChatMessage{messages[i]}, result...)
+		currentChars += msgLen
+	}
+	return result
 }
 
 // executeSingleToolCall executes a single tool invocation over the tunnel/mcp

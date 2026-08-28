@@ -358,10 +358,21 @@ const SystemPromptTemplate = `أنت "مساعد SASMAN الذكي (AI Network C
 
 - استخدم لغة عربية مهنية واضحة ومنظمة مع إبراز النتائج والنصائح بالأيقونات التعبيرية والجداول ومخططات Mermaid عند الحاجة.`
 
-// SelectRelevantTools dynamically filters the full toolset down to 1-4 tools matching the query intent to save thousands of prompt tokens
+// CompactSystemPromptTemplate is an ultra-concise prompt used for standard operational queries to save prompt tokens
+const CompactSystemPromptTemplate = `أنت المساعد الذكي المدمج لمنظومة SASMAN لإدارة راوترات MikroTik RouterOS.
+دورك: تحليل الحالة، استدعاء الأدوات المتاحة بدقة، وتقديم إجابات باللغة العربية واضحة ومنظمة مع توليد خطط التعديل الآمنة (mikrotik_generate_plan) عند طلب إجراء أي تغيير أو إصلاح.
+القواعد:
+- استدعِ فقط الأدوات المحددة المطلوبة للإجابة على السؤال الحالي دفعة واحدة بالتوازي.
+- يمنع منعاً باتاً تنفيذ أوامر التعديل (/add, /set, /remove) مباشرة؛ استخدم دائماً mikrotik_generate_plan.
+- اعتمد على صيغ أوامر RouterOS الدقيقة.`
+
+// SelectRelevantTools dynamically filters and ranks the full toolset down to at most 3 tools based on deterministic priority scoring
 func SelectRelevantTools(userQuery string, allTools []ToolDefinition) []ToolDefinition {
 	q := strings.ToLower(strings.TrimSpace(userQuery))
 	if q == "" {
+		if len(allTools) > 3 {
+			return allTools[:3]
+		}
 		return allTools
 	}
 
@@ -370,79 +381,105 @@ func SelectRelevantTools(userQuery string, allTools []ToolDefinition) []ToolDefi
 		toolMap[t.Function.Name] = t
 	}
 
-	selected := make(map[string]bool)
+	scores := make(map[string]int)
 
-	// 1. Explicit tool mention in prompt
+	// 1. Explicit tool mention (+1000)
 	for _, t := range allTools {
 		if strings.Contains(q, strings.ToLower(t.Function.Name)) {
-			selected[t.Function.Name] = true
+			scores[t.Function.Name] += 1000
 		}
 	}
 
-	// 2. Intent matching
-	// A. Architecture / Topology / Explain
+	// 2. Intent-based scoring
+	// Architecture / Topology / Explain
 	if strings.Contains(q, "explain") || strings.Contains(q, "معمار") || strings.Contains(q, "هيكل") || strings.Contains(q, "مخطط") || strings.Contains(q, "توثيق") || strings.Contains(q, "رسم") || strings.Contains(q, "mermaid") || strings.Contains(q, "topology") || strings.Contains(q, "توزيع") {
-		selected["mikrotik_explain_device"] = true
-		selected["mikrotik_discover_topology"] = true
+		scores["mikrotik_explain_device"] += 100
+		scores["mikrotik_discover_topology"] += 80
 	}
 
-	// B. Resources / CPU / Memory / Uptime
+	// Resources / CPU / Memory / Uptime
 	if strings.Contains(q, "cpu") || strings.Contains(q, "معالج") || strings.Contains(q, "رام") || strings.Contains(q, "ذاكرة") || strings.Contains(q, "حرارة") || strings.Contains(q, "uptime") || strings.Contains(q, "موارد") || strings.Contains(q, "ضغط") {
-		selected["mikrotik_get_resources"] = true
-		selected["mikrotik_run_command"] = true
+		scores["mikrotik_get_resources"] += 90
+		scores["mikrotik_run_command"] += 30
 	}
 
-	// C. Firewall / Security / Attacks / Filter / NAT
+	// Firewall / Security / Attacks / Filter / NAT
 	if strings.Contains(q, "firewall") || strings.Contains(q, "فايروول") || strings.Contains(q, "جدار") || strings.Contains(q, "حظر") || strings.Contains(q, "block") || strings.Contains(q, "attack") || strings.Contains(q, "هجوم") || strings.Contains(q, "تخمين") || strings.Contains(q, "brute") || strings.Contains(q, "ثغرات") || strings.Contains(q, "أمان") || strings.Contains(q, "امن") {
-		selected["mikrotik_get_firewall"] = true
-		selected["mikrotik_active_defense"] = true
-		selected["mikrotik_attack_detection"] = true
+		scores["mikrotik_get_firewall"] += 90
+		scores["mikrotik_active_defense"] += 85
+		scores["mikrotik_attack_detection"] += 70
 	}
 
-	// D. Packet Simulator
+	// Packet Simulator
 	if strings.Contains(q, "باكت") || strings.Contains(q, "packet") || strings.Contains(q, "مسار") || strings.Contains(q, "يمر") || strings.Contains(q, "يسقط") || strings.Contains(q, "drop") {
-		selected["mikrotik_packet_simulator"] = true
+		scores["mikrotik_packet_simulator"] += 100
 	}
 
-	// E. Interfaces / Ports / Traffic / PPPoE / WAN / LAN
+	// Interfaces / Ports / Traffic / PPPoE / WAN / LAN
 	if strings.Contains(q, "interface") || strings.Contains(q, "منفذ") || strings.Contains(q, "منافذ") || strings.Contains(q, "واجهة") || strings.Contains(q, "واجهات") || strings.Contains(q, "بورت") || strings.Contains(q, "بورتات") || strings.Contains(q, "wan") || strings.Contains(q, "lan") || strings.Contains(q, "pppoe") || strings.Contains(q, "مشترك") || strings.Contains(q, "متصل") {
-		selected["mikrotik_get_interfaces"] = true
-		selected["mikrotik_run_command"] = true
+		scores["mikrotik_get_interfaces"] += 90
+		scores["mikrotik_run_command"] += 30
 	}
 
-	// F. VPN
+	// VPN
 	if strings.Contains(q, "vpn") || strings.Contains(q, "wireguard") || strings.Contains(q, "sstp") || strings.Contains(q, "l2tp") || strings.Contains(q, "ipsec") || strings.Contains(q, "نفق") {
-		selected["mikrotik_setup_vpn"] = true
+		scores["mikrotik_setup_vpn"] += 100
 	}
 
-	// G. Drift / Baseline
+	// Drift / Baseline
 	if strings.Contains(q, "انحراف") || strings.Contains(q, "تغيير") || strings.Contains(q, "مقارنة") || strings.Contains(q, "drift") || strings.Contains(q, "baseline") {
-		selected["mikrotik_drift_guard"] = true
+		scores["mikrotik_drift_guard"] += 100
 	}
 
-	// H. L2 Rescue
+	// L2 Rescue
 	if strings.Contains(q, "rescue") || strings.Contains(q, "انقاذ") || strings.Contains(q, "إنقاذ") || strings.Contains(q, "mac-telnet") || strings.Contains(q, "فصل") || strings.Contains(q, "معطل") {
-		selected["mikrotik_l2_rescue"] = true
+		scores["mikrotik_l2_rescue"] += 100
 	}
 
-	// I. Safe Plan generation
+	// Safe Plan generation
 	if strings.Contains(q, "خطة") || strings.Contains(q, "صلح") || strings.Contains(q, "عدل") || strings.Contains(q, "غير") || strings.Contains(q, "احذف") || strings.Contains(q, "اضف") || strings.Contains(q, "طبق") || strings.Contains(q, "fix") || strings.Contains(q, "plan") {
-		selected["mikrotik_generate_plan"] = true
-		selected["mikrotik_run_command"] = true
+		scores["mikrotik_generate_plan"] += 95
+		scores["mikrotik_run_command"] += 40
 	}
 
-	// If no specific intent matched, provide the 3 core diagnostic tools
-	if len(selected) == 0 {
-		selected["mikrotik_get_resources"] = true
-		selected["mikrotik_get_interfaces"] = true
-		selected["mikrotik_run_command"] = true
+	// If no specific scores matched, fall back to core diagnostic tools
+	if len(scores) == 0 {
+		scores["mikrotik_get_resources"] = 50
+		scores["mikrotik_get_interfaces"] = 40
+		scores["mikrotik_run_command"] = 30
+	}
+
+	// Deterministic sorting by score descending, then by name
+	type toolCandidate struct {
+		name  string
+		score int
+	}
+	var candidates []toolCandidate
+	for name, score := range scores {
+		if _, exists := toolMap[name]; exists && score > 0 {
+			candidates = append(candidates, toolCandidate{name: name, score: score})
+		}
+	}
+
+	// Sort deterministically (selection sort / simple bubble sort)
+	for i := 0; i < len(candidates)-1; i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if candidates[j].score > candidates[i].score || (candidates[j].score == candidates[i].score && candidates[j].name < candidates[i].name) {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
+		}
+	}
+
+	// Pick top 3 max
+	maxTools := 3
+	if len(candidates) < maxTools {
+		maxTools = len(candidates)
 	}
 
 	var result []ToolDefinition
-	for name := range selected {
-		if t, ok := toolMap[name]; ok {
-			result = append(result, t)
-		}
+	for i := 0; i < maxTools; i++ {
+		result = append(result, toolMap[candidates[i].name])
 	}
+
 	return result
 }
