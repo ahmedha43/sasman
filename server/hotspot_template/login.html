@@ -234,13 +234,61 @@
         }
     </style>
 </head>
-<body>
+    $(if chap-id)
+    <form name="sendin" action="$(link-login-only)" method="post" style="display:none">
+        <input type="hidden" name="username" />
+        <input type="hidden" name="password" />
+        <input type="hidden" name="dst" value="$(link-orig)" />
+        <input type="hidden" name="popup" value="true" />
+    </form>
+
+    <script type="text/javascript" src="md5.js"></script>
+    <script type="text/javascript">
+        function doLogin() {
+            var finalUser = "";
+            var finalPass = "";
+
+            if (currentTab === 'voucher') {
+                var code = document.getElementById('voucher-code').value.trim().toUpperCase();
+                if (!code) {
+                    showClientError('يرجى إدخال رقم الكرت أولاً');
+                    return false;
+                }
+                finalUser = code;
+                finalPass = code;
+            } else {
+                var user = document.getElementById('agent-user').value.trim();
+                var pass = document.getElementById('agent-pass').value;
+                var domain = document.getElementById('agent-domain').value.trim().toLowerCase();
+
+                if (!user) {
+                    showClientError('يرجى إدخال اسم المستخدم أولاً');
+                    return false;
+                }
+
+                if (domain) {
+                    domain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                    if (domain.indexOf(':') !== -1) domain = domain.split(':')[0];
+                    finalUser = user + '@' + domain;
+                } else {
+                    finalUser = user;
+                }
+                finalPass = pass;
+            }
+
+            document.sendin.username.value = finalUser;
+            document.sendin.password.value = hexMD5('$(chap-id)' + finalPass + '$(chap-challenge)');
+            document.sendin.submit();
+            return false;
+        }
+    </script>
+    $(endif)
 
     <div class="auth-card">
         <div class="brand-header">
-            <div class="brand-badge">⚡ SASMAN Global HotSpot</div>
+            <div class="brand-badge">⚡ SASMAN HotSpot</div>
             <h1 class="brand-title">تسجيل الدخول للإنترنت</h1>
-            <p class="brand-subtitle">بوابة الاتصال الموحدة عبر شبكة وكلاء SASMAN</p>
+            <p class="brand-subtitle">بوابة الاتصال الموحدة للإنترنت</p>
         </div>
 
         <!-- MikroTik Error Injection -->
@@ -259,7 +307,7 @@
         </div>
 
         <!-- Real MikroTik HotSpot Form -->
-        <form name="login" action="$(link-login-only)" method="post" onsubmit="return handleHotspotSubmit()">
+        <form name="login" action="$(link-login-only)" method="post" $(if chap-id) onsubmit="return doLogin()" $(else) onsubmit="return handlePapSubmit()" $(endif)>
             <input type="hidden" name="dst" value="$(link-orig)" />
             <input type="hidden" name="popup" value="true" />
             <input type="hidden" name="username" id="mt-username" />
@@ -270,7 +318,7 @@
                 <div class="form-group">
                     <label class="form-label" for="voucher-code">رقم الكرت الموحد (PIN / Code):</label>
                     <input type="text" id="voucher-code" class="form-input pin-input" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" autofocus>
-                    <div class="form-hint">أدخل رمز كرت SASMAN الموحد المكون من 12 إلى 14 رمزاً.</div>
+                    <div class="form-hint">أدخل رمز كرت SASMAN المكون من أرقام أو حروف.</div>
                 </div>
             </div>
 
@@ -299,12 +347,10 @@
         </form>
 
         <div class="footer-note">
-            مدعوم بواسطة نظام <strong>SASMAN HotSpot</strong> الموحد (دخول محلي + تجوال مركزي)
+            مدعوم بواسطة نظام <strong>SASMAN HotSpot</strong> الموحد
         </div>
     </div>
 
-    <!-- MikroTik CHAP MD5 JavaScript -->
-    <script type="text/javascript" src="md5.js"></script>
     <script type="text/javascript">
         let currentTab = 'voucher';
 
@@ -338,10 +384,9 @@
             }
         }
 
-        function handleHotspotSubmit() {
+        function handlePapSubmit() {
             var mtUser = document.getElementById('mt-username');
             var mtPass = document.getElementById('mt-password');
-            var errEl = document.getElementById('error-box');
 
             if (currentTab === 'voucher') {
                 var code = document.getElementById('voucher-code').value.trim().toUpperCase();
@@ -361,27 +406,15 @@
                     return false;
                 }
 
-                // If domain was entered, format as user@domain for central roaming
                 if (domain) {
                     domain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
                     if (domain.indexOf(':') !== -1) domain = domain.split(':')[0];
                     mtUser.value = user + '@' + domain;
                 } else {
-                    // No domain entered -> authenticate locally on the current running server!
                     mtUser.value = user;
                 }
                 mtPass.value = pass;
             }
-
-            // MikroTik CHAP handling if chap-id exists
-            var chapID = '$(chap-id)';
-            var chapChallenge = '$(chap-challenge)';
-            if (chapID && chapChallenge && chapID.indexOf('$') === -1) {
-                if (typeof hexMD5 === 'function') {
-                    mtPass.value = hexMD5(chapID + mtPass.value + chapChallenge);
-                }
-            }
-
             return true;
         }
 

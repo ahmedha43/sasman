@@ -410,7 +410,8 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	// Match protocol requirements: Add Framed-Protocol: PPP only for PPP sessions
 	reqServiceType := rfc2865.ServiceType_Get(r.Packet)
 	reqFramedProtocol := rfc2865.FramedProtocol_Get(r.Packet)
-	if reqFramedProtocol == rfc2865.FramedProtocol_Value_PPP || reqServiceType == rfc2865.ServiceType_Value_FramedUser {
+	isPPP := (reqFramedProtocol == rfc2865.FramedProtocol_Value_PPP || reqServiceType == rfc2865.ServiceType_Value_FramedUser)
+	if isPPP {
 		rfc2865.ServiceType_Add(response, rfc2865.ServiceType_Value_FramedUser)
 		rfc2865.FramedProtocol_Add(response, rfc2865.FramedProtocol_Value_PPP)
 	}
@@ -420,7 +421,7 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 
 	// Add attributes to response
 	if isExpiredOrDisabled {
-		if expiredPool != "" {
+		if expiredPool != "" && isPPP {
 			addReplyAttribute(response, "Framed-Pool", expiredPool)
 		}
 		if expiredProfile != "" {
@@ -430,6 +431,10 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 		// Add standard attributes from LMDB for active subscribers
 		for k, v := range attributes {
 			if k == "Enabled" || k == "Expiration" || k == "Simultaneous-Use" || k == "NAS-IP-Address" || k == "Expired-Pool" || k == "Expired-Profile" || k == "User-Group" {
+				continue
+			}
+			// Do NOT send Framed-Pool or Framed-IP-Netmask to HotSpot (non-PPP) users
+			if (k == "Framed-Pool" || k == "Framed-IP-Netmask") && !isPPP {
 				continue
 			}
 			addReplyAttribute(response, k, v)
