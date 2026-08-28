@@ -1570,6 +1570,20 @@ func truncateResult(data interface{}, maxChars int) interface{} {
 	return data
 }
 
+// extractResultItems safely retrieves the array of items from RouterOS command response (supporting "items" and "data")
+func extractResultItems(res map[string]interface{}) []interface{} {
+	if res == nil {
+		return nil
+	}
+	if items, ok := res["items"].([]interface{}); ok {
+		return items
+	}
+	if data, ok := res["data"].([]interface{}); ok {
+		return data
+	}
+	return nil
+}
+
 // DiscoverNetworkTopology scans and maps the full network topology (WAN lines, LAN subnets, Policy Routing, Mangle)
 func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface{}, error) {
 	sub := strings.ToLower(strings.TrimSpace(subdomain))
@@ -1602,7 +1616,7 @@ func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface
 
 	// Parse addresses
 	addrMap := make(map[string]string) // interface -> IP/subnet
-	if addrArr, ok := addrRes["data"].([]interface{}); ok {
+	if addrArr := extractResultItems(addrRes); len(addrArr) > 0 {
 		for _, item := range addrArr {
 			if m, ok := item.(map[string]interface{}); ok {
 				iface := fmt.Sprintf("%v", m["interface"])
@@ -1613,7 +1627,7 @@ func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface
 	}
 
 	// Parse interfaces to identify WAN / LAN / Bridge
-	if ifArr, ok := ifacesRes["data"].([]interface{}); ok {
+	if ifArr := extractResultItems(ifacesRes); len(ifArr) > 0 {
 		for _, item := range ifArr {
 			if m, ok := item.(map[string]interface{}); ok {
 				name := fmt.Sprintf("%v", m["name"])
@@ -1629,8 +1643,9 @@ func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface
 				lower := strings.ToLower(name + " " + comment + " " + ifType)
 				if strings.Contains(lower, "wan") || strings.Contains(lower, "starlink") ||
 					strings.Contains(lower, "earthlink") || strings.Contains(lower, "isp") ||
-					strings.Contains(lower, "pppoe-out") || strings.Contains(lower, "lte") ||
-					strings.Contains(lower, "4g") || strings.Contains(lower, "internet") {
+					strings.Contains(lower, "pppoe-out") || strings.Contains(lower, "pppoe-in") ||
+					strings.Contains(lower, "lte") || strings.Contains(lower, "4g") ||
+					strings.Contains(lower, "internet") || strings.Contains(lower, "gateway") {
 					isWan = true
 				}
 
@@ -1652,7 +1667,7 @@ func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface
 	}
 
 	// Parse Mangle for Policy Routing (e.g. WhatsApp, PUBG, PCC)
-	if mgArr, ok := mangleRes["data"].([]interface{}); ok {
+	if mgArr := extractResultItems(mangleRes); len(mgArr) > 0 {
 		for _, item := range mgArr {
 			if m, ok := item.(map[string]interface{}); ok {
 				action := fmt.Sprintf("%v", m["action"])
@@ -1682,7 +1697,7 @@ func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface
 
 	// Fallback if no specific WAN tag was found: examine default routes
 	if len(wanList) == 0 {
-		if rtArr, ok := routesRes["data"].([]interface{}); ok {
+		if rtArr := extractResultItems(routesRes); len(rtArr) > 0 {
 			for _, item := range rtArr {
 				if m, ok := item.(map[string]interface{}); ok {
 					dst := fmt.Sprintf("%v", m["dst-address"])
@@ -1703,8 +1718,8 @@ func (e *Engine) DiscoverNetworkTopology(subdomain string) (map[string]interface
 	topo["wan_lines"] = wanList
 	topo["lan_networks"] = lanList
 	topo["routing_policies"] = routingPolicies
-	topo["dhcp_servers"] = dhcpRes["data"]
-	topo["resource_summary"] = resRes["data"]
+	topo["dhcp_servers"] = extractResultItems(dhcpRes)
+	topo["resource_summary"] = extractResultItems(resRes)
 
 	// Generate Arabic summary
 	var sb strings.Builder
@@ -1767,7 +1782,7 @@ func (e *Engine) SimulatePacket(subdomain, srcIP, dstIP, protocol, dstPort, inIf
 
 	// Check Dst-NAT
 	natRedirected := false
-	if natArr, ok := natRes["data"].([]interface{}); ok {
+	if natArr := extractResultItems(natRes); len(natArr) > 0 {
 		for _, item := range natArr {
 			if m, ok := item.(map[string]interface{}); ok {
 				chain := fmt.Sprintf("%v", m["chain"])
@@ -1790,7 +1805,7 @@ func (e *Engine) SimulatePacket(subdomain, srcIP, dstIP, protocol, dstPort, inIf
 
 	// Check Routing
 	routed := false
-	if rtArr, ok := routesRes["data"].([]interface{}); ok {
+	if rtArr := extractResultItems(routesRes); len(rtArr) > 0 {
 		for _, item := range rtArr {
 			if m, ok := item.(map[string]interface{}); ok {
 				dst := fmt.Sprintf("%v", m["dst-address"])
@@ -1808,7 +1823,7 @@ func (e *Engine) SimulatePacket(subdomain, srcIP, dstIP, protocol, dstPort, inIf
 	}
 
 	// Check Firewall Filter
-	if fArr, ok := filterRes["data"].([]interface{}); ok {
+	if fArr := extractResultItems(filterRes); len(fArr) > 0 {
 		for i, item := range fArr {
 			if m, ok := item.(map[string]interface{}); ok {
 				action := fmt.Sprintf("%v", m["action"])
@@ -1878,12 +1893,12 @@ func (e *Engine) ExplainDeviceArchitecture(subdomain string) (map[string]interfa
 
 	// System Overview
 	sb.WriteString("## 1. بطاقة تعريف الراوتر والموارد\n")
-	if idArr, ok := identRes["data"].([]interface{}); ok && len(idArr) > 0 {
+	if idArr := extractResultItems(identRes); len(idArr) > 0 {
 		if idm, ok := idArr[0].(map[string]interface{}); ok {
 			sb.WriteString(fmt.Sprintf("- **اسم الراوتر (Identity)**: `%v`\n", idm["name"]))
 		}
 	}
-	if rArr, ok := resRes["data"].([]interface{}); ok && len(rArr) > 0 {
+	if rArr := extractResultItems(resRes); len(rArr) > 0 {
 		if rm, ok := rArr[0].(map[string]interface{}); ok {
 			sb.WriteString(fmt.Sprintf("- **الموديل والإصدار**: %v (RouterOS %v)\n", rm["board-name"], rm["version"]))
 			sb.WriteString(fmt.Sprintf("- **استهلاك المعالج والذاكرة**: CPU: %v%% | Free RAM: %v MB\n", rm["cpu-load"], rm["free-memory"]))
@@ -1909,7 +1924,7 @@ func (e *Engine) ExplainDeviceArchitecture(subdomain string) (map[string]interfa
 
 	// Services & Exposure
 	sb.WriteString("\n## 3. الخدمات والمنافذ الإدارية المكشوفة (Exposed Services)\n")
-	if sArr, ok := servicesRes["data"].([]interface{}); ok {
+	if sArr := extractResultItems(servicesRes); len(sArr) > 0 {
 		for _, s := range sArr {
 			if sm, ok := s.(map[string]interface{}); ok {
 				name := sm["name"]
@@ -1923,7 +1938,7 @@ func (e *Engine) ExplainDeviceArchitecture(subdomain string) (map[string]interfa
 	}
 
 	// DNS
-	if dArr, ok := dnsRes["data"].([]interface{}); ok && len(dArr) > 0 {
+	if dArr := extractResultItems(dnsRes); len(dArr) > 0 {
 		if dm, ok := dArr[0].(map[string]interface{}); ok {
 			sb.WriteString(fmt.Sprintf("\n## 4. خوادم الـ DNS\n- الخوادم الحالية: `%v` (Allow Remote Requests: %v)\n", dm["servers"], dm["allow-remote-requests"]))
 		}
@@ -1954,7 +1969,7 @@ func (e *Engine) CorrelateActiveDefense(subdomain string, durationMinutes int) (
 	attackerCounts := make(map[string]int)
 	var attackerIPs []string
 
-	if logArr, ok := logRes["data"].([]interface{}); ok {
+	if logArr := extractResultItems(logRes); len(logArr) > 0 {
 		for _, item := range logArr {
 			if m, ok := item.(map[string]interface{}); ok {
 				msg := strings.ToLower(fmt.Sprintf("%v", m["message"]))
@@ -2064,7 +2079,7 @@ func (e *Engine) GenerateVPNSolution(subdomain, vpnType, clientName, subnet stri
 		commands = []string{
 			"/interface l2tp-server server set enabled=yes use-ipsec=yes ipsec-secret=SasmanVpnSecret99!",
 			"/ppp profile add name=l2tp-profile local-address=10.70.0.1 remote-address=10.70.0.2",
-			fmt.Sprintf("/ppp secret add name=%s password=ChangeMe123! profile=l2tp-profile service=l2tp", clientName),
+			fmt.Sprintf("/ppp profile add name=%s password=ChangeMe123! profile=l2tp-profile service=l2tp", clientName),
 			"/ip firewall filter add chain=input protocol=udp dst-port=500,4500,1701 action=accept comment=\"Allow L2TP/IPsec\" place-before=0",
 		}
 		rollbacks = []string{
@@ -2119,13 +2134,13 @@ func (e *Engine) DetectConfigDrift(subdomain string) (map[string]interface{}, er
 		driftItems = append(driftItems, "📌 تم تسجيل الحالة الحالية كنسخة أساسية (Baseline) للمقارنة المستقبلية.")
 	}
 
-	if curArr, ok := curRules["data"].([]interface{}); ok {
+	if curArr := extractResultItems(curRules); len(curArr) > 0 {
 		driftItems = append(driftItems, fmt.Sprintf("🛡️ إجمالي قواعد جدار الحماية الحالية: %d قاعدة", len(curArr)))
 	}
-	if ifArr, ok := curAddrs["data"].([]interface{}); ok {
+	if ifArr := extractResultItems(curAddrs); len(ifArr) > 0 {
 		driftItems = append(driftItems, fmt.Sprintf("🌐 إجمالي عناوين الـ IP المهيأة: %d عنوان", len(ifArr)))
 	}
-	if ifaArr, ok := curIfaces["data"].([]interface{}); ok {
+	if ifaArr := extractResultItems(curIfaces); len(ifaArr) > 0 {
 		driftItems = append(driftItems, fmt.Sprintf("🔌 إجمالي المنافذ والواجهات: %d منفذ", len(ifaArr)))
 	}
 
@@ -2154,7 +2169,7 @@ func (e *Engine) DiagnoseL2Rescue(subdomain string) (map[string]interface{}, err
 	wg.Wait()
 
 	var neighbors []map[string]interface{}
-	if nArr, ok := neighRes["data"].([]interface{}); ok {
+	if nArr := extractResultItems(neighRes); len(nArr) > 0 {
 		for _, item := range nArr {
 			if m, ok := item.(map[string]interface{}); ok {
 				neighbors = append(neighbors, map[string]interface{}{
@@ -2178,8 +2193,8 @@ func (e *Engine) DiagnoseL2Rescue(subdomain string) (map[string]interface{}, err
 	return map[string]interface{}{
 		"subdomain":            sub,
 		"discovered_neighbors": neighbors,
-		"ethernet_interfaces":  ethRes["data"],
-		"bridge_ports":         bridgeRes["data"],
+		"ethernet_interfaces":  extractResultItems(ethRes),
+		"bridge_ports":         extractResultItems(bridgeRes),
 		"rescue_instructions":  rescueGuide,
 	}, nil
 }
@@ -2200,4 +2215,5 @@ func formatBytesStr(bStr string) string {
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }
+
 
