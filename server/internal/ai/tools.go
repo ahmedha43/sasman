@@ -1,5 +1,7 @@
 package ai
 
+import "strings"
+
 // GetRouterOSToolDefinitions returns the list of MCP-compatible tool definitions exposed to the LLM
 func GetRouterOSToolDefinitions() []ToolDefinition {
 	return []ToolDefinition{
@@ -355,3 +357,92 @@ const SystemPromptTemplate = `أنت "مساعد SASMAN الذكي (AI Network C
 - عند طلب معرفة عدد المشتركين أو المتصلين حالياً بالراوتر أو PPPoE / Broadband، استخدم حصراً الأمر "/ppp/active/print" ولا تستخدم إطلاقاً "/interface/pppoe-client/print" (لأن pppoe-client مخصص لخطوط استلام الإنترنت الخارجية وليس لمشتركي الراوتر).
 
 - استخدم لغة عربية مهنية واضحة ومنظمة مع إبراز النتائج والنصائح بالأيقونات التعبيرية والجداول ومخططات Mermaid عند الحاجة.`
+
+// SelectRelevantTools dynamically filters the full toolset down to 1-4 tools matching the query intent to save thousands of prompt tokens
+func SelectRelevantTools(userQuery string, allTools []ToolDefinition) []ToolDefinition {
+	q := strings.ToLower(strings.TrimSpace(userQuery))
+	if q == "" {
+		return allTools
+	}
+
+	toolMap := make(map[string]ToolDefinition)
+	for _, t := range allTools {
+		toolMap[t.Function.Name] = t
+	}
+
+	selected := make(map[string]bool)
+
+	// 1. Explicit tool mention in prompt
+	for _, t := range allTools {
+		if strings.Contains(q, strings.ToLower(t.Function.Name)) {
+			selected[t.Function.Name] = true
+		}
+	}
+
+	// 2. Intent matching
+	// A. Architecture / Topology / Explain
+	if strings.Contains(q, "explain") || strings.Contains(q, "معمار") || strings.Contains(q, "هيكل") || strings.Contains(q, "مخطط") || strings.Contains(q, "توثيق") || strings.Contains(q, "رسم") || strings.Contains(q, "mermaid") || strings.Contains(q, "topology") || strings.Contains(q, "توزيع") {
+		selected["mikrotik_explain_device"] = true
+		selected["mikrotik_discover_topology"] = true
+	}
+
+	// B. Resources / CPU / Memory / Uptime
+	if strings.Contains(q, "cpu") || strings.Contains(q, "معالج") || strings.Contains(q, "رام") || strings.Contains(q, "ذاكرة") || strings.Contains(q, "حرارة") || strings.Contains(q, "uptime") || strings.Contains(q, "موارد") || strings.Contains(q, "ضغط") {
+		selected["mikrotik_get_resources"] = true
+		selected["mikrotik_run_command"] = true
+	}
+
+	// C. Firewall / Security / Attacks / Filter / NAT
+	if strings.Contains(q, "firewall") || strings.Contains(q, "فايروول") || strings.Contains(q, "جدار") || strings.Contains(q, "حظر") || strings.Contains(q, "block") || strings.Contains(q, "attack") || strings.Contains(q, "هجوم") || strings.Contains(q, "تخمين") || strings.Contains(q, "brute") || strings.Contains(q, "ثغرات") || strings.Contains(q, "أمان") || strings.Contains(q, "امن") {
+		selected["mikrotik_get_firewall"] = true
+		selected["mikrotik_active_defense"] = true
+		selected["mikrotik_attack_detection"] = true
+	}
+
+	// D. Packet Simulator
+	if strings.Contains(q, "باكت") || strings.Contains(q, "packet") || strings.Contains(q, "مسار") || strings.Contains(q, "يمر") || strings.Contains(q, "يسقط") || strings.Contains(q, "drop") {
+		selected["mikrotik_packet_simulator"] = true
+	}
+
+	// E. Interfaces / Ports / Traffic / PPPoE / WAN / LAN
+	if strings.Contains(q, "interface") || strings.Contains(q, "منفذ") || strings.Contains(q, "منافذ") || strings.Contains(q, "واجهة") || strings.Contains(q, "واجهات") || strings.Contains(q, "بورت") || strings.Contains(q, "بورتات") || strings.Contains(q, "wan") || strings.Contains(q, "lan") || strings.Contains(q, "pppoe") || strings.Contains(q, "مشترك") || strings.Contains(q, "متصل") {
+		selected["mikrotik_get_interfaces"] = true
+		selected["mikrotik_run_command"] = true
+	}
+
+	// F. VPN
+	if strings.Contains(q, "vpn") || strings.Contains(q, "wireguard") || strings.Contains(q, "sstp") || strings.Contains(q, "l2tp") || strings.Contains(q, "ipsec") || strings.Contains(q, "نفق") {
+		selected["mikrotik_setup_vpn"] = true
+	}
+
+	// G. Drift / Baseline
+	if strings.Contains(q, "انحراف") || strings.Contains(q, "تغيير") || strings.Contains(q, "مقارنة") || strings.Contains(q, "drift") || strings.Contains(q, "baseline") {
+		selected["mikrotik_drift_guard"] = true
+	}
+
+	// H. L2 Rescue
+	if strings.Contains(q, "rescue") || strings.Contains(q, "انقاذ") || strings.Contains(q, "إنقاذ") || strings.Contains(q, "mac-telnet") || strings.Contains(q, "فصل") || strings.Contains(q, "معطل") {
+		selected["mikrotik_l2_rescue"] = true
+	}
+
+	// I. Safe Plan generation
+	if strings.Contains(q, "خطة") || strings.Contains(q, "صلح") || strings.Contains(q, "عدل") || strings.Contains(q, "غير") || strings.Contains(q, "احذف") || strings.Contains(q, "اضف") || strings.Contains(q, "طبق") || strings.Contains(q, "fix") || strings.Contains(q, "plan") {
+		selected["mikrotik_generate_plan"] = true
+		selected["mikrotik_run_command"] = true
+	}
+
+	// If no specific intent matched, provide the 3 core diagnostic tools
+	if len(selected) == 0 {
+		selected["mikrotik_get_resources"] = true
+		selected["mikrotik_get_interfaces"] = true
+		selected["mikrotik_run_command"] = true
+	}
+
+	var result []ToolDefinition
+	for name := range selected {
+		if t, ok := toolMap[name]; ok {
+			result = append(result, t)
+		}
+	}
+	return result
+}

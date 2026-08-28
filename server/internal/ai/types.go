@@ -41,6 +41,12 @@ type ChatCompletionRequest struct {
 	Stream      bool             `json:"stream,omitempty"`
 }
 
+type ChatUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 type ChatCompletionResponse struct {
 	ID      string `json:"id"`
 	Choices []struct {
@@ -48,6 +54,7 @@ type ChatCompletionResponse struct {
 		Message      ChatMessage `json:"message"`
 		FinishReason string      `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *ChatUsage `json:"usage,omitempty"`
 	Error *struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
@@ -86,17 +93,18 @@ type ChangePlan struct {
 }
 
 type StreamEvent struct {
-	Type      string       `json:"type"` // "thought", "tool_start", "tunnel_exec", "tool_result", "plan", "content", "error", "done"
-	Title     string       `json:"title,omitempty"`
-	Text      string       `json:"text,omitempty"`
-	Tool      string       `json:"tool,omitempty"`
-	ToolID    string       `json:"tool_id,omitempty"`
-	Args      interface{}  `json:"args,omitempty"`
-	Status    string       `json:"status,omitempty"` // "running", "success", "error"
-	Summary   string       `json:"summary,omitempty"`
-	Duration  string       `json:"duration,omitempty"`
-	Plan      *ChangePlan  `json:"plan,omitempty"`
-	Message   *ChatMessage `json:"message,omitempty"`
+	Type      string            `json:"type"` // "thought", "tool_start", "tunnel_exec", "tool_result", "plan", "content", "error", "done"
+	Title     string            `json:"title,omitempty"`
+	Text      string            `json:"text,omitempty"`
+	Tool      string            `json:"tool,omitempty"`
+	ToolID    string            `json:"tool_id,omitempty"`
+	Args      interface{}       `json:"args,omitempty"`
+	Status    string            `json:"status,omitempty"` // "running", "success", "error"
+	Summary   string            `json:"summary,omitempty"`
+	Duration  string            `json:"duration,omitempty"`
+	Plan      *ChangePlan       `json:"plan,omitempty"`
+	Message   *ChatMessage      `json:"message,omitempty"`
 	Report    *DiagnosticReport `json:"report,omitempty"`
-	Timestamp string       `json:"timestamp"`
+	Usage     *ChatUsage        `json:"usage,omitempty"`
+	Timestamp string            `json:"timestamp"`
 }

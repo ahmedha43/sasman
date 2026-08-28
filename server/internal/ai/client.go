@@ -118,9 +118,17 @@ func (c *LLMClient) Complete(ctx context.Context, settings *storage.AISettings, 
 			continue
 		}
 
-		if resp.StatusCode == 503 || resp.StatusCode == 429 {
-			lastErr = fmt.Errorf("AI provider error (HTTP %d): %s", resp.StatusCode, string(respBytes))
-			continue // retry once
+		if resp.StatusCode == 429 {
+			respStr := string(respBytes)
+			if strings.Contains(respStr, "quota") || strings.Contains(respStr, "exceeded") || strings.Contains(respStr, "insufficient") {
+				return nil, fmt.Errorf("AI provider error (HTTP 429 Quota Exceeded): %s", respStr)
+			}
+			lastErr = fmt.Errorf("AI provider error (HTTP 429 Rate Limit): %s", respStr)
+			continue // retry transient rate limit once
+		}
+		if resp.StatusCode == 503 {
+			lastErr = fmt.Errorf("AI provider error (HTTP 503 Service Unavailable): %s", string(respBytes))
+			continue // retry transient server error once
 		}
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {

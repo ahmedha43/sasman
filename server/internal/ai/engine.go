@@ -378,6 +378,140 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 		}
 	}
 
+	// 3. INTENT: IP Addresses Listing (/ip/address/print)
+	isIPIntent := (strings.Contains(q, "عناوين") || strings.Contains(q, "ايبي") || strings.Contains(q, "ip") || strings.Contains(q, "address")) &&
+		(strings.Contains(q, "قائمة") || strings.Contains(q, "شنو") || strings.Contains(q, "شو") || strings.Contains(q, "عرض") || strings.Contains(q, "جدول") || strings.Contains(q, "عناوين") || q == "ip" || q == "address" || q == "addresses")
+
+	if isIPIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد طلب عرض عناوين الـ IP لراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/ip/address/print")
+		if err == nil {
+			items := extractResultItems(res)
+			if len(items) > 0 {
+				var sb strings.Builder
+				sb.WriteString(fmt.Sprintf("### ⚡ قائمة عناوين الـ IP الحالية\n\n"))
+				sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s`\n\n", subdomain))
+				sb.WriteString("| المنفذ (Interface) | عنوان الـ IP والماسك | شبكة الـ Network | الحالة |\n")
+				sb.WriteString("| :--- | :--- | :--- | :--- |\n")
+
+				for _, it := range items {
+					if m, ok := it.(map[string]interface{}); ok {
+						iface := fmt.Sprintf("%v", m["interface"])
+						addr := fmt.Sprintf("%v", m["address"])
+						net := fmt.Sprintf("%v", m["network"])
+						disabled := fmt.Sprintf("%v", m["disabled"])
+						status := "🟢 نشط"
+						if disabled == "true" || disabled == "yes" {
+							status = "🔴 معطل"
+						}
+						sb.WriteString(fmt.Sprintf("| **%s** | `%s` | `%s` | %s |\n", iface, addr, net, status))
+					}
+				}
+
+				sb.WriteString("\n---\n*⚡ تم جلب قائمة العناوين فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+				content := sb.String()
+				msg := &ChatMessage{Role: "assistant", Content: content}
+				emit(StreamEvent{Type: "done", Title: "اكتمل عرض عناوين IP", Text: content, Message: msg})
+				return msg, true
+			}
+		}
+	}
+
+	// 4. INTENT: Interfaces / Ports Status (/interface/print)
+	isInterfacesIntent := (strings.Contains(q, "منافذ") || strings.Contains(q, "واجهات") || strings.Contains(q, "بورتات") || strings.Contains(q, "interfaces") || strings.Contains(q, "ports")) &&
+		(strings.Contains(q, "حالة") || strings.Contains(q, "قائمة") || strings.Contains(q, "عرض") || strings.Contains(q, "شغالة") || strings.Contains(q, "طافية") || strings.Contains(q, "منافذ") || q == "interfaces" || q == "ports")
+
+	if isInterfacesIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد طلب فحص حالة منافذ وواجهات الراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/interface/print")
+		if err == nil {
+			items := extractResultItems(res)
+			if len(items) > 0 {
+				var sb strings.Builder
+				sb.WriteString(fmt.Sprintf("### ⚡ تقرير حالة منافذ وواجهات الراوتر\n\n"))
+				sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s`\n\n", subdomain))
+				sb.WriteString("| المنفذ (Name) | النوع (Type) | الحالة (Status) | ملاحظات (Comment) |\n")
+				sb.WriteString("| :--- | :--- | :--- | :--- |\n")
+
+				for _, it := range items {
+					if m, ok := it.(map[string]interface{}); ok {
+						name := fmt.Sprintf("%v", m["name"])
+						ifType := fmt.Sprintf("%v", m["type"])
+						running := fmt.Sprintf("%v", m["running"])
+						comm := fmt.Sprintf("%v", m["comment"])
+						if comm == "<nil>" {
+							comm = "-"
+						}
+						status := "🔴 متوقف (Down)"
+						if running == "true" || running == "yes" {
+							status = "🟢 شغال (Up/Running)"
+						}
+						sb.WriteString(fmt.Sprintf("| **%s** | `%s` | %s | %s |\n", name, ifType, status, comm))
+					}
+				}
+
+				sb.WriteString("\n---\n*⚡ تم جلب حالة المنافذ فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+				content := sb.String()
+				msg := &ChatMessage{Role: "assistant", Content: content}
+				emit(StreamEvent{Type: "done", Title: "اكتمل فحص المنافذ", Text: content, Message: msg})
+				return msg, true
+			}
+		}
+	}
+
+	// 5. INTENT: DNS Servers (/ip/dns/print)
+	isDNSIntent := (strings.Contains(q, "dns") || strings.Contains(q, "دي ان اس")) &&
+		(strings.Contains(q, "سيرفر") || strings.Contains(q, "خادم") || strings.Contains(q, "خوادم") || strings.Contains(q, "شنو") || strings.Contains(q, "عرض") || strings.Contains(q, "فحص") || q == "dns")
+
+	if isDNSIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد استعلام خوادم الـ DNS لراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/ip/dns/print")
+		if err == nil {
+			items := extractResultItems(res)
+			if len(items) > 0 {
+				if dm, ok := items[0].(map[string]interface{}); ok {
+					servers := fmt.Sprintf("%v", dm["servers"])
+					dynamicServers := fmt.Sprintf("%v", dm["dynamic-servers"])
+					allowRemote := fmt.Sprintf("%v", dm["allow-remote-requests"])
+
+					var sb strings.Builder
+					sb.WriteString(fmt.Sprintf("### ⚡ إعدادات وخوادم الـ DNS الحالية\n\n"))
+					sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s`\n\n", subdomain))
+					sb.WriteString(fmt.Sprintf("- **خوادم الـ DNS الثابتة (Static Servers):** `%s`\n", servers))
+					if dynamicServers != "" && dynamicServers != "<nil>" {
+						sb.WriteString(fmt.Sprintf("- **خوادم الـ DNS التلقائية (Dynamic Servers):** `%s`\n", dynamicServers))
+					}
+					remoteStatus := "🔴 معطل (آمن)"
+					if allowRemote == "true" || allowRemote == "yes" {
+						remoteStatus = "🟡 مفعّل (Allow Remote Requests = YES)"
+					}
+					sb.WriteString(fmt.Sprintf("- **استقبال طلبات DNS عن بعد:** %s\n", remoteStatus))
+
+					sb.WriteString("\n---\n*⚡ تم جلب إعدادات DNS فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+					content := sb.String()
+					msg := &ChatMessage{Role: "assistant", Content: content}
+					emit(StreamEvent{Type: "done", Title: "اكتمل فحص DNS", Text: content, Message: msg})
+					return msg, true
+				}
+			}
+		}
+	}
+
 	return nil, false
 }
 
@@ -422,8 +556,8 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 	if targetSubdomain != "" {
 		systemPrompt += fmt.Sprintf("\nالوكيل والراوتر المستهدف حالياً: %s", targetSubdomain)
 
-		// Inject per-agent persistent memory context
-		if memBlock := e.buildAgentMemoryPromptBlock(targetSubdomain); memBlock != "" {
+		// Inject per-agent selective memory context (tight baseline or rich topology depending on query)
+		if memBlock := e.buildAgentMemoryPromptBlock(targetSubdomain, lastUserQuery); memBlock != "" {
 			systemPrompt += memBlock
 			emit(StreamEvent{
 				Type:  "thought",
@@ -449,15 +583,23 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 		}
 	}
 
+	// ✂️ Sliding Window History: Keep only last 5 messages to avoid blowing up context tokens
+	trimmedMessages := messages
+	if len(trimmedMessages) > 5 {
+		trimmedMessages = trimmedMessages[len(trimmedMessages)-5:]
+	}
+
 	conversation := []ChatMessage{
 		{
 			Role:    "system",
 			Content: systemPrompt,
 		},
 	}
-	conversation = append(conversation, messages...)
+	conversation = append(conversation, trimmedMessages...)
 
-	tools := GetRouterOSToolDefinitions()
+	// 🎯 Dynamic Tool Pruning: select only 1-3 relevant tools matching query intent
+	allTools := GetRouterOSToolDefinitions()
+	tools := SelectRelevantTools(lastUserQuery, allTools)
 	var finalPlan *ChangePlan
 
 	// Execute Tool Calling loop: Round 1 for Parallel Reads, Round 2 for Instant Forced Synthesis
@@ -532,6 +674,10 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 			return nil, nil, err
 		}
 
+		if resp.Usage != nil {
+			log.Printf("[AI-Tokens] sub=%s prompt=%d, completion=%d, total=%d (provider: %s, model: %s)", targetSubdomain, resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens, settings.Provider, settings.Model)
+		}
+
 		if len(resp.Choices) == 0 {
 			err := fmt.Errorf("لم يتم استلام رد من نموذج الذكاء الاصطناعي")
 			emit(StreamEvent{Type: "error", Text: err.Error()})
@@ -549,6 +695,7 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 				Text:    replyMsg.Content,
 				Message: &replyMsg,
 				Plan:    finalPlan,
+				Usage:   resp.Usage,
 			})
 
 			// Auto-record compact session summary into agent memory
@@ -599,6 +746,30 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 		ordered := make([]toolOutput, numTools)
 		for r := range resultsChan {
 			ordered[r.index] = r
+		}
+
+		// ⚡ If Round 1 tool returned a full ready-made report (e.g. mikrotik_explain_device), output directly and skip Round 2!
+		if iter == 0 && len(ordered) == 1 {
+			if m, ok := ordered[0].toolResult.(map[string]interface{}); ok {
+				if archReport, ok := m["architecture_report"].(string); ok && archReport != "" {
+					directMsg := ChatMessage{
+						Role:    "assistant",
+						Content: archReport,
+					}
+					emit(StreamEvent{
+						Type:    "done",
+						Title:   "تم توليد التوثيق المعماري بنجاح",
+						Text:    archReport,
+						Message: &directMsg,
+						Plan:    finalPlan,
+						Usage:   resp.Usage,
+					})
+					if targetSubdomain != "" {
+						e.saveChatSessionMemory(targetSubdomain, messages, archReport, finalPlan)
+					}
+					return &directMsg, finalPlan, nil
+				}
+			}
 		}
 
 		for _, r := range ordered {
@@ -719,7 +890,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = truncateResult(topo, 3500)
+			toolResult = truncateResult(topo, 1000)
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -745,7 +916,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = truncateResult(simRes, 3500)
+			toolResult = truncateResult(simRes, 1000)
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -766,7 +937,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = truncateResult(explainRes, 3500)
+			toolResult = explainRes
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -791,7 +962,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = truncateResult(defRes, 3500)
+			toolResult = truncateResult(defRes, 1000)
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -818,7 +989,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = truncateResult(vpnRes, 3500)
+			toolResult = truncateResult(vpnRes, 1000)
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -839,7 +1010,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = truncateResult(driftRes, 3500)
+			toolResult = truncateResult(driftRes, 1000)
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -860,7 +1031,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = truncateResult(l2Res, 3500)
+			toolResult = truncateResult(l2Res, 1000)
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -881,7 +1052,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = res
+			toolResult = truncateResult(res, 800)
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -911,7 +1082,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if err != nil {
 			toolResult = map[string]string{"error": err.Error()}
 		} else {
-			toolResult = truncateResult(res, 3000)
+			toolResult = truncateResult(res, 1000)
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -931,8 +1102,8 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		ifaces, _ := e.ExecuteRouterCommand(sub, "/interface/print")
 		ips, _ := e.ExecuteRouterCommand(sub, "/ip/address/print")
 		toolResult = map[string]interface{}{
-			"interfaces": truncateResult(ifaces, 2000),
-			"addresses":  truncateResult(ips, 1500),
+			"interfaces": truncateResult(ifaces, 600),
+			"addresses":  truncateResult(ips, 600),
 		}
 		emit(StreamEvent{
 			Type:     "tool_result",
@@ -974,7 +1145,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 				Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
 			})
 		} else {
-			toolResult = truncateResult(mcpRes, 3500)
+			toolResult = truncateResult(mcpRes, 1000)
 			emit(StreamEvent{
 				Type:     "tool_result",
 				Tool:     fnName,
@@ -1003,7 +1174,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 				Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
 			})
 		} else {
-			toolResult = truncateResult(res, 3500)
+			toolResult = truncateResult(res, 1000)
 			emit(StreamEvent{
 				Type:     "tool_result",
 				Tool:     fnName,
@@ -1322,12 +1493,30 @@ func (e *Engine) RunSecurityAudit(ctx context.Context, subdomain string) (*Diagn
 }
 
 // buildAgentMemoryPromptBlock constructs a concise memory context to prevent token waste
-func (e *Engine) buildAgentMemoryPromptBlock(subdomain string) string {
+func (e *Engine) buildAgentMemoryPromptBlock(subdomain string, userQuery string) string {
 	if subdomain == "" {
 		return ""
 	}
 	mem, err := e.repo.GetAgentMemory(subdomain)
 	if err != nil || mem == nil {
+		return ""
+	}
+
+	q := strings.ToLower(userQuery)
+	isDeepQuery := strings.Contains(q, "معمار") || strings.Contains(q, "هيكل") || strings.Contains(q, "مخطط") ||
+		strings.Contains(q, "topology") || strings.Contains(q, "سجل") || strings.Contains(q, "تاريخ") ||
+		strings.Contains(q, "فحص") || strings.Contains(q, "شامل") || strings.Contains(q, "explain") ||
+		strings.Contains(q, "audit")
+
+	// For standard queries, inject a minimal 1-line baseline to save ~1500 tokens per prompt
+	if !isDeepQuery {
+		if len(mem.RouterInfo) > 0 {
+			infoStr := ""
+			for k, v := range mem.RouterInfo {
+				infoStr += fmt.Sprintf("%s=%v ", k, v)
+			}
+			return fmt.Sprintf("\n- **بيانات الراوتر الأساسية**: %s\n", strings.TrimSpace(infoStr))
+		}
 		return ""
 	}
 
