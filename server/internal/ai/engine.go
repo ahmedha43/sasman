@@ -87,7 +87,14 @@ func (e *Engine) ExecuteRouterCommand(subdomain string, command string) (map[str
 		return nil, fmt.Errorf("يجب تحديد اسم نطاق الوكيل")
 	}
 
-	cmdParts := strings.Fields(strings.TrimSpace(command))
+	cleanCmd := strings.TrimSpace(command)
+	// Auto-correct erroneous pppoe-client command when looking for active subscribers
+	if strings.Contains(strings.ToLower(cleanCmd), "pppoe-client") && strings.Contains(strings.ToLower(cleanCmd), "print") {
+		log.Printf("[ai-engine] auto-correcting pppoe-client query to /ppp/active/print for subscriber count accuracy")
+		cleanCmd = "/ppp/active/print"
+	}
+
+	cmdParts := strings.Fields(cleanCmd)
 	if len(cmdParts) == 0 {
 		return nil, fmt.Errorf("أمر المايكروتك فارغ")
 	}
@@ -193,6 +200,172 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 	return e.ChatStream(ctx, messages, targetSubdomain, nil)
 }
 
+// tryFastIntentMatch handles common queries directly via tunnel without consuming LLM tokens
+func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain string, emit func(StreamEvent)) (*ChatMessage, bool) {
+	if subdomain == "" {
+		return nil, false
+	}
+
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return nil, false
+	}
+
+	// 1. INTENT: PPPoE / Broadband Active Users Count (/ppp/active/print)
+	isPPPoECountIntent := (strings.Contains(q, "متصل") || strings.Contains(q, "المتصلين") || strings.Contains(q, "مشترك") || strings.Contains(q, "pppoe") || strings.Contains(q, "broadband") || strings.Contains(q, "active")) &&
+		(strings.Contains(q, "عدد") || strings.Contains(q, "كم") || strings.Contains(q, "count") || strings.Contains(q, "حاليا") || strings.Contains(q, "الآن") || strings.Contains(q, "قائمة") || strings.Contains(q, "منو") || strings.Contains(q, "مين") || q == "active" || q == "pppoe" || q == "broadband")
+
+	if isPPPoECountIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد استعلام المشتركين المتصلين (PPPoE/Broadband) لراوتر `%s` — جاري القراءة المباشرة عبر النفق المشفر بدون استهلاك توكنات...", subdomain),
+		})
+
+		emit(StreamEvent{
+			Type:   "tool_start",
+			Tool:   "mikrotik_run_command",
+			Title:  "⚡ استعلام المتصلين النشطين (/ppp/active/print)",
+			Status: "running",
+			Text:   fmt.Sprintf("تنفيذ أمر `/ppp/active/print` على راوتر الوكيل `%s` عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/ppp/active/print")
+		if err != nil {
+			emit(StreamEvent{
+				Type:     "tool_result",
+				Tool:     "mikrotik_run_command",
+				Status:   "error",
+				Summary:  "تعذر الاتصال بالراوتر: " + err.Error(),
+			})
+			return nil, false // fallback to full model if fast intent fails
+		}
+
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     "mikrotik_run_command",
+			Status:   "success",
+			Summary:  "تم استلام بيانات المتصلين الحية من الراوتر بنجاح",
+		})
+
+		var count int
+		var itemsList []map[string]interface{}
+
+		if c, ok := res["count"].(float64); ok {
+			count = int(c)
+		}
+		if items, ok := res["items"].([]interface{}); ok {
+			count = len(items)
+			for _, it := range items {
+				if m, ok := it.(map[string]interface{}); ok {
+					itemsList = append(itemsList, m)
+				}
+			}
+		}
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("### ⚡ إحصائية المشتركين المتصلين (PPPoE / Broadband)\n\n"))
+		sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s`\n", subdomain))
+		sb.WriteString(fmt.Sprintf("👥 **إجمالي المشتركين المتصلين حالياً:** <span style=\"font-size:18px; font-weight:800; color:#38bdf8;\">%d مشترك</span>\n\n", count))
+
+		if count > 0 && len(itemsList) > 0 {
+			sb.WriteString("#### 📋 جدول أبرز المشتركين النشطين:\n\n")
+			sb.WriteString("| اسم المشترك (Username) | عنوان IP | مدة الاتصال (Uptime) | Service | Caller-ID |\n")
+			sb.WriteString("| :--- | :--- | :--- | :--- | :--- |\n")
+
+			limit := len(itemsList)
+			if limit > 30 {
+				limit = 30
+			}
+			for i := 0; i < limit; i++ {
+				it := itemsList[i]
+				uname, _ := it["name"].(string)
+				ip, _ := it["address"].(string)
+				uptime, _ := it["uptime"].(string)
+				service, _ := it["service"].(string)
+				callerID, _ := it["caller-id"].(string)
+				if callerID == "" {
+					callerID = "-"
+				}
+				if service == "" {
+					service = "pppoe"
+				}
+				sb.WriteString(fmt.Sprintf("| **%s** | `%s` | %s | %s | `%s` |\n", uname, ip, uptime, service, callerID))
+			}
+
+			if len(itemsList) > 30 {
+				sb.WriteString(fmt.Sprintf("\n> ℹ️ *تم عرض أول 30 مشترك من أصل %d مشترك متصل.*\n", count))
+			}
+		} else if count == 0 {
+			sb.WriteString("> ℹ️ **لا يوجد أي مشترك متصل حالياً عبر جلسات PPPoE/Broadband على هذا الراوتر.**\n")
+		}
+
+		sb.WriteString("\n---\n*⚡ تم جلب النتيجة فورياً وبشكل مباشر عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+
+		content := sb.String()
+		msg := &ChatMessage{
+			Role:    "assistant",
+			Content: content,
+		}
+
+		emit(StreamEvent{
+			Type:    "done",
+			Title:   "اكتمل الاستعلام الفوري",
+			Text:    content,
+			Message: msg,
+		})
+
+		return msg, true
+	}
+
+	// 2. INTENT: System Resources / CPU / Memory / Uptime (/system/resource/print)
+	isResourceIntent := (strings.Contains(q, "معالج") || strings.Contains(q, "cpu") || strings.Contains(q, "رام") || strings.Contains(q, "ram") || strings.Contains(q, "ذاكرة") || strings.Contains(q, "حرارة") || strings.Contains(q, "uptime") || strings.Contains(q, "مواصفات") || strings.Contains(q, "موارد") || strings.Contains(q, "تشغيل") || q == "cpu" || q == "uptime") &&
+		(strings.Contains(q, "فحص") || strings.Contains(q, "استهلاك") || strings.Contains(q, "كم") || strings.Contains(q, "حالة") || strings.Contains(q, "نسبة") || strings.Contains(q, "مواصفات") || strings.Contains(q, "حرارة") || q == "cpu" || q == "uptime")
+
+	if isResourceIntent {
+		emit(StreamEvent{
+			Type:  "thought",
+			Title: "⚡ معالجة فورية (Zero-Token Fast Intent)",
+			Text:  fmt.Sprintf("تم رصد طلب فحص موارد ومعالج الراوتر `%s` — قراءة مباشرة عبر النفق...", subdomain),
+		})
+
+		res, err := e.ExecuteRouterCommand(subdomain, "/system/resource/print")
+		if err == nil {
+			var cpuLoad, freeMem, totalMem, uptime, version, boardName string
+			if items, ok := res["items"].([]interface{}); ok && len(items) > 0 {
+				if m, ok := items[0].(map[string]interface{}); ok {
+					cpuLoad, _ = m["cpu-load"].(string)
+					freeMem, _ = m["free-memory"].(string)
+					totalMem, _ = m["total-memory"].(string)
+					uptime, _ = m["uptime"].(string)
+					version, _ = m["version"].(string)
+					boardName, _ = m["board-name"].(string)
+				}
+			}
+
+			if cpuLoad != "" || uptime != "" {
+				var sb strings.Builder
+				sb.WriteString(fmt.Sprintf("### ⚡ تقرير موارد وحالة الراوتر\n\n"))
+				sb.WriteString(fmt.Sprintf("📡 **الراوتر المستهدف:** `%s` (%s)\n", subdomain, boardName))
+				sb.WriteString(fmt.Sprintf("⚙️ **إصدار RouterOS:** `%s`\n", version))
+				sb.WriteString(fmt.Sprintf("⏱️ **مدة التشغيل (Uptime):** `%s`\n\n", uptime))
+				sb.WriteString("| المورد | الحالة الحالية |\n")
+				sb.WriteString("| :--- | :--- |\n")
+				sb.WriteString(fmt.Sprintf("| 🧠 **استهلاك المعالج (CPU Load)** | **%s%%** |\n", cpuLoad))
+				sb.WriteString(fmt.Sprintf("| 💾 **الذاكرة المتبقية (Free RAM)** | %s / %s |\n", formatBytesStr(freeMem), formatBytesStr(totalMem)))
+				sb.WriteString("\n---\n*⚡ تم جلب التقرير فورياً ومباشرة عبر نفق SASMAN المشفر (استهلاك 0 توكنات).*")
+
+				content := sb.String()
+				msg := &ChatMessage{Role: "assistant", Content: content}
+				emit(StreamEvent{Type: "done", Title: "اكتمل فحص الموارد", Text: content, Message: msg})
+				return msg, true
+			}
+		}
+	}
+
+	return nil, false
+}
+
 // ChatStream handles conversation with the AI copilot and streams every agentic step and tool execution
 func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetSubdomain string, onStep func(StreamEvent)) (*ChatMessage, *ChangePlan, error) {
 	emit := func(ev StreamEvent) {
@@ -213,6 +386,18 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 		err := fmt.Errorf("خدمة المساعد الذكي معطلة حالياً من الإعدادات")
 		emit(StreamEvent{Type: "error", Text: err.Error()})
 		return nil, nil, err
+	}
+
+	// ⚡ Fast Zero-Token Intent Matching: Check if query can be answered directly over tunnel
+	var lastUserQuery string
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			lastUserQuery = messages[i].Content
+			break
+		}
+	}
+	if fastMsg, matched := e.tryFastIntentMatch(ctx, lastUserQuery, targetSubdomain, emit); matched {
+		return fastMsg, nil, nil
 	}
 
 	systemPrompt := SystemPromptTemplate
@@ -260,12 +445,12 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 	tools := GetRouterOSToolDefinitions()
 	var finalPlan *ChangePlan
 
-	// Execute Tool Calling loop (max 5 iterations)
-	for iter := 0; iter < 5; iter++ {
+	// Execute Tool Calling loop (reduced from 5 to 2 iterations to prevent repetitive guessing)
+	for iter := 0; iter < 2; iter++ {
 		emit(StreamEvent{
 			Type:  "thought",
 			Title: "استدعاء نموذج الذكاء الاصطناعي",
-			Text:  fmt.Sprintf("جاري التخطيط للخطوات بواسطة %s (%s)...", settings.Provider, settings.Model),
+			Text:  fmt.Sprintf("جاري التخطيط للخطوات بواسطة %s (%s) [دورة %d/2]...", settings.Provider, settings.Model, iter+1),
 		})
 
 		req := ChatCompletionRequest{
@@ -630,25 +815,57 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 				if toolArgs == nil {
 					toolArgs = make(map[string]interface{})
 				}
+
+				// Safe Context & Credential Verification before MCP execution
+				auth := e.getAgentRouterAuth(sub)
+				session := e.tunnelSvc.GetAgentBySubdomain(sub)
+				if auth == nil && session == nil {
+					toolResult = map[string]string{
+						"error": fmt.Sprintf("تعذر استدعاء أداة MCP للوكيل (%s) لعدم وجود جلسة اتصال نشطة أو بيانات مصادقة موثوقة للراوتر. يرجى استخدام أدوات نفق SASMAN المباشرة.", sub),
+					}
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "error",
+						Summary:  "تخطي MCP لعدم وجود اتصال موثوق بالوكيل",
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
+					break
+				}
+				if auth != nil {
+					toolArgs["router_auth"] = auth
+					toolArgs["host"] = auth["host"]
+					toolArgs["username"] = auth["user"]
+					toolArgs["password"] = auth["pass"]
+				}
+				toolArgs["subdomain"] = sub
+
 				emit(StreamEvent{
 					Type:  "tunnel_exec",
 					Tool:  fnName,
 					Title: "محرك MCP Sidecar",
-					Text:  fmt.Sprintf("تشغيل أداة `%s` عبر محرك MCP...", toolName),
+					Text:  fmt.Sprintf("تشغيل أداة `%s` عبر محرك MCP بسياق آمن...", toolName),
 				})
 				mcpRes, err := e.mcpBridge.CallMCPTool(ctx, toolName, toolArgs)
 				if err != nil {
 					toolResult = map[string]string{"error": err.Error()}
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "error",
+						Summary:  fmt.Sprintf("فشل أداة MCP: %v", err),
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
 				} else {
 					toolResult = truncateResult(mcpRes, 3500)
+					emit(StreamEvent{
+						Type:     "tool_result",
+						Tool:     fnName,
+						Status:   "success",
+						Summary:  fmt.Sprintf("تم استدعاء أداة `%s` من محرك MCP بنجاح", toolName),
+						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+					})
 				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  fmt.Sprintf("تم استدعاء أداة `%s` من محرك MCP بنجاح", toolName),
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
 
 			case "mikrotik_run_command":
 				cmd, _ := args["command"].(string)
@@ -1894,3 +2111,21 @@ func (e *Engine) DiagnoseL2Rescue(subdomain string) (map[string]interface{}, err
 		"rescue_instructions":  rescueGuide,
 	}, nil
 }
+
+func formatBytesStr(bStr string) string {
+	b, err := strconv.ParseUint(strings.TrimSpace(bStr), 10, 64)
+	if err != nil {
+		return bStr
+	}
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := uint64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
