@@ -460,12 +460,12 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 	tools := GetRouterOSToolDefinitions()
 	var finalPlan *ChangePlan
 
-	// Execute Tool Calling loop (max 4 iterations for parallel execution + deep dive + final synthesis)
-	for iter := 0; iter < 4; iter++ {
+	// Execute Tool Calling loop (max 3 iterations: Round 1 for Parallel Reads, Round 2 for Final Synthesis, Round 3 for Optional Follow-up/Plan)
+	for iter := 0; iter < 3; iter++ {
 		emit(StreamEvent{
 			Type:  "thought",
 			Title: "استدعاء نموذج الذكاء الاصطناعي",
-			Text:  fmt.Sprintf("جاري التخطيط للخطوات بواسطة %s (%s) [دورة %d/4]...", settings.Provider, settings.Model, iter+1),
+			Text:  fmt.Sprintf("جاري التخطيط والتنفيذ بواسطة %s (%s) [دورة %d/3]...", settings.Provider, settings.Model, iter+1),
 		})
 
 		req := ChatCompletionRequest{
@@ -510,491 +510,540 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 
 		conversation = append(conversation, replyMsg)
 
-		// Execute tool calls requested by the model
-		for _, tc := range replyMsg.ToolCalls {
-			var fnName string
-			var argsStr string
-			var tcID string
+		// Execute all tool calls requested by the model in PARALLEL via goroutines
+		numTools := len(replyMsg.ToolCalls)
+		type toolOutput struct {
+			index      int
+			tcID       string
+			fnName     string
+			toolResult interface{}
+		}
 
-			if id, ok := tc["id"].(string); ok {
-				tcID = id
-			}
-			if fn, ok := tc["function"].(map[string]interface{}); ok {
-				if n, ok := fn["name"].(string); ok {
-					fnName = n
-				}
-				if a, ok := fn["arguments"].(string); ok {
-					argsStr = a
-				}
-			}
+		resultsChan := make(chan toolOutput, numTools)
+		var wg sync.WaitGroup
+		var planMu sync.Mutex
 
-			var args map[string]interface{}
-			_ = json.Unmarshal([]byte(argsStr), &args)
-
-			sub := targetSubdomain
-			if s, ok := args["subdomain"].(string); ok && s != "" {
-				sub = s
-			}
-			if s, ok := args["target_router"].(string); ok && s != "" {
-				sub = s
-			}
-
-			toolTitle := fnName
-			switch fnName {
-			case "mikrotik_discover_topology":
-				toolTitle = fmt.Sprintf("🌐 استكشاف هيكلة وتوزيع شبكة (%s)", sub)
-			case "mikrotik_packet_simulator":
-				toolTitle = fmt.Sprintf("🧪 محاكاة مسار باكت لراوتر (%s)", sub)
-			case "mikrotik_explain_device":
-				toolTitle = fmt.Sprintf("📖 توليد التوثيق المعماري لراوتر (%s)", sub)
-			case "mikrotik_active_defense":
-				toolTitle = fmt.Sprintf("🛡️ الدفاع السيبراني ورصد الهجمات (%s)", sub)
-			case "mikrotik_setup_vpn":
-				vpnT, _ := args["vpn_type"].(string)
-				toolTitle = fmt.Sprintf("🔐 أتمتة إعداد شبكة VPN (%s - %s)", sub, vpnT)
-			case "mikrotik_drift_guard":
-				toolTitle = fmt.Sprintf("🔍 كاشف انحراف وتغيير الإعدادات (%s)", sub)
-			case "mikrotik_l2_rescue":
-				toolTitle = fmt.Sprintf("⚡ مساعد الإنقاذ عبر الطبقة الثانية (%s)", sub)
-			case "mikrotik_get_resources":
-				toolTitle = fmt.Sprintf("📊 فحص موارد ومعالج راوتر (%s)", sub)
-			case "mikrotik_get_firewall":
-				sec, _ := args["section"].(string)
-				toolTitle = fmt.Sprintf("🛡️ جلب قواعد فايروول (%s - %s)", sub, sec)
-			case "mikrotik_get_interfaces":
-				toolTitle = fmt.Sprintf("🔌 جلب منافذ وعناوين راوتر (%s)", sub)
-			case "mikrotik_mcp_call":
-				tn, _ := args["tool_name"].(string)
-				toolTitle = fmt.Sprintf("🧰 استدعاء أداة MCP Sidecar: `%s`", tn)
-			case "mikrotik_run_command":
-				cmdStr, _ := args["command"].(string)
-				toolTitle = fmt.Sprintf("⚡ تنفيذ أمر RouterOS: `%s`", cmdStr)
-			case "mikrotik_attack_detection":
-				toolTitle = fmt.Sprintf("🔐 كشف سجلات الهجمات لراوتر (%s)", sub)
-			case "mikrotik_generate_plan":
-				titleStr, _ := args["title"].(string)
-				toolTitle = fmt.Sprintf("📋 توليد خطة تعديل: %s", titleStr)
-			}
-
-			emit(StreamEvent{
-				Type:   "tool_start",
-				Tool:   fnName,
-				Title:  toolTitle,
-				Args:   args,
-				Status: "running",
-				Text:   fmt.Sprintf("جاري استدعاء الأداة `%s` عبر نفق الوكيل المشفر...", fnName),
-			})
-
-			startTime := time.Now()
-			var toolResult interface{}
-
-			switch fnName {
-			case "mikrotik_discover_topology":
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "استكشاف الهيكلة",
-					Text:  fmt.Sprintf("فحص خطوط الـ WAN، توزيع الـ LAN، وقواعد التوجيه لراوتر `%s`...", sub),
+		for idx, tc := range replyMsg.ToolCalls {
+			wg.Add(1)
+			go func(i int, toolCall map[string]interface{}) {
+				defer wg.Done()
+				tcID, fnName, res := e.executeSingleToolCall(ctx, toolCall, targetSubdomain, emit, func(p *ChangePlan) {
+					planMu.Lock()
+					finalPlan = p
+					planMu.Unlock()
 				})
-				topo, err := e.DiscoverNetworkTopology(sub)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(topo, 3500)
+				resultsChan <- toolOutput{
+					index:      i,
+					tcID:       tcID,
+					fnName:     fnName,
+					toolResult: res,
 				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم استكشاف هيكلة وتوزيع الشبكة وتحديثها في الذاكرة الدائمة بنجاح",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
+			}(idx, tc)
+		}
 
-			case "mikrotik_packet_simulator":
-				srcIP, _ := args["src_ip"].(string)
-				dstIP, _ := args["dst_ip"].(string)
-				proto, _ := args["protocol"].(string)
-				dstPort, _ := args["dst_port"].(string)
-				inIface, _ := args["in_interface"].(string)
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "محاكي الباكت",
-					Text:  fmt.Sprintf("محاكاة مسار باكت من `%s` إلى `%s:%s` (%s)...", srcIP, dstIP, dstPort, proto),
-				})
-				simRes, err := e.SimulatePacket(sub, srcIP, dstIP, proto, dstPort, inIface)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(simRes, 3500)
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم إكمال محاكاة مسار الباكت بنجاح واستخراج النتيجة",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
+		wg.Wait()
+		close(resultsChan)
 
-			case "mikrotik_explain_device":
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "التوثيق المعماري",
-					Text:  fmt.Sprintf("توليد الوثيقة المعمارية الكاملة لراوتر `%s`...", sub),
-				})
-				explainRes, err := e.ExplainDeviceArchitecture(sub)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(explainRes, 3500)
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم توليد التوثيق المعماري الشامل للراوتر بنجاح",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
+		// Collect preserving original order
+		ordered := make([]toolOutput, numTools)
+		for r := range resultsChan {
+			ordered[r.index] = r
+		}
 
-			case "mikrotik_active_defense":
-				dur := 60
-				if d, ok := args["block_duration_minutes"].(float64); ok && d > 0 {
-					dur = int(d)
-				}
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "الدفاع السيبراني",
-					Text:  fmt.Sprintf("رصد هجمات الـ Brute-Force وتوليد خطة الحظر لراوتر `%s`...", sub),
-				})
-				defRes, err := e.CorrelateActiveDefense(sub, dur)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(defRes, 3500)
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم تحليل الهجمات وتوليد خطة الدفاع السيبراني الآمنة بنجاح",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
-
-			case "mikrotik_setup_vpn":
-				vpnType, _ := args["vpn_type"].(string)
-				cName, _ := args["client_name"].(string)
-				subnet, _ := args["subnet"].(string)
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "معالج الـ VPN",
-					Text:  fmt.Sprintf("توليد خطة إعداد شبكة %s وملفات التكوين لراوتر `%s`...", vpnType, sub),
-				})
-				vpnRes, err := e.GenerateVPNSolution(sub, vpnType, cName, subnet)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(vpnRes, 3500)
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم توليد خطة إعداد الـ VPN وملفات العميل بنجاح",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
-
-			case "mikrotik_drift_guard":
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "كاشف الانحراف",
-					Text:  fmt.Sprintf("فحص انحراف وتغيير الإعدادات لراوتر `%s`...", sub),
-				})
-				driftRes, err := e.DetectConfigDrift(sub)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(driftRes, 3500)
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم فحص انحراف الإعدادات ومقارنتها بنجاح",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
-
-			case "mikrotik_l2_rescue":
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "إنقاذ الطبقة الثانية",
-					Text:  fmt.Sprintf("فحص الأجهزة المجاورة وإرشادات الإنقاذ لراوتر `%s`...", sub),
-				})
-				l2Res, err := e.DiagnoseL2Rescue(sub)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(l2Res, 3500)
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم إعداد تقرير الإنقاذ وتشخيص الطبقة الثانية بنجاح",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
-
-			case "mikrotik_get_resources":
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "موارد النظام",
-					Text:  fmt.Sprintf("فحص استهلاك المعالج والذاكرة لراوتر `%s`...", sub),
-				})
-				res, err := e.ExecuteRouterCommand(sub, "/system/resource/print")
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(res, 2000)
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم استلام موارد ومعالج الراوتر بنجاح",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
-
-			case "mikrotik_get_firewall":
-				sec, _ := args["section"].(string)
-				chain, _ := args["chain"].(string)
-				cmd := "/ip/firewall/filter/print"
-				if sec == "nat" {
-					cmd = "/ip/firewall/nat/print"
-				} else if sec == "mangle" {
-					cmd = "/ip/firewall/mangle/print"
-				} else if sec == "address_list" {
-					cmd = "/ip/firewall/address-list/print"
-				}
-				if chain != "" {
-					cmd += fmt.Sprintf(" where chain=%s", chain)
-				}
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "جدار الحماية",
-					Text:  fmt.Sprintf("قراءة قواعد الفايروول: `%s`...", cmd),
-				})
-				res, err := e.ExecuteRouterCommand(sub, cmd)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-				} else {
-					toolResult = truncateResult(res, 3000)
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم جلب قواعد الفايروول المحددة",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
-
-			case "mikrotik_get_interfaces":
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "منافذ الشبكة",
-					Text:  fmt.Sprintf("جلب المنافذ وعناوين IP لراوتر `%s`...", sub),
-				})
-				ifaces, _ := e.ExecuteRouterCommand(sub, "/interface/print")
-				ips, _ := e.ExecuteRouterCommand(sub, "/ip/address/print")
-				toolResult = map[string]interface{}{
-					"interfaces": truncateResult(ifaces, 2000),
-					"addresses":  truncateResult(ips, 1500),
-				}
-				emit(StreamEvent{
-					Type:     "tool_result",
-					Tool:     fnName,
-					Status:   "success",
-					Summary:  "تم جلب منافذ وعناوين الشبكة بنجاح",
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
-
-			case "mikrotik_mcp_call":
-				toolName, _ := args["tool_name"].(string)
-				toolArgs, _ := args["arguments"].(map[string]interface{})
-				if toolArgs == nil {
-					toolArgs = make(map[string]interface{})
-				}
-
-				// Strip sensitive credentials to prevent secret leakage in MCP logs
-				delete(toolArgs, "password")
-				delete(toolArgs, "pass")
-				delete(toolArgs, "router_auth")
-
-				if sub != "" {
-					toolArgs["subdomain"] = sub
-				}
-
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "محرك MCP التحليلي",
-					Text:  fmt.Sprintf("تشغيل أداة `%s` عبر محرك MCP للتحليل والمحاكاة الآمنة...", toolName),
-				})
-				mcpRes, err := e.mcpBridge.CallMCPTool(ctx, toolName, toolArgs)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "error",
-						Summary:  fmt.Sprintf("فشل أداة MCP: %v", err),
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
-				} else {
-					toolResult = truncateResult(mcpRes, 3500)
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "success",
-						Summary:  fmt.Sprintf("تم استدعاء أداة `%s` من محرك MCP بنجاح", toolName),
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
-				}
-
-			case "mikrotik_run_command":
-				cmd, _ := args["command"].(string)
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "تنفيذ أمر RouterOS",
-					Text:  fmt.Sprintf("تشغيل `%s` على راوتر `%s`...", cmd, sub),
-				})
-				res, err := e.ExecuteRouterCommand(sub, cmd)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "error",
-						Summary:  "خطأ في التنفيذ: " + err.Error(),
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
-				} else {
-					toolResult = truncateResult(res, 3500)
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "success",
-						Summary:  "تم تنفيذ الأمر بنجاح واستلام النتيجة الحية من الراوتر",
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
-				}
-
-			case "mikrotik_attack_detection":
-				emit(StreamEvent{
-					Type:  "tunnel_exec",
-					Tool:  fnName,
-					Title: "جلب السجلات",
-					Text:  fmt.Sprintf("جلب سجلات الـ Log من راوتر `%s` وتحليل محاولات الدخول...", sub),
-				})
-				audit, err := e.ExecuteSystemAudit(sub)
-				if err != nil {
-					toolResult = map[string]string{"error": err.Error()}
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "error",
-						Summary:  "تعذر جلب السجلات: " + err.Error(),
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
-				} else {
-					compact := compactAuditData(audit)
-					toolResult = map[string]interface{}{
-						"suspicious_logs": compact["suspicious_logs"],
-					}
-					emit(StreamEvent{
-						Type:     "tool_result",
-						Tool:     fnName,
-						Status:   "success",
-						Summary:  "تم تحليل سجلات الراوتر واستخراج السجلات المشبوهة بنجاح",
-						Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-					})
-				}
-
-			case "mikrotik_generate_plan":
-				title, _ := args["title"].(string)
-				desc, _ := args["description"].(string)
-				risk, _ := args["risk_level"].(string)
-				var cmds, rollbacks []string
-				if cList, ok := args["commands"].([]interface{}); ok {
-					for _, c := range cList {
-						if str, ok := c.(string); ok {
-							cmds = append(cmds, str)
-						}
-					}
-				}
-				if rList, ok := args["rollback"].([]interface{}); ok {
-					for _, r := range rList {
-						if str, ok := r.(string); ok {
-							rollbacks = append(rollbacks, str)
-						}
-					}
-				}
-
-				diffBuilder := strings.Builder{}
-				diffBuilder.WriteString("```diff\n")
-				for _, c := range cmds {
-					diffBuilder.WriteString("+ " + c + "\n")
-				}
-				for _, r := range rollbacks {
-					diffBuilder.WriteString("- (Rollback) " + r + "\n")
-				}
-				diffBuilder.WriteString("```")
-
-				plan := &ChangePlan{
-					Title:        title,
-					Description:  desc,
-					TargetRouter: sub,
-					Commands:     cmds,
-					Rollback:     rollbacks,
-					DiffPreview:  diffBuilder.String(),
-					RiskLevel:    risk,
-				}
-				finalPlan = plan
-				toolResult = map[string]interface{}{
-					"status":  "plan_generated",
-					"message": "تم توليد خطة التعديل بنجاح وبانتظار موافقة المستخدم لتطبيقها.",
-					"plan":    plan,
-				}
-				emit(StreamEvent{
-					Type:     "plan",
-					Plan:     plan,
-					Status:   "success",
-					Summary:  fmt.Sprintf("تم تجهيز خطة التعديل (%d أوامر تنفيذ + %d أوامر تراجع)", len(cmds), len(rollbacks)),
-					Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
-				})
-
-			default:
-				toolResult = map[string]string{"error": "أداة غير معروفة"}
-			}
-
-			resultBytes, _ := json.Marshal(toolResult)
+		for _, r := range ordered {
+			resultBytes, _ := json.Marshal(r.toolResult)
 			conversation = append(conversation, ChatMessage{
 				Role:       "tool",
-				Name:       fnName,
-				ToolCallID: tcID,
+				Name:       r.fnName,
+				ToolCallID: r.tcID,
 				Content:    string(resultBytes),
 			})
 		}
 	}
 
 	return nil, finalPlan, fmt.Errorf("تم تجاوز الحد الأقصى لدورات استدعاء الأدوات")
+}
+
+// executeSingleToolCall executes a single tool invocation over the tunnel/mcp
+func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interface{}, targetSubdomain string, emit func(StreamEvent), onPlanGenerated func(*ChangePlan)) (string, string, interface{}) {
+	var fnName string
+	var argsStr string
+	var tcID string
+
+	if id, ok := tc["id"].(string); ok {
+		tcID = id
+	}
+	if fn, ok := tc["function"].(map[string]interface{}); ok {
+		if n, ok := fn["name"].(string); ok {
+			fnName = n
+		}
+		if a, ok := fn["arguments"].(string); ok {
+			argsStr = a
+		}
+	}
+
+	var args map[string]interface{}
+	_ = json.Unmarshal([]byte(argsStr), &args)
+
+	sub := targetSubdomain
+	if s, ok := args["subdomain"].(string); ok && s != "" {
+		sub = s
+	}
+	if s, ok := args["target_router"].(string); ok && s != "" {
+		sub = s
+	}
+
+	toolTitle := fnName
+	switch fnName {
+	case "mikrotik_discover_topology":
+		toolTitle = fmt.Sprintf("🌐 استكشاف هيكلة وتوزيع شبكة (%s)", sub)
+	case "mikrotik_packet_simulator":
+		toolTitle = fmt.Sprintf("🧪 محاكاة مسار باكت لراوتر (%s)", sub)
+	case "mikrotik_explain_device":
+		toolTitle = fmt.Sprintf("📖 توليد التوثيق المعماري لراوتر (%s)", sub)
+	case "mikrotik_active_defense":
+		toolTitle = fmt.Sprintf("🛡️ الدفاع السيبراني ورصد الهجمات (%s)", sub)
+	case "mikrotik_setup_vpn":
+		vpnT, _ := args["vpn_type"].(string)
+		toolTitle = fmt.Sprintf("🔐 أتمتة إعداد شبكة VPN (%s - %s)", sub, vpnT)
+	case "mikrotik_drift_guard":
+		toolTitle = fmt.Sprintf("🔍 كاشف انحراف وتغيير الإعدادات (%s)", sub)
+	case "mikrotik_l2_rescue":
+		toolTitle = fmt.Sprintf("⚡ مساعد الإنقاذ عبر الطبقة الثانية (%s)", sub)
+	case "mikrotik_get_resources":
+		toolTitle = fmt.Sprintf("📊 فحص موارد ومعالج راوتر (%s)", sub)
+	case "mikrotik_get_firewall":
+		sec, _ := args["section"].(string)
+		toolTitle = fmt.Sprintf("🛡️ جلب قواعد فايروول (%s - %s)", sub, sec)
+	case "mikrotik_get_interfaces":
+		toolTitle = fmt.Sprintf("🔌 جلب منافذ وعناوين راوتر (%s)", sub)
+	case "mikrotik_mcp_call":
+		tn, _ := args["tool_name"].(string)
+		toolTitle = fmt.Sprintf("🧰 استدعاء أداة MCP Sidecar: `%s`", tn)
+	case "mikrotik_run_command":
+		cmdStr, _ := args["command"].(string)
+		toolTitle = fmt.Sprintf("⚡ تنفيذ أمر RouterOS: `%s`", cmdStr)
+	case "mikrotik_attack_detection":
+		toolTitle = fmt.Sprintf("🔐 كشف سجلات الهجمات لراوتر (%s)", sub)
+	case "mikrotik_generate_plan":
+		titleStr, _ := args["title"].(string)
+		toolTitle = fmt.Sprintf("📋 توليد خطة تعديل: %s", titleStr)
+	}
+
+	emit(StreamEvent{
+		Type:   "tool_start",
+		Tool:   fnName,
+		Title:  toolTitle,
+		Args:   args,
+		Status: "running",
+		Text:   fmt.Sprintf("جاري استدعاء الأداة `%s` عبر نفق الوكيل المشفر بالتوازي...", fnName),
+	})
+
+	startTime := time.Now()
+	var toolResult interface{}
+
+	switch fnName {
+	case "mikrotik_discover_topology":
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "استكشاف الهيكلة",
+			Text:  fmt.Sprintf("فحص خطوط الـ WAN، توزيع الـ LAN، وقواعد التوجيه لراوتر `%s`...", sub),
+		})
+		topo, err := e.DiscoverNetworkTopology(sub)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = truncateResult(topo, 3500)
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  "تم استكشاف هيكلة وتوزيع الشبكة وتحديثها في الذاكرة الدائمة بنجاح",
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_packet_simulator":
+		srcIP, _ := args["src_ip"].(string)
+		dstIP, _ := args["dst_ip"].(string)
+		proto, _ := args["protocol"].(string)
+		dstPort, _ := args["dst_port"].(string)
+		inIface, _ := args["in_interface"].(string)
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "محاكي الباكت",
+			Text:  fmt.Sprintf("محاكاة مسار باكت من `%s` إلى `%s:%s` (%s)...", srcIP, dstIP, dstPort, proto),
+		})
+		simRes, err := e.SimulatePacket(sub, srcIP, dstIP, proto, dstPort, inIface)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = truncateResult(simRes, 3500)
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  "تم إكمال محاكاة مسار الباكت بنجاح واستخراج النتيجة",
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_explain_device":
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "التوثيق المعماري",
+			Text:  fmt.Sprintf("توليد الوثيقة المعمارية الكاملة لراوتر `%s`...", sub),
+		})
+		explainRes, err := e.ExplainDeviceArchitecture(sub)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = truncateResult(explainRes, 3500)
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  "تم توليد التوثيق المعماري لراوتر المايكروتك بنجاح",
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_active_defense":
+		dur := 60
+		if d, ok := args["block_duration_minutes"].(float64); ok && d > 0 {
+			dur = int(d)
+		}
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "الدفاع السيبراني ورصد الهجمات",
+			Text:  fmt.Sprintf("فحص سجلات الراوتر وسلاسل الفايروول لاكتشاف هجمات التخمين والـ Scan على راوتر `%s`...", sub),
+		})
+		defRes, err := e.CorrelateActiveDefense(sub, dur)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = truncateResult(defRes, 3500)
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  "تم إكمال فحص الدفاع السيبراني وكشف الهجمات بنجاح",
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_setup_vpn":
+		vpnType, _ := args["vpn_type"].(string)
+		cName, _ := args["client_name"].(string)
+		if cName == "" {
+			cName, _ = args["peer_name"].(string)
+		}
+		subnet, _ := args["subnet"].(string)
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "إعداد شبكة VPN الآمنة",
+			Text:  fmt.Sprintf("توليد إعدادات شبكة VPN (%s) لراوتر `%s`...", vpnType, sub),
+		})
+		vpnRes, err := e.GenerateVPNSolution(sub, vpnType, cName, subnet)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = truncateResult(vpnRes, 3500)
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  fmt.Sprintf("تم تجهيز وتوليد أوامر إعداد شبكة VPN (%s) بنجاح", vpnType),
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_drift_guard":
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "كاشف انحراف الإعدادات",
+			Text:  fmt.Sprintf("مقارنة إعدادات راوتر `%s` الحالية مع خط الأساس المحفوظ...", sub),
+		})
+		driftRes, err := e.DetectConfigDrift(sub)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = truncateResult(driftRes, 3500)
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  "تم فحص انحراف الإعدادات وتحديد التغييرات غير المعتمدة بنجاح",
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_l2_rescue":
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "مساعد إنقاذ الراوتر L2",
+			Text:  fmt.Sprintf("فحص بروتوكولات المجاورة (MNDP/CDP) وحالة منافذ الإيثرنت لراوتر `%s`...", sub),
+		})
+		l2Res, err := e.DiagnoseL2Rescue(sub)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = truncateResult(l2Res, 3500)
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  "تم توليد تعليمات إنقاذ الراوتر عبر الطبقة الثانية L2 بنجاح",
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_get_resources":
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "فحص الموارد",
+			Text:  fmt.Sprintf("قراءة استهلاك المعالج والذاكرة ووقت التشغيل لراوتر `%s`...", sub),
+		})
+		res, err := e.ExecuteRouterCommand(sub, "/system/resource/print")
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = res
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  "تم جلب موارد الراوتر بنجاح",
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_get_firewall":
+		sec, _ := args["section"].(string)
+		if sec == "" {
+			sec = "filter"
+		}
+		chain, _ := args["chain"].(string)
+		cmd := fmt.Sprintf("/ip/firewall/%s/print", sec)
+		if chain != "" {
+			cmd += fmt.Sprintf(" where chain=%s", chain)
+		}
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "جلب قواعد الفايروول",
+			Text:  fmt.Sprintf("تشغيل `%s` على راوتر `%s`...", cmd, sub),
+		})
+		res, err := e.ExecuteRouterCommand(sub, cmd)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+		} else {
+			toolResult = truncateResult(res, 3000)
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  fmt.Sprintf("تم جلب قواعد فايروول %s بنجاح", sec),
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_get_interfaces":
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "جلب المنافذ",
+			Text:  fmt.Sprintf("جلب قائمة المنافذ وعناوين IP لراوتر `%s`...", sub),
+		})
+		ifaces, _ := e.ExecuteRouterCommand(sub, "/interface/print")
+		ips, _ := e.ExecuteRouterCommand(sub, "/ip/address/print")
+		toolResult = map[string]interface{}{
+			"interfaces": truncateResult(ifaces, 2000),
+			"addresses":  truncateResult(ips, 1500),
+		}
+		emit(StreamEvent{
+			Type:     "tool_result",
+			Tool:     fnName,
+			Status:   "success",
+			Summary:  "تم جلب منافذ وعناوين الشبكة بنجاح",
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	case "mikrotik_mcp_call":
+		toolName, _ := args["tool_name"].(string)
+		toolArgs, _ := args["arguments"].(map[string]interface{})
+		if toolArgs == nil {
+			toolArgs = make(map[string]interface{})
+		}
+
+		delete(toolArgs, "password")
+		delete(toolArgs, "pass")
+		delete(toolArgs, "router_auth")
+
+		if sub != "" {
+			toolArgs["subdomain"] = sub
+		}
+
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "محرك MCP التحليلي",
+			Text:  fmt.Sprintf("تشغيل أداة `%s` عبر محرك MCP للتحليل والمحاكاة الآمنة...", toolName),
+		})
+		mcpRes, err := e.mcpBridge.CallMCPTool(ctx, toolName, toolArgs)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+			emit(StreamEvent{
+				Type:     "tool_result",
+				Tool:     fnName,
+				Status:   "error",
+				Summary:  fmt.Sprintf("فشل أداة MCP: %v", err),
+				Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+			})
+		} else {
+			toolResult = truncateResult(mcpRes, 3500)
+			emit(StreamEvent{
+				Type:     "tool_result",
+				Tool:     fnName,
+				Status:   "success",
+				Summary:  fmt.Sprintf("تم استدعاء أداة `%s` من محرك MCP بنجاح", toolName),
+				Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+			})
+		}
+
+	case "mikrotik_run_command":
+		cmd, _ := args["command"].(string)
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "تنفيذ أمر RouterOS",
+			Text:  fmt.Sprintf("تشغيل `%s` على راوتر `%s`...", cmd, sub),
+		})
+		res, err := e.ExecuteRouterCommand(sub, cmd)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+			emit(StreamEvent{
+				Type:     "tool_result",
+				Tool:     fnName,
+				Status:   "error",
+				Summary:  "خطأ في التنفيذ: " + err.Error(),
+				Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+			})
+		} else {
+			toolResult = truncateResult(res, 3500)
+			emit(StreamEvent{
+				Type:     "tool_result",
+				Tool:     fnName,
+				Status:   "success",
+				Summary:  "تم تنفيذ الأمر بنجاح واستلام النتيجة الحية من الراوتر",
+				Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+			})
+		}
+
+	case "mikrotik_attack_detection":
+		emit(StreamEvent{
+			Type:  "tunnel_exec",
+			Tool:  fnName,
+			Title: "جلب السجلات",
+			Text:  fmt.Sprintf("جلب سجلات الـ Log من راوتر `%s` وتحليل محاولات الدخول...", sub),
+		})
+		audit, err := e.ExecuteSystemAudit(sub)
+		if err != nil {
+			toolResult = map[string]string{"error": err.Error()}
+			emit(StreamEvent{
+				Type:     "tool_result",
+				Tool:     fnName,
+				Status:   "error",
+				Summary:  "تعذر جلب السجلات: " + err.Error(),
+				Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+			})
+		} else {
+			compact := compactAuditData(audit)
+			toolResult = map[string]interface{}{
+				"findings": compact["findings"],
+				"logs":     compact["logs"],
+			}
+			emit(StreamEvent{
+				Type:     "tool_result",
+				Tool:     fnName,
+				Status:   "success",
+				Summary:  "تم جلب السجلات وفحص التهديدات الأمنية بنجاح",
+				Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+			})
+		}
+
+	case "mikrotik_generate_plan":
+		title, _ := args["title"].(string)
+		desc, _ := args["description"].(string)
+		risk, _ := args["risk_level"].(string)
+		if risk == "" {
+			risk = "medium"
+		}
+		var cmds []string
+		if cArr, ok := args["commands"].([]interface{}); ok {
+			for _, item := range cArr {
+				if s, ok := item.(string); ok {
+					cmds = append(cmds, s)
+				}
+			}
+		}
+		var rollbacks []string
+		if rArr, ok := args["rollback"].([]interface{}); ok {
+			for _, item := range rArr {
+				if s, ok := item.(string); ok {
+					rollbacks = append(rollbacks, s)
+				}
+			}
+		}
+
+		diffBuilder := strings.Builder{}
+		diffBuilder.WriteString("```diff\n")
+		for _, c := range cmds {
+			diffBuilder.WriteString("+ " + c + "\n")
+		}
+		for _, r := range rollbacks {
+			diffBuilder.WriteString("- (Rollback) " + r + "\n")
+		}
+		diffBuilder.WriteString("```")
+
+		plan := &ChangePlan{
+			Title:        title,
+			Description:  desc,
+			TargetRouter: sub,
+			Commands:     cmds,
+			Rollback:     rollbacks,
+			DiffPreview:  diffBuilder.String(),
+			RiskLevel:    risk,
+		}
+		if onPlanGenerated != nil {
+			onPlanGenerated(plan)
+		}
+		toolResult = map[string]interface{}{
+			"status":  "plan_generated",
+			"message": "تم توليد خطة التعديل بنجاح وبانتظار موافقة المستخدم لتطبيقها.",
+			"plan":    plan,
+		}
+		emit(StreamEvent{
+			Type:     "plan",
+			Plan:     plan,
+			Status:   "success",
+			Summary:  fmt.Sprintf("تم تجهيز خطة التعديل (%d أوامر تنفيذ + %d أوامر تراجع)", len(cmds), len(rollbacks)),
+			Duration: fmt.Sprintf("%dms", time.Since(startTime).Milliseconds()),
+		})
+
+	default:
+		toolResult = map[string]string{"error": "أداة غير معروفة"}
+	}
+
+	return tcID, fnName, toolResult
 }
 
 // RunSecurityAudit performs a full heuristic + LLM-backed security and health assessment of an agent router
