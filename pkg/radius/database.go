@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	_ "modernc.org/sqlite" // CGO-free sqlite driver
@@ -14,10 +15,14 @@ var DB *sql.DB
 func InitDB() {
 	var err error
 
-	dbPath := "/app/data/sasman.db"
+	dbPath := "data/sasman.db"
 	if os.Getenv("SQLITE_DB_PATH") != "" {
 		dbPath = os.Getenv("SQLITE_DB_PATH")
+	} else if _, err := os.Stat("/app/data"); err == nil {
+		dbPath = "/app/data/sasman.db"
 	}
+
+	_ = os.MkdirAll(filepath.Dir(dbPath), 0755)
 
 	DB, err = sql.Open("sqlite", dbPath)
 	if err != nil {

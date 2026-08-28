@@ -2,6 +2,7 @@ package radius
 
 import (
 	"fmt"
+	"strings"
 
 	"mikrotik-manager/pkg/core"
 
@@ -81,16 +82,21 @@ func UpdateNAS(c *fiber.Ctx) error {
 		targetAdminID = 0
 	}
 
+	ip := strings.TrimSpace(req.IP)
+	name := strings.TrimSpace(req.Name)
+	secret := strings.TrimSpace(req.Secret)
+	profileNASIP := strings.TrimSpace(req.ProfileNASIP)
+
 	_, err := DB.Exec(
 		"UPDATE nas SET nasname=?, shortname=?, secret=?, profile_nas_ip=?, admin_id=? WHERE id=?",
-		req.IP, req.Name, req.Secret, req.ProfileNASIP, targetAdminID, id,
+		ip, name, secret, profileNASIP, targetAdminID, id,
 	)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	reloadFreeRADIUS()
-	LogActivityFromCtx(c, "تعديل جهاز NAS", req.Name, fmt.Sprintf("تم تعديل بيانات جهاز NAS: %s (IP: %s)", req.Name, req.IP))
+	LogActivityFromCtx(c, "تعديل جهاز NAS", name, fmt.Sprintf("تم تعديل بيانات جهاز NAS: %s (IP: %s)", name, ip))
 	return c.JSON(fiber.Map{"message": "تم تعديل الراوتر بنجاح"})
 }
 
@@ -107,8 +113,6 @@ func CreateNAS(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
 	}
-
-	// DB.Exec("DELETE FROM nas WHERE nasname=?", req.IP) // Removed to allow same IP for different names/admins
 
 	adminID, _ := c.Locals("admin_id").(int64)
 	role, _ := c.Locals("role").(string)
@@ -127,12 +131,17 @@ func CreateNAS(c *fiber.Ctx) error {
 		}
 	}
 
+	ip := strings.TrimSpace(req.IP)
+	name := strings.TrimSpace(req.Name)
+	secret := strings.TrimSpace(req.Secret)
+	profileNASIP := strings.TrimSpace(req.ProfileNASIP)
+
 	_, err := DB.Exec(
 		"INSERT INTO nas (nasname, shortname, secret, profile_nas_ip, admin_id) VALUES (?, ?, ?, ?, ?)",
-		req.IP,
-		req.Name,
-		req.Secret,
-		req.ProfileNASIP,
+		ip,
+		name,
+		secret,
+		profileNASIP,
 		targetAdminID,
 	)
 	if err != nil {

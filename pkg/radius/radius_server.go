@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"log"
@@ -105,6 +106,12 @@ func StartRadiusServer() {
 
 // UpdateNASSecrets reloads NAS secrets from the database
 func UpdateNASSecrets() {
+	if DB == nil {
+		return
+	}
+	// Auto-trim any accidental whitespace in the database
+	_, _ = DB.Exec("UPDATE nas SET nasname = TRIM(nasname), secret = TRIM(secret)")
+
 	rows, err := DB.Query("SELECT nasname, secret FROM nas")
 	if err != nil {
 		log.Printf("[radius] Failed to load NAS secrets: %v", err)
@@ -120,7 +127,11 @@ func UpdateNASSecrets() {
 	for rows.Next() {
 		var ip, secret string
 		if err := rows.Scan(&ip, &secret); err == nil {
-			newSecrets[ip] = secret
+			ip = strings.TrimSpace(ip)
+			secret = strings.TrimSpace(secret)
+			if ip != "" && secret != "" {
+				newSecrets[ip] = secret
+			}
 		}
 	}
 	nasSecrets = newSecrets
@@ -132,21 +143,177 @@ func getNASSecret(ctx context.Context, remote net.Addr) ([]byte, error) {
 	defer nasMu.RUnlock()
 
 	host, _, _ := net.SplitHostPort(remote.String())
-	radiusLogger.Printf("[radius] Request from NAS IP: %s", host)
+	host = strings.TrimSpace(host)
+	debugEnabled := os.Getenv("DEBUG_RADIUS") == "1" || os.Getenv("DEBUG_RADIUS") == "true" || os.Getenv("DEBUG") == "1"
 
 	if secret, ok := nasSecrets[host]; ok {
+		if debugEnabled {
+			fp := sha256.Sum256([]byte(secret))
+			radiusLogger.Printf("[radius] [DEBUG] NAS [%s] matched secret (len=%d, sha256_prefix=%x)", host, len(secret), fp[:4])
+		} else {
+			radiusLogger.Printf("[radius] Request from NAS IP: %s", host)
+		}
 		return []byte(secret), nil
 	}
 
 	// Wildcard support: If 0.0.0.0 exists in nasSecrets, use its secret for everyone
 	if secret, ok := nasSecrets["0.0.0.0"]; ok {
+		if debugEnabled {
+			fp := sha256.Sum256([]byte(secret))
+			radiusLogger.Printf("[radius] [DEBUG] NAS [%s] matched wildcard 0.0.0.0 secret (len=%d, sha256_prefix=%x)", host, len(secret), fp[:4])
+		} else {
+			radiusLogger.Printf("[radius] Request from NAS IP: %s (wildcard)", host)
+		}
 		return []byte(secret), nil
 	}
 
+	var known []string
+	for k := range nasSecrets {
+		known = append(known, k)
+	}
+	radiusLogger.Printf("[radius] ❌ Unknown NAS: %s (registered NAS in DB: %v)", host, known)
 	return nil, fmt.Errorf("unknown NAS: %s", host)
 }
 
+func isRadiusDebug() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG_RADIUS")))
+	if v == "1" || v == "true" || v == "yes" || v == "all" || v == "debug" {
+		return true
+	}
+	d := strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG")))
+	return d == "1" || d == "true" || d == "all"
+}
+
+func getAttributeName(typeCode byte) string {
+	switch typeCode {
+	case 1:
+		return "User-Name"
+	case 2:
+		return "User-Password"
+	case 3:
+		return "CHAP-Password"
+	case 4:
+		return "NAS-IP-Address"
+	case 5:
+		return "NAS-Port"
+	case 6:
+		return "Service-Type"
+	case 7:
+		return "Framed-Protocol"
+	case 8:
+		return "Framed-IP-Address"
+	case 9:
+		return "Framed-IP-Netmask"
+	case 24:
+		return "State"
+	case 26:
+		return "Vendor-Specific (VSA)"
+	case 27:
+		return "Session-Timeout"
+	case 28:
+		return "Idle-Timeout"
+	case 30:
+		return "Called-Station-Id"
+	case 31:
+		return "Calling-Station-Id"
+	case 32:
+		return "NAS-Identifier"
+	case 40:
+		return "Acct-Status-Type"
+	case 41:
+		return "Acct-Delay-Time"
+	case 42:
+		return "Acct-Input-Octets"
+	case 43:
+		return "Acct-Output-Octets"
+	case 44:
+		return "Acct-Session-Id"
+	case 45:
+		return "Acct-Authentic"
+	case 46:
+		return "Acct-Session-Time"
+	case 49:
+		return "Acct-Terminate-Cause"
+	case 60:
+		return "CHAP-Challenge"
+	case 61:
+		return "NAS-Port-Type"
+	case 80:
+		return "Message-Authenticator"
+	case 85:
+		return "Acct-Interim-Interval"
+	case 88:
+		return "Framed-Pool"
+	default:
+		return "Unknown-Attr"
+	}
+}
+
+func logPacketIn(r *radius.Request) {
+	if !isRadiusDebug() {
+		return
+	}
+	radiusLogger.Printf("============================== [📥 RADIUS INCOMING PACKET] ==============================")
+	radiusLogger.Printf("  🔹 Code: %v | ID: %d | From: %v | To: %v", r.Code, r.Identifier, r.RemoteAddr, r.LocalAddr)
+	radiusLogger.Printf("  🔹 Request Authenticator: %x", r.Authenticator)
+	radiusLogger.Printf("  🔹 Attributes List (%d total):", len(r.Attributes))
+	for i, avp := range r.Attributes {
+		typeCode := byte(avp.Type)
+		name := getAttributeName(typeCode)
+		attr := avp.Attribute
+		valStr := string(attr)
+		isPrintable := true
+		for _, b := range attr {
+			if b < 32 || b > 126 {
+				isPrintable = false
+				break
+			}
+		}
+		if isPrintable && len(valStr) > 0 {
+			radiusLogger.Printf("     [%02d] %-22s #%d: %q (len=%d, hex=%x)", typeCode, name, i+1, valStr, len(attr), attr)
+		} else {
+			radiusLogger.Printf("     [%02d] %-22s #%d: [binary len=%d, hex=%x]", typeCode, name, i+1, len(attr), attr)
+		}
+	}
+	radiusLogger.Printf("-----------------------------------------------------------------------------------------")
+}
+
+func logPacketOut(response *radius.Packet, remote net.Addr, start time.Time, writeErr error) {
+	if !isRadiusDebug() {
+		return
+	}
+	dur := time.Since(start)
+	statusStr := "SUCCESS ✅"
+	if writeErr != nil {
+		statusStr = fmt.Sprintf("FAILED ❌ (%v)", writeErr)
+	}
+	radiusLogger.Printf("============================== [📤 RADIUS OUTGOING PACKET] =============================")
+	radiusLogger.Printf("  🔸 Code: %v | ID: %d | To: %v | Status: %s | Time: %v", response.Code, response.Identifier, remote, statusStr, dur)
+	radiusLogger.Printf("  🔸 Response Authenticator (pre-encode): %x", response.Authenticator)
+	radiusLogger.Printf("  🔸 Attributes List (%d total):", len(response.Attributes))
+	for i, avp := range response.Attributes {
+		typeCode := byte(avp.Type)
+		name := getAttributeName(typeCode)
+		attr := avp.Attribute
+		valStr := string(attr)
+		isPrintable := true
+		for _, b := range attr {
+			if b < 32 || b > 126 {
+				isPrintable = false
+				break
+			}
+		}
+		if isPrintable && len(valStr) > 0 {
+			radiusLogger.Printf("     [%02d] %-22s #%d: %q (len=%d, hex=%x)", typeCode, name, i+1, valStr, len(attr), attr)
+		} else {
+			radiusLogger.Printf("     [%02d] %-22s #%d: [binary len=%d, hex=%x]", typeCode, name, i+1, len(attr), attr)
+		}
+	}
+	radiusLogger.Printf("=========================================================================================")
+}
+
 func handleRadiusPacket(w radius.ResponseWriter, r *radius.Request) {
+	logPacketIn(r)
 	switch r.Code {
 	case radius.CodeAccessRequest:
 		username := rfc2865.UserName_GetString(r.Packet)
@@ -161,8 +328,9 @@ func handleRadiusPacket(w radius.ResponseWriter, r *radius.Request) {
 }
 
 func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
+	startAuthTime := time.Now()
 	username := rfc2865.UserName_GetString(r.Packet)
-	debugEnabled := os.Getenv("DEBUG_RADIUS") == "1" || os.Getenv("DEBUG_RADIUS") == "true" || os.Getenv("DEBUG") == "1"
+	debugEnabled := isRadiusDebug()
 
 	if debugEnabled {
 		radiusLogger.Printf("[radius] [DEBUG] handleAuthRequest: processing user [%s] from remote %v", username, r.RemoteAddr)
@@ -414,6 +582,10 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	if isPPP {
 		rfc2865.ServiceType_Add(response, rfc2865.ServiceType_Value_FramedUser)
 		rfc2865.FramedProtocol_Add(response, rfc2865.FramedProtocol_Value_PPP)
+	} else if reqServiceType != 0 {
+		rfc2865.ServiceType_Add(response, reqServiceType)
+	} else {
+		rfc2865.ServiceType_Add(response, rfc2865.ServiceType_Value_LoginUser)
 	}
 
 	// Optional: Set Interim Interval to 5 minutes
@@ -468,10 +640,20 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	} else {
 		radiusLogger.Printf("[radius] ✅ مصادقة ناجحة: تم قبول اتصال [%s] بنجاح | البروتوكول: %s | NAS: %v", username, authProtocol, r.RemoteAddr)
 	}
-	w.Write(response)
+
+	// Sign Message-Authenticator if the request contained Message-Authenticator (RFC 2869 Requirement)
+	if reqMA := rfc2869.MessageAuthenticator_Get(r.Packet); reqMA != nil {
+		if err := signMessageAuthenticator(response); err != nil {
+			radiusLogger.Printf("[radius] ❌ خطأ في توقيع Message-Authenticator: %v", err)
+		}
+	}
+
+	writeErr := w.Write(response)
+	logPacketOut(response, r.RemoteAddr, startAuthTime, writeErr)
 }
 
 func handleGlobalHotspotAuth(w radius.ResponseWriter, r *radius.Request, username string) bool {
+	startAuthTime := time.Now()
 	password := rfc2865.UserPassword_GetString(r.Packet)
 	callingStation := rfc2865.CallingStationID_GetString(r.Packet)
 	framedIP := rfc2865.FramedIPAddress_Get(r.Packet)
@@ -522,7 +704,15 @@ func handleGlobalHotspotAuth(w radius.ResponseWriter, r *radius.Request, usernam
 		rfc2865.ReplyMessage_Add(reply, []byte("SASMAN Global HotSpot Welcome"))
 	}
 
-	w.Write(reply)
+	// Sign Message-Authenticator if request contained it
+	if reqMA := rfc2869.MessageAuthenticator_Get(r.Packet); reqMA != nil {
+		if err := signMessageAuthenticator(reply); err != nil {
+			radiusLogger.Printf("[radius] ❌ خطأ في توقيع Message-Authenticator المركزي: %v", err)
+		}
+	}
+
+	writeErr := w.Write(reply)
+	logPacketOut(reply, r.RemoteAddr, startAuthTime, writeErr)
 	return true
 }
 
@@ -535,9 +725,16 @@ func writeAccessReject(w radius.ResponseWriter, r *radius.Request, username, rea
 		rfc2865.ReplyMessage_AddString(response, reason)
 	}
 	radiusLogger.Printf("[radius] ❌ رفض الاتصال: يوزر [%s] | السبب: %s | NAS: %v", username, translateRejectReason(reason), r.RemoteAddr)
-	if err := w.Write(response); err != nil {
-		log.Printf("[radius] ❌ خطأ في إرسال الرفض للمستخدم %s: %v", username, err)
+
+	// Sign Message-Authenticator if request contained it
+	if reqMA := rfc2869.MessageAuthenticator_Get(r.Packet); reqMA != nil {
+		if err := signMessageAuthenticator(response); err != nil {
+			radiusLogger.Printf("[radius] ❌ خطأ في توقيع Message-Authenticator للرفض: %v", err)
+		}
 	}
+
+	writeErr := w.Write(response)
+	logPacketOut(response, r.RemoteAddr, time.Now(), writeErr)
 }
 
 func translateRejectReason(reason string) string {
