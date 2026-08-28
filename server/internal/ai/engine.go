@@ -193,7 +193,24 @@ func (e *Engine) Chat(ctx context.Context, messages []ChatMessage, targetSubdoma
 	return e.ChatStream(ctx, messages, targetSubdomain, nil)
 }
 
-// tryFastIntentMatch handles common queries directly via tunnel without consuming LLM tokens
+// isCompoundQuery checks if the user's prompt is a multi-step/compound request requiring full LLM reasoning
+func isCompoundQuery(q string) bool {
+	compoundIndicators := []string{
+		" و", " ثم ", " وايضا", " وأيضا", " وكذلك", " وافحص", " وفحص", " مع ",
+		"فايروول", "جدار", "firewall", "سجلات", "log", "هجمات", "attack",
+		"منافذ", "واجهات", "interface", "بورتات", "توجيه", "routing", "mangle",
+		"خطة", "صلح", "عدل", "حل", "fix", "vpn", "dns", "drop", "nat",
+		"ثغرات", "مشاكل", "تقرير", "كامل", "شامل", "audit", "security",
+	}
+	for _, ind := range compoundIndicators {
+		if strings.Contains(q, ind) {
+			return true
+		}
+	}
+	return false
+}
+
+// tryFastIntentMatch handles single-topic common queries directly via tunnel without consuming LLM tokens
 func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain string, emit func(StreamEvent)) (*ChatMessage, bool) {
 	if subdomain == "" {
 		return nil, false
@@ -201,6 +218,11 @@ func (e *Engine) tryFastIntentMatch(ctx context.Context, query string, subdomain
 
 	q := strings.ToLower(strings.TrimSpace(query))
 	if q == "" {
+		return nil, false
+	}
+
+	// If query is compound (contains multiple tasks like CPU + Interfaces + Firewall + PPPoE), hand off to LLM
+	if isCompoundQuery(q) {
 		return nil, false
 	}
 
@@ -438,12 +460,12 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 	tools := GetRouterOSToolDefinitions()
 	var finalPlan *ChangePlan
 
-	// Execute Tool Calling loop (reduced from 5 to 2 iterations to prevent repetitive guessing)
-	for iter := 0; iter < 2; iter++ {
+	// Execute Tool Calling loop (max 4 iterations for parallel execution + deep dive + final synthesis)
+	for iter := 0; iter < 4; iter++ {
 		emit(StreamEvent{
 			Type:  "thought",
 			Title: "استدعاء نموذج الذكاء الاصطناعي",
-			Text:  fmt.Sprintf("جاري التخطيط للخطوات بواسطة %s (%s) [دورة %d/2]...", settings.Provider, settings.Model, iter+1),
+			Text:  fmt.Sprintf("جاري التخطيط للخطوات بواسطة %s (%s) [دورة %d/4]...", settings.Provider, settings.Model, iter+1),
 		})
 
 		req := ChatCompletionRequest{
