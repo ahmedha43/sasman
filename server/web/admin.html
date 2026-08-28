@@ -3094,28 +3094,42 @@ ${setupCmd}`;
         item.innerHTML = `<span style="color:#a855f7; flex-shrink:0;">🧠</span> <div><strong style="color:#e2e8f0;">${escapeHtml(ev.title || 'تفكير')}:</strong> <span style="color:#94a3b8;">${escapeHtml(ev.text || '')}</span></div>`;
         body.appendChild(item);
       } else if (ev.type === 'tool_start') {
-        const toolId = `${boxId}-tool-${ev.tool}`;
+        const rawKey = ev.tool_id ? `${ev.tool_id}` : `${ev.tool || 'tool'}`;
+        const cleanKey = rawKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const toolId = `${boxId}-tool-${cleanKey}`;
         const item = document.createElement('div');
         item.id = toolId;
-        item.style.cssText = 'background:#0f172a; border:1px solid #334155; border-right:3px solid #f59e0b; border-radius:6px; padding:6px 10px; font-size:11px;';
+        item.dataset.tool = ev.tool || '';
+        item.style.cssText = 'background:#0f172a; border:1px solid #334155; border-right:3px solid #f59e0b; border-radius:6px; padding:6px 10px; font-size:11px; margin-bottom:4px;';
         item.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <span style="color:#f8fafc; font-weight:bold;"><i class="fa-solid fa-wrench fa-spin" style="color:#f59e0b; margin-left:4px;"></i> ${escapeHtml(ev.title || ev.tool)}</span>
-            <span class="badge" style="background:#b45309; color:#fff; font-size:9px;">⏳ جاري التنفيذ</span>
+            <span class="badge tool-pending-badge" style="background:#b45309; color:#fff; font-size:9px;">⏳ جاري التنفيذ</span>
           </div>
           <div class="tool-detail" style="font-size:10px; color:#94a3b8; margin-top:2px;">${escapeHtml(ev.text || '')}</div>
         `;
         body.appendChild(item);
       } else if (ev.type === 'tunnel_exec') {
-        const toolId = `${boxId}-tool-${ev.tool}`;
+        const rawKey = ev.tool_id ? `${ev.tool_id}` : `${ev.tool || 'tool'}`;
+        const cleanKey = rawKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const toolId = `${boxId}-tool-${cleanKey}`;
         const toolElem = document.getElementById(toolId) || body;
         const line = document.createElement('div');
         line.style.cssText = 'font-size:10px; color:#38bdf8; margin-top:3px;';
         line.innerHTML = `<i class="fa-solid fa-bolt" style="color:#38bdf8;"></i> ${escapeHtml(ev.text || '')}`;
         toolElem.appendChild(line);
       } else if (ev.type === 'tool_result') {
-        const toolId = `${boxId}-tool-${ev.tool}`;
-        const toolElem = document.getElementById(toolId);
+        const rawKey = ev.tool_id ? `${ev.tool_id}` : `${ev.tool || 'tool'}`;
+        const cleanKey = rawKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const toolId = `${boxId}-tool-${cleanKey}`;
+        let toolElem = document.getElementById(toolId);
+        if (!toolElem && ev.tool) {
+          // Fallback to latest pending element matching tool name
+          const pending = body.querySelectorAll(`div[data-tool="${ev.tool}"] .tool-pending-badge`);
+          if (pending.length > 0) {
+            toolElem = pending[pending.length - 1].closest('div[id]');
+          }
+        }
         if (toolElem) {
           const isSuccess = ev.status === 'success';
           toolElem.style.borderRight = isSuccess ? '3px solid #22c55e' : '3px solid #ef4444';
@@ -3129,10 +3143,22 @@ ${setupCmd}`;
         }
       } else if (ev.type === 'plan') {
         const item = document.createElement('div');
-        item.style.cssText = 'background:#032b43; border:1px solid #0284c7; border-radius:6px; padding:6px 10px; font-size:11px; color:#7dd3fc;';
+        item.style.cssText = 'background:#032b43; border:1px solid #0284c7; border-radius:6px; padding:6px 10px; font-size:11px; color:#7dd3fc; margin-bottom:4px;';
         item.innerHTML = `<i class="fa-solid fa-clipboard-check"></i> <strong>خطة التعديل:</strong> ${escapeHtml(ev.summary || '')}`;
         body.appendChild(item);
       } else if (ev.type === 'done') {
+        // Clear any lingering pending tool spinners in body
+        if (body) {
+          body.querySelectorAll('.tool-pending-badge').forEach(el => {
+            el.className = 'badge';
+            el.style.background = '#15803d';
+            el.style.color = '#fff';
+            el.textContent = 'مكتمل';
+          });
+          body.querySelectorAll('.fa-spin').forEach(el => {
+            el.classList.remove('fa-spin');
+          });
+        }
         if (badge) {
           badge.style.background = '#14532d';
           badge.style.color = '#86efac';

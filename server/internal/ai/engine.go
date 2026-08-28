@@ -565,12 +565,12 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 }
 
 // executeSingleToolCall executes a single tool invocation over the tunnel/mcp
-func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interface{}, targetSubdomain string, emit func(StreamEvent), onPlanGenerated func(*ChangePlan)) (string, string, interface{}) {
+func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interface{}, targetSubdomain string, origEmit func(StreamEvent), onPlanGenerated func(*ChangePlan)) (string, string, interface{}) {
 	var fnName string
 	var argsStr string
 	var tcID string
 
-	if id, ok := tc["id"].(string); ok {
+	if id, ok := tc["id"].(string); ok && id != "" {
 		tcID = id
 	}
 	if fn, ok := tc["function"].(map[string]interface{}); ok {
@@ -580,6 +580,19 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 		if a, ok := fn["arguments"].(string); ok {
 			argsStr = a
 		}
+	}
+	if tcID == "" {
+		tcID = fmt.Sprintf("call_%d_%s", time.Now().UnixNano(), fnName)
+	}
+
+	emit := func(ev StreamEvent) {
+		if ev.Tool == "" {
+			ev.Tool = fnName
+		}
+		if ev.ToolID == "" {
+			ev.ToolID = tcID
+		}
+		origEmit(ev)
 	}
 
 	var args map[string]interface{}
@@ -633,6 +646,7 @@ func (e *Engine) executeSingleToolCall(ctx context.Context, tc map[string]interf
 	emit(StreamEvent{
 		Type:   "tool_start",
 		Tool:   fnName,
+		ToolID: tcID,
 		Title:  toolTitle,
 		Args:   args,
 		Status: "running",

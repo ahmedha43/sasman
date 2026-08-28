@@ -90,6 +90,7 @@ type StreamEvent struct {
 	Title     string       `json:"title,omitempty"`
 	Text      string       `json:"text,omitempty"`
 	Tool      string       `json:"tool,omitempty"`
+	ToolID    string       `json:"tool_id,omitempty"`
 	Args      interface{}  `json:"args,omitempty"`
 	Status    string       `json:"status,omitempty"` // "running", "success", "error"
 	Summary   string       `json:"summary,omitempty"`
