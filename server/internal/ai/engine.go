@@ -486,6 +486,48 @@ func (e *Engine) ChatStream(ctx context.Context, messages []ChatMessage, targetS
 
 		resp, err := e.llm.Complete(ctx, settings, req)
 		if err != nil {
+			// If we already executed tools successfully in earlier rounds, construct a graceful fallback from tool results!
+			if iter > 0 {
+				var fallbackText strings.Builder
+				fallbackText.WriteString("> ⚠️ **تنبيه:** تم جلب البيانات وتوليد التقرير بنجاح مباشرة من الراوتر، ولكن تعذر إكمال التلخيص بالذكاء الاصطناعي بسبب انتهاء رصيد/كوتا مفتاح الـ AI (`Quota Exceeded`).\n\n")
+
+				hasToolContent := false
+				for _, msg := range conversation {
+					if msg.Role == "tool" && msg.Content != "" {
+						var parsed map[string]interface{}
+						if errJSON := json.Unmarshal([]byte(msg.Content), &parsed); errJSON == nil {
+							if archReport, ok := parsed["architecture_report"].(string); ok && archReport != "" {
+								fallbackText.WriteString(archReport + "\n\n")
+								hasToolContent = true
+								continue
+							}
+							if summaryAr, ok := parsed["summary_arabic"].(string); ok && summaryAr != "" {
+								fallbackText.WriteString(summaryAr + "\n\n")
+								hasToolContent = true
+								continue
+							}
+						}
+						fallbackText.WriteString(fmt.Sprintf("```json\n%s\n```\n", msg.Content))
+						hasToolContent = true
+					}
+				}
+
+				if hasToolContent {
+					fallbackMsg := ChatMessage{
+						Role:    "assistant",
+						Content: fallbackText.String(),
+					}
+					emit(StreamEvent{
+						Type:    "done",
+						Title:   "تم استخراج البيانات بنجاح (مع تنبيه رصيد الـ AI)",
+						Text:    fallbackMsg.Content,
+						Message: &fallbackMsg,
+						Plan:    finalPlan,
+					})
+					return &fallbackMsg, finalPlan, nil
+				}
+			}
+
 			emit(StreamEvent{Type: "error", Text: err.Error()})
 			return nil, nil, err
 		}
