@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
-	"layeh.com/radius/rfc2866"
 )
 
 var (
@@ -403,7 +402,7 @@ func fetchUserFromLMDB(username string) (string, error) {
 	return string(data), nil
 }
 
-func saveAccountingToLMDB(username string, status rfc2866.AcctStatusType, sid, ip, cli string, in, out uint64, secs int64) {
+func saveAccountingToLMDB(username string, status uint32, sid, ip, cli string, in, out uint64, secs int64) {
 	_ = lmdbEnv.Update(func(txn *lmdb.Txn) error {
 		dbiSessions, _ := txn.OpenDBI("sessions", lmdb.Create)
 		dbiBandwidth, _ := txn.OpenDBI("bandwidth", lmdb.Create)
@@ -411,7 +410,7 @@ func saveAccountingToLMDB(username string, status rfc2866.AcctStatusType, sid, i
 		key := []byte(username)
 
 		switch status {
-		case rfc2866.AcctStatusType_Value_Start:
+		case 1: // Start
 			// sessions: sid|ip|cli
 			sessVal := fmt.Sprintf("%s|%s|%s", sid, ip, cli)
 			_ = txn.Put(dbiSessions, key, []byte(sessVal), 0)
@@ -420,7 +419,7 @@ func saveAccountingToLMDB(username string, status rfc2866.AcctStatusType, sid, i
 			bwVal := fmt.Sprintf("0|0|%d|0|%s|%s|%s", time.Now().Unix(), sid, ip, cli)
 			_ = txn.Put(dbiBandwidth, key, []byte(bwVal), 0)
 
-		case rfc2866.AcctStatusType_Value_InterimUpdate:
+		case 3: // Interim-Update
 			// Recover start time
 			startTime := time.Now().Unix() - secs
 			if existing, err := txn.Get(dbiBandwidth, key); err == nil {
@@ -438,7 +437,7 @@ func saveAccountingToLMDB(username string, status rfc2866.AcctStatusType, sid, i
 			sessVal := fmt.Sprintf("%s|%s|%s", sid, ip, cli)
 			_ = txn.Put(dbiSessions, key, []byte(sessVal), 0)
 
-		case rfc2866.AcctStatusType_Value_Stop:
+		case 2: // Stop
 			_ = txn.Del(dbiSessions, key, nil)
 			_ = txn.Del(dbiBandwidth, key, nil)
 		}

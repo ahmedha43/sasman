@@ -3,9 +3,8 @@ package radius
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/md5"
 	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -16,25 +15,18 @@ import (
 	"sync"
 	"time"
 
-	"layeh.com/radius"
-	"layeh.com/radius/rfc2759"
-	"layeh.com/radius/rfc2865"
-	"layeh.com/radius/rfc2866"
-	"layeh.com/radius/rfc2869"
-	"layeh.com/radius/rfc3079"
-	"layeh.com/radius/vendors/microsoft"
+	"github.com/wxccs/radius/v2/crypto"
+	"github.com/wxccs/radius/v2/packet"
+	"github.com/wxccs/radius/v2/server"
+	"github.com/wxccs/radius/v2/types"
+	"github.com/wxccs/radius/v2/vendors/microsoft"
 
 	"mikrotik-manager/pkg/tunnel"
 )
 
 var radiusLogger *log.Logger
 
-// SecretSourceFunc is a functional adapter for radius.SecretSource
-type SecretSourceFunc func(ctx context.Context, addr net.Addr) ([]byte, error)
-
-func (f SecretSourceFunc) RADIUSSecret(ctx context.Context, addr net.Addr) ([]byte, error) {
-	return f(ctx, addr)
-}
+const MikroTikVendorID uint32 = 14988
 
 type ExpiredRedirect struct {
 	ExpiredPool    string
@@ -48,17 +40,17 @@ var (
 	profileRedirectsMu    sync.RWMutex
 )
 
-// StartRadiusServer initializes and starts the Go RADIUS server
+// StartRadiusServer initializes and starts the Go RADIUS server using github.com/wxccs/radius/v2
 func StartRadiusServer() {
 	// Initialize Logger
 	debugEnabled := os.Getenv("DEBUG_RADIUS") == "1" || os.Getenv("DEBUG_RADIUS") == "true" || os.Getenv("DEBUG") == "1"
 	logFile, err := os.OpenFile("data/radius.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err == nil {
 		if debugEnabled {
-			// Log to both standard output (which supervisor captures) and the log file
+			// Log to both standard output and the log file
 			radiusLogger = log.New(io.MultiWriter(os.Stdout, logFile), "", log.LstdFlags)
 		} else {
-			// Log ONLY to the log file (hides request logs from terminal/stdout)
+			// Log ONLY to the log file
 			radiusLogger = log.New(logFile, "", log.LstdFlags)
 		}
 	} else {
@@ -73,33 +65,62 @@ func StartRadiusServer() {
 	// Load NAS secrets from DB
 	UpdateNASSecrets()
 
-	// Load Profile Redirect cache from DB into memory (bottleneck-free)
+	// Load Profile Redirect cache from DB into memory
 	UpdateProfileRedirectsCache()
 
-	server := radius.PacketServer{
-		Addr:         ":1812",
-		Handler:      radius.HandlerFunc(handleRadiusPacket),
-		SecretSource: SecretSourceFunc(getNASSecret),
+	authPort := 1812
+	acctPort := 1813
+
+	network := "udp4"
+	bindIP := net.IPv4(0, 0, 0, 0)
+
+	secretLookup := func(remoteIP net.IP) ([]byte, bool) {
+		return getNASSecretByIP(remoteIP)
 	}
 
-	log.Printf("[radius] Starting Go RADIUS server on :1812 (Auth) and :1813 (Acct)...")
+	// 1. Auth Server Handler
+	authHandler := server.HandlerFunc(func(ctx context.Context, req *server.Request) (*packet.Packet, error) {
+		logPacketIn(req)
+		return handleAuthRequest(ctx, req)
+	})
 
-	// Start Auth server
+	// 2. Acct Server Handler
+	acctHandler := server.HandlerFunc(func(ctx context.Context, req *server.Request) (*packet.Packet, error) {
+		logPacketIn(req)
+		return handleAcctRequest(ctx, req)
+	})
+
+	log.Printf("[radius] Starting Go RADIUS server (wxccs/radius/v2) on :%d (Auth) and :%d (Acct) [%s]...", authPort, acctPort, network)
+
+	// Start Auth Server
 	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			log.Fatalf("[radius] Auth server failed: %v", err)
+		authSrv, err := server.NewUDPServer(
+			network,
+			&net.UDPAddr{IP: bindIP, Port: authPort},
+			authHandler,
+			secretLookup,
+		)
+		if err != nil {
+			log.Fatalf("[radius] Auth server initialization failed: %v", err)
+		}
+		if err := authSrv.Serve(context.Background()); err != nil {
+			log.Fatalf("[radius] Auth server stopped: %v", err)
 		}
 	}()
 
-	// Start Acct server
+	// Start Acct Server
 	go func() {
-		acctServer := radius.PacketServer{
-			Addr:         ":1813",
-			Handler:      radius.HandlerFunc(handleRadiusPacket),
-			SecretSource: SecretSourceFunc(getNASSecret),
+		acctSrv, err := server.NewUDPServer(
+			network,
+			&net.UDPAddr{IP: bindIP, Port: acctPort},
+			acctHandler,
+			secretLookup,
+		)
+		if err != nil {
+			log.Fatalf("[radius] Acct server initialization failed: %v", err)
 		}
-		if err := acctServer.ListenAndServe(); err != nil {
-			log.Fatalf("[radius] Acct server failed: %v", err)
+		if err := acctSrv.Serve(context.Background()); err != nil {
+			log.Fatalf("[radius] Acct server stopped: %v", err)
 		}
 	}()
 }
@@ -138,33 +159,35 @@ func UpdateNASSecrets() {
 	log.Printf("[radius] Loaded %d NAS secrets", len(nasSecrets))
 }
 
-func getNASSecret(ctx context.Context, remote net.Addr) ([]byte, error) {
+func getNASSecretByIP(remoteIP net.IP) ([]byte, bool) {
 	nasMu.RLock()
 	defer nasMu.RUnlock()
 
-	host, _, _ := net.SplitHostPort(remote.String())
-	host = strings.TrimSpace(host)
-	debugEnabled := os.Getenv("DEBUG_RADIUS") == "1" || os.Getenv("DEBUG_RADIUS") == "true" || os.Getenv("DEBUG") == "1"
+	host := remoteIP.String()
+	debugEnabled := isRadiusDebug()
 
 	if secret, ok := nasSecrets[host]; ok {
 		if debugEnabled {
 			fp := sha256.Sum256([]byte(secret))
 			radiusLogger.Printf("[radius] [DEBUG] NAS [%s] matched secret (len=%d, sha256_prefix=%x)", host, len(secret), fp[:4])
-		} else {
-			radiusLogger.Printf("[radius] Request from NAS IP: %s", host)
 		}
-		return []byte(secret), nil
+		return []byte(secret), true
 	}
 
-	// Wildcard support: If 0.0.0.0 exists in nasSecrets, use its secret for everyone
+	// Localhost fallback
+	if host == "127.0.0.1" || host == "::1" {
+		if secret, ok := nasSecrets["127.0.0.1"]; ok {
+			return []byte(secret), true
+		}
+	}
+
+	// Wildcard 0.0.0.0 fallback
 	if secret, ok := nasSecrets["0.0.0.0"]; ok {
 		if debugEnabled {
 			fp := sha256.Sum256([]byte(secret))
 			radiusLogger.Printf("[radius] [DEBUG] NAS [%s] matched wildcard 0.0.0.0 secret (len=%d, sha256_prefix=%x)", host, len(secret), fp[:4])
-		} else {
-			radiusLogger.Printf("[radius] Request from NAS IP: %s (wildcard)", host)
 		}
-		return []byte(secret), nil
+		return []byte(secret), true
 	}
 
 	var known []string
@@ -172,7 +195,7 @@ func getNASSecret(ctx context.Context, remote net.Addr) ([]byte, error) {
 		known = append(known, k)
 	}
 	radiusLogger.Printf("[radius] ❌ Unknown NAS: %s (registered NAS in DB: %v)", host, known)
-	return nil, fmt.Errorf("unknown NAS: %s", host)
+	return nil, false
 }
 
 func isRadiusDebug() bool {
@@ -186,61 +209,61 @@ func isRadiusDebug() bool {
 
 func getAttributeName(typeCode byte) string {
 	switch typeCode {
-	case 1:
+	case types.AttrUserName:
 		return "User-Name"
-	case 2:
+	case types.AttrUserPassword:
 		return "User-Password"
-	case 3:
+	case types.AttrCHAPPassword:
 		return "CHAP-Password"
-	case 4:
+	case types.AttrNASIPAddress:
 		return "NAS-IP-Address"
-	case 5:
+	case types.AttrNASPort:
 		return "NAS-Port"
-	case 6:
+	case types.AttrServiceType:
 		return "Service-Type"
-	case 7:
+	case types.AttrFramedProtocol:
 		return "Framed-Protocol"
-	case 8:
+	case types.AttrFramedIPAddress:
 		return "Framed-IP-Address"
-	case 9:
+	case types.AttrFramedIPNetmask:
 		return "Framed-IP-Netmask"
-	case 24:
+	case types.AttrState:
 		return "State"
-	case 26:
+	case types.AttrVendorSpecific:
 		return "Vendor-Specific (VSA)"
-	case 27:
+	case types.AttrSessionTimeout:
 		return "Session-Timeout"
-	case 28:
+	case types.AttrIdleTimeout:
 		return "Idle-Timeout"
-	case 30:
+	case types.AttrCalledStationID:
 		return "Called-Station-Id"
-	case 31:
+	case types.AttrCallingStationID:
 		return "Calling-Station-Id"
-	case 32:
+	case types.AttrNASIdentifier:
 		return "NAS-Identifier"
-	case 40:
+	case types.AttrAcctStatusType:
 		return "Acct-Status-Type"
-	case 41:
+	case types.AttrAcctDelayTime:
 		return "Acct-Delay-Time"
-	case 42:
+	case types.AttrAcctInputOctets:
 		return "Acct-Input-Octets"
-	case 43:
+	case types.AttrAcctOutputOctets:
 		return "Acct-Output-Octets"
-	case 44:
+	case types.AttrAcctSessionID:
 		return "Acct-Session-Id"
-	case 45:
+	case types.AttrAcctAuthentic:
 		return "Acct-Authentic"
-	case 46:
+	case types.AttrAcctSessionTime:
 		return "Acct-Session-Time"
-	case 49:
+	case types.AttrAcctTerminateCause:
 		return "Acct-Terminate-Cause"
-	case 60:
+	case types.AttrCHAPChallenge:
 		return "CHAP-Challenge"
-	case 61:
+	case types.AttrNASPortType:
 		return "NAS-Port-Type"
-	case 80:
+	case types.AttrMessageAuthenticator:
 		return "Message-Authenticator"
-	case 85:
+	case types.AttrAcctInterimInterval:
 		return "Acct-Interim-Interval"
 	case 88:
 		return "Framed-Pool"
@@ -249,18 +272,17 @@ func getAttributeName(typeCode byte) string {
 	}
 }
 
-func logPacketIn(r *radius.Request) {
+func logPacketIn(req *server.Request) {
 	if !isRadiusDebug() {
 		return
 	}
 	radiusLogger.Printf("============================== [📥 RADIUS INCOMING PACKET] ==============================")
-	radiusLogger.Printf("  🔹 Code: %v | ID: %d | From: %v | To: %v", r.Code, r.Identifier, r.RemoteAddr, r.LocalAddr)
-	radiusLogger.Printf("  🔹 Request Authenticator: %x", r.Authenticator)
-	radiusLogger.Printf("  🔹 Attributes List (%d total):", len(r.Attributes))
-	for i, avp := range r.Attributes {
-		typeCode := byte(avp.Type)
-		name := getAttributeName(typeCode)
-		attr := avp.Attribute
+	radiusLogger.Printf("  🔹 Code: %v | ID: %d | From: %v", req.Code, req.Identifier, req.RemoteAddr)
+	radiusLogger.Printf("  🔹 Request Authenticator: %x", req.Authenticator)
+	radiusLogger.Printf("  🔹 Attributes List (%d total):", len(req.Attributes))
+	for i, avp := range req.Attributes {
+		name := getAttributeName(avp.Type)
+		attr := avp.Value
 		valStr := string(attr)
 		isPrintable := true
 		for _, b := range attr {
@@ -270,31 +292,25 @@ func logPacketIn(r *radius.Request) {
 			}
 		}
 		if isPrintable && len(valStr) > 0 {
-			radiusLogger.Printf("     [%02d] %-22s #%d: %q (len=%d, hex=%x)", typeCode, name, i+1, valStr, len(attr), attr)
+			radiusLogger.Printf("     [%02d] %-22s #%d: %q (len=%d, hex=%x)", avp.Type, name, i+1, valStr, len(attr), attr)
 		} else {
-			radiusLogger.Printf("     [%02d] %-22s #%d: [binary len=%d, hex=%x]", typeCode, name, i+1, len(attr), attr)
+			radiusLogger.Printf("     [%02d] %-22s #%d: [binary len=%d, hex=%x]", avp.Type, name, i+1, len(attr), attr)
 		}
 	}
 	radiusLogger.Printf("-----------------------------------------------------------------------------------------")
 }
 
-func logPacketOut(response *radius.Packet, remote net.Addr, start time.Time, writeErr error) {
+func logPacketOut(response *packet.Packet, remote net.Addr, start time.Time) {
 	if !isRadiusDebug() {
 		return
 	}
 	dur := time.Since(start)
-	statusStr := "SUCCESS ✅"
-	if writeErr != nil {
-		statusStr = fmt.Sprintf("FAILED ❌ (%v)", writeErr)
-	}
 	radiusLogger.Printf("============================== [📤 RADIUS OUTGOING PACKET] =============================")
-	radiusLogger.Printf("  🔸 Code: %v | ID: %d | To: %v | Status: %s | Time: %v", response.Code, response.Identifier, remote, statusStr, dur)
-	radiusLogger.Printf("  🔸 Response Authenticator (pre-encode): %x", response.Authenticator)
+	radiusLogger.Printf("  🔸 Code: %v | ID: %d | To: %v | Time: %v", response.Code, response.Identifier, remote, dur)
 	radiusLogger.Printf("  🔸 Attributes List (%d total):", len(response.Attributes))
 	for i, avp := range response.Attributes {
-		typeCode := byte(avp.Type)
-		name := getAttributeName(typeCode)
-		attr := avp.Attribute
+		name := getAttributeName(avp.Type)
+		attr := avp.Value
 		valStr := string(attr)
 		isPrintable := true
 		for _, b := range attr {
@@ -304,60 +320,116 @@ func logPacketOut(response *radius.Packet, remote net.Addr, start time.Time, wri
 			}
 		}
 		if isPrintable && len(valStr) > 0 {
-			radiusLogger.Printf("     [%02d] %-22s #%d: %q (len=%d, hex=%x)", typeCode, name, i+1, valStr, len(attr), attr)
+			radiusLogger.Printf("     [%02d] %-22s #%d: %q (len=%d, hex=%x)", avp.Type, name, i+1, valStr, len(attr), attr)
 		} else {
-			radiusLogger.Printf("     [%02d] %-22s #%d: [binary len=%d, hex=%x]", typeCode, name, i+1, len(attr), attr)
+			radiusLogger.Printf("     [%02d] %-22s #%d: [binary len=%d, hex=%x]", avp.Type, name, i+1, len(attr), attr)
 		}
 	}
 	radiusLogger.Printf("=========================================================================================")
 }
 
-func handleRadiusPacket(w radius.ResponseWriter, r *radius.Request) {
-	logPacketIn(r)
-	switch r.Code {
-	case radius.CodeAccessRequest:
-		username := rfc2865.UserName_GetString(r.Packet)
-		nasIP, _, _ := net.SplitHostPort(r.RemoteAddr.String())
-		radiusLogger.Printf("[radius] 🔑 طلب مصادقة جديد: يوزر [%s] | من NAS: %s", username, nasIP)
-		handleAuthRequest(w, r)
-	case radius.CodeAccountingRequest:
-		handleAcctRequest(w, r)
-	default:
-		radiusLogger.Printf("[radius] Received unknown packet code: %v", r.Code)
+// Helpers to extract attributes from packet
+func getAttrString(p *packet.Packet, attrType byte) string {
+	for _, a := range p.Attributes {
+		if a.Type == attrType {
+			return string(a.Value)
+		}
 	}
+	return ""
 }
 
-func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
+func getAttrBytes(p *packet.Packet, attrType byte) []byte {
+	for _, a := range p.Attributes {
+		if a.Type == attrType {
+			return a.Value
+		}
+	}
+	return nil
+}
+
+func getAttrInteger(p *packet.Packet, attrType byte) uint32 {
+	for _, a := range p.Attributes {
+		if a.Type == attrType && len(a.Value) == 4 {
+			return binary.BigEndian.Uint32(a.Value)
+		}
+	}
+	return 0
+}
+
+func getAttrIP(p *packet.Packet, attrType byte) net.IP {
+	for _, a := range p.Attributes {
+		if a.Type == attrType {
+			return net.IP(a.Value)
+		}
+	}
+	return nil
+}
+
+func hasAttribute(p *packet.Packet, attrType byte) bool {
+	for _, a := range p.Attributes {
+		if a.Type == attrType {
+			return true
+		}
+	}
+	return false
+}
+
+// VSA MikroTik Builder Helpers
+func NewMikrotikString(vsaType byte, val string) packet.Attribute {
+	payload := make([]byte, 2+len(val))
+	payload[0] = vsaType
+	payload[1] = byte(2 + len(val))
+	copy(payload[2:], val)
+	return packet.NewVendorSpecific(MikroTikVendorID, payload)
+}
+
+func NewMikrotikInteger(vsaType byte, val uint32) packet.Attribute {
+	payload := make([]byte, 6)
+	payload[0] = vsaType
+	payload[1] = 6
+	binary.BigEndian.PutUint32(payload[2:], val)
+	return packet.NewVendorSpecific(MikroTikVendorID, payload)
+}
+
+func handleAuthRequest(ctx context.Context, req *server.Request) (*packet.Packet, error) {
 	startAuthTime := time.Now()
-	username := rfc2865.UserName_GetString(r.Packet)
+	username := getAttrString(req.Packet, types.AttrUserName)
 	debugEnabled := isRadiusDebug()
 
 	if debugEnabled {
-		radiusLogger.Printf("[radius] [DEBUG] handleAuthRequest: processing user [%s] from remote %v", username, r.RemoteAddr)
+		nasIP, _, _ := net.SplitHostPort(req.RemoteAddr.String())
+		radiusLogger.Printf("[radius] 🔑 طلب مصادقة جديد: يوزر [%s] | من NAS: %s", username, nasIP)
 	}
 
 	// 0. Check Scheduled Internet Shutdown
 	if IsShutdownActiveForUser(username) {
 		radiusLogger.Printf("[radius] ❌ رفض الاتصال: يوزر [%s] | السبب: جدول قطع الخدمة نشط حالياً", username)
-		writeAccessReject(w, r, username, "internet_shutdown")
-		return
+		return buildAccessReject(req, username, "internet_shutdown", startAuthTime), nil
 	}
 
 	// 1. Check Global Bypass (Blind Accept)
 	if isBypassEnabled() {
 		radiusLogger.Printf("[radius] ✅ تجاوز عام نشط: تم قبول اتصال [%s] تلقائياً", username)
-		w.Write(r.Response(radius.CodeAccessAccept))
-		return
+		resp := &packet.Packet{
+			Code:          types.AccessAccept,
+			Identifier:    req.Identifier,
+			Authenticator: req.Authenticator,
+		}
+		if hasAttribute(req.Packet, types.AttrMessageAuthenticator) {
+			resp.Attributes = append(resp.Attributes, packet.NewOctets(types.AttrMessageAuthenticator, make([]byte, 16)))
+		}
+		logPacketOut(resp, req.RemoteAddr, startAuthTime)
+		return resp, nil
 	}
 
-	// 2. Check if username specifies a cross-agent domain (e.g. user@ahmed.sas-man.net or user@ahmed)
+	// 2. Check cross-agent roaming / Central HotSpot domain
 	if strings.Contains(username, "@") || strings.Contains(username, "/") || strings.Contains(username, "\\") {
-		if handleGlobalHotspotAuth(w, r, username) {
-			return
+		if resp, handled := handleGlobalHotspotAuth(req, username, startAuthTime); handled {
+			return resp, nil
 		}
 	}
 
-	// 3. Fetch User Data from LMDB (with SQLite fallback for local users)
+	// 3. Fetch User Data from LMDB (with SQLite fallback)
 	data, err := getLMDBUserData(username)
 	if err != nil || data == "" {
 		if DB != nil {
@@ -366,7 +438,6 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 			if errDB == nil && dbPass != "" {
 				var lines []string
 				lines = append(lines, dbPass)
-				// Fetch other attributes from radreply
 				rows, errRows := DB.Query("SELECT attribute, value FROM radreply WHERE username = ?", username)
 				if errRows == nil && rows != nil {
 					for rows.Next() {
@@ -382,20 +453,16 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 			}
 		}
 	}
+
 	if err != nil || data == "" {
-		// Not found locally -> Try Central Server Global HotSpot / Voucher authentication before rejecting!
-		if handleGlobalHotspotAuth(w, r, username) {
-			return
+		// Not found locally -> Try Central Server Global HotSpot / Voucher authentication
+		if resp, handled := handleGlobalHotspotAuth(req, username, startAuthTime); handled {
+			return resp, nil
 		}
 		if debugEnabled {
 			radiusLogger.Printf("[radius] [DEBUG] User [%s] not found in LMDB/SQLite or query failed: %v", username, err)
 		}
-		writeAccessReject(w, r, username, "user not found")
-		return
-	}
-
-	if debugEnabled {
-		radiusLogger.Printf("[radius] [DEBUG] Retrieved raw LMDB data for user [%s]: %q", username, data)
+		return buildAccessReject(req, username, "user not found", startAuthTime), nil
 	}
 
 	lines := strings.Split(data, "\n")
@@ -403,8 +470,7 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 		if debugEnabled {
 			radiusLogger.Printf("[radius] [DEBUG] Invalid user data format in LMDB for user [%s]", username)
 		}
-		writeAccessReject(w, r, username, "invalid user data")
-		return
+		return buildAccessReject(req, username, "invalid user data", startAuthTime), nil
 	}
 
 	dbPassword := lines[0]
@@ -417,86 +483,83 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 		}
 	}
 
-	// 3. Determine Auth Protocol & Verify Password
+	// 4. Verify Authentication Method
 	var authSuccess bool
 	var mppeKeys []byte
+	var msChap2Success []byte
 	authProtocol := "PAP"
 
-	if password := rfc2865.UserPassword_GetString(r.Packet); password != "" {
-		// PAP
-		authSuccess = (password == dbPassword)
-		if debugEnabled {
-			radiusLogger.Printf("[radius] [DEBUG] PAP auth check for [%s]: received=%q (len=%d), dbPassword=%q (len=%d), Match=%t",
-				username, password, len(password), dbPassword, len(dbPassword), authSuccess)
-			if !authSuccess {
-				radiusLogger.Printf("[radius] [DEBUG] PAP mismatch hex: received=%x, dbPassword=%x", []byte(password), []byte(dbPassword))
-			}
-		}
-	} else if chapPass := rfc2865.CHAPPassword_Get(r.Packet); len(chapPass) > 0 {
-		// CHAP
-		authProtocol = "CHAP"
-		if len(chapPass) == 17 {
-			chapIdent := chapPass[0]
-			chapHash := chapPass[1:]
+	userPasswordRaw := getAttrBytes(req.Packet, types.AttrUserPassword)
+	chapPassword := getAttrBytes(req.Packet, types.AttrCHAPPassword)
 
-			challenge := rfc2865.CHAPChallenge_Get(r.Packet)
-			if len(challenge) == 0 {
-				challenge = r.Packet.Authenticator[:]
-			}
-
-			// Calculate MD5 hash: MD5(chapIdent + dbPassword + challenge)
-			h := md5.New()
-			h.Write([]byte{chapIdent})
-			h.Write([]byte(dbPassword))
-			h.Write(challenge)
-			expectedHash := h.Sum(nil)
-
-			authSuccess = bytes.Equal(expectedHash, chapHash)
-
-			if debugEnabled {
-				radiusLogger.Printf("[radius] [DEBUG] CHAP check for [%s]: ident=%d, challenge=%x, receivedHash=%x, expectedHash=%x, Match=%t",
-					username, chapIdent, challenge, chapHash, expectedHash, authSuccess)
-			}
-		} else {
-			if debugEnabled {
-				radiusLogger.Printf("[radius] [DEBUG] CHAP check for [%s]: invalid CHAPPassword length: %d (expected 17)", username, len(chapPass))
-			}
-		}
-	} else if msc2Resp := microsoft.MSCHAP2Response_Get(r.Packet); msc2Resp != nil {
-		// MS-CHAPv2
-		authProtocol = "MS-CHAPv2"
-		challenge := microsoft.MSCHAPChallenge_Get(r.Packet)
-		if len(challenge) == 16 && len(msc2Resp) == 50 {
-			peerChallenge := msc2Resp[2:18]
-			peerResponse := msc2Resp[26:50]
-
-			ntResponse, err := rfc2759.GenerateNTResponse(challenge, peerChallenge, []byte(username), []byte(dbPassword))
-			if err == nil && bytes.Equal(ntResponse, peerResponse) {
-				authSuccess = true
-				// Generate MPPE keys
-				ntHash := rfc2759.NTPasswordHash([]byte(dbPassword))
-				ntHashHash := rfc2759.NTPasswordHash(ntHash)
-				masterKey := rfc3079.GetMasterKey(ntHashHash, ntResponse)
-				sendKey, _ := rfc3079.GetAsymmetricStartKey(masterKey, 16, true)
-				recvKey, _ := rfc3079.GetAsymmetricStartKey(masterKey, 16, false)
-				mppeKeys = append(sendKey, recvKey...)
-			}
-			if debugEnabled {
-				radiusLogger.Printf("[radius] [DEBUG] MS-CHAPv2 check for [%s]: challenge=%x, peerChallenge=%x, peerResponse=%x, calculated NTResponse=%x, error=%v, Match=%t",
-					username, challenge, peerChallenge, peerResponse, ntResponse, err, authSuccess)
-				if !authSuccess {
-					radiusLogger.Printf("[radius] [DEBUG] MS-CHAPv2 fail details: dbPassword=%q (len=%d), dbPasswordHex=%x", dbPassword, len(dbPassword), []byte(dbPassword))
+	// Check for Microsoft MS-CHAPv2 VSA
+	var msc2Resp []byte
+	var msc2Challenge []byte
+	for _, a := range req.Attributes {
+		if a.Type == types.AttrVendorSpecific {
+			vID, payload, errVSA := a.VendorSpecific()
+			if errVSA == nil && vID == microsoft.VendorID && len(payload) >= 2 {
+				subType := payload[0]
+				subVal := payload[2:] // Skip Vendor-Type and Vendor-Length
+				if subType == microsoft.VendorTypeMSCHAP2Response {
+					msc2Resp = subVal
+				} else if subType == 11 { // MS-CHAP-Challenge
+					msc2Challenge = subVal
 				}
 			}
-		} else {
+		}
+	}
+
+	if len(userPasswordRaw) > 0 {
+		// PAP (password is encrypted with Request Authenticator & Secret)
+		decryptedPass, decErr := crypto.DecryptUserPassword(userPasswordRaw, req.Authenticator, req.Secret)
+		if decErr == nil {
+			authSuccess = (string(decryptedPass) == dbPassword)
 			if debugEnabled {
-				radiusLogger.Printf("[radius] [DEBUG] MS-CHAPv2 invalid structure for [%s]: challenge length=%d (expected 16), msc2Resp length=%d (expected 50)",
-					username, len(challenge), len(msc2Resp))
+				radiusLogger.Printf("[radius] [DEBUG] PAP auth check for [%s]: received=%q, dbPassword=%q, Match=%t",
+					username, string(decryptedPass), dbPassword, authSuccess)
 			}
 		}
-	} else {
+	} else if len(chapPassword) > 0 {
+		// CHAP
+		authProtocol = "CHAP"
+		challenge := getAttrBytes(req.Packet, types.AttrCHAPChallenge)
+		if len(challenge) == 0 {
+			challenge = req.Authenticator[:]
+		}
+
+		authSuccess = crypto.VerifyCHAPResponse(chapPassword, dbPassword, challenge)
 		if debugEnabled {
-			radiusLogger.Printf("[radius] [DEBUG] Unknown or unsupported auth protocol for user [%s]. Packet attributes: %v", username, r.Packet)
+			radiusLogger.Printf("[radius] [DEBUG] CHAP check for [%s]: challenge=%x, receivedPassword=%x, Match=%t",
+				username, challenge, chapPassword, authSuccess)
+		}
+	} else if len(msc2Resp) >= 49 {
+		// MS-CHAPv2
+		authProtocol = "MS-CHAPv2"
+		challenge := msc2Challenge
+		if len(challenge) == 0 {
+			challenge = req.Authenticator[:]
+		}
+		if len(challenge) >= 16 && len(msc2Resp) >= 50 {
+			ident := msc2Resp[0]
+			var authCh, peerCh [16]byte
+			copy(authCh[:], challenge[:16])
+			copy(peerCh[:], msc2Resp[2:18])
+			peerResponse := msc2Resp[26:50]
+
+			// Verify MS-CHAPv2 using wxccs crypto
+			ntResponse := crypto.GenerateNTResponse(authCh, peerCh, username, dbPassword)
+			if bytes.Equal(ntResponse[:], peerResponse) {
+				authSuccess = true
+				authRespStr := crypto.GenerateAuthenticatorResponse(authCh, peerCh, ntResponse, username, dbPassword)
+				msChap2Success = append([]byte{ident}, []byte(authRespStr)...)
+
+				// Derive MPPE keys
+				sendKey, recvKey, errMPPE := crypto.DeriveMPPEKeysFromPassword(dbPassword, ntResponse, 16)
+				if errMPPE == nil {
+					mppeKeys = append(sendKey, recvKey...)
+				}
+			}
 		}
 	}
 
@@ -504,11 +567,10 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 		if debugEnabled {
 			radiusLogger.Printf("[radius] [DEBUG] Authentication failed for user [%s] using protocol %s", username, authProtocol)
 		}
-		writeAccessReject(w, r, username, "invalid credentials")
-		return
+		return buildAccessReject(req, username, "invalid credentials", startAuthTime), nil
 	}
 
-	// 4. Check Enabled Status & Expiration
+	// 5. Check Enabled Status & Expiration
 	isDisabled := false
 	if val, ok := attributes["Enabled"]; ok && val == "0" {
 		isDisabled = true
@@ -523,17 +585,7 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	}
 
 	isExpiredOrDisabled := isDisabled || isExpired
-
-	// Always read expired pool/profile FRESH from memory cache to avoid stale LMDB data or SQLite bottlenecks
 	expiredPool, expiredProfile := lookupExpiredRedirect(username, attributes)
-
-	// Also check LMDB attributes as fallback (in case DB lookup fails)
-	if expiredPool == "" {
-		expiredPool = strings.TrimSpace(attributes["Expired-Pool"])
-	}
-	if expiredProfile == "" {
-		expiredProfile = strings.TrimSpace(attributes["Expired-Profile"])
-	}
 
 	if isExpiredOrDisabled {
 		radiusLogger.Printf("[radius] ⚠️ المشترك [%s] منتهي/معطل | Expired-Pool=[%s] Expired-Profile=[%s]", username, expiredPool, expiredProfile)
@@ -542,21 +594,19 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 			if isDisabled {
 				reason = "user disabled"
 			}
-			writeAccessReject(w, r, username, reason)
-			return
+			return buildAccessReject(req, username, reason, startAuthTime), nil
 		}
 	}
 
-	// 5. Check NAS-IP-Address binding
+	// 6. Check NAS-IP-Address binding
 	if val, ok := attributes["NAS-IP-Address"]; ok && val != "ALL" && val != "" {
-		nasIP, _, _ := net.SplitHostPort(r.RemoteAddr.String())
+		nasIP, _, _ := net.SplitHostPort(req.RemoteAddr.String())
 		if val != nasIP {
-			writeAccessReject(w, r, username, "NAS-IP-Address mismatch")
-			return
+			return buildAccessReject(req, username, "NAS-IP-Address mismatch", startAuthTime), nil
 		}
 	}
 
-	// 6. Check Simultaneous-Use (only for active users)
+	// 7. Check Simultaneous-Use
 	if !isExpiredOrDisabled {
 		if val, ok := attributes["Simultaneous-Use"]; ok {
 			limit, _ := strconv.Atoi(val)
@@ -569,66 +619,81 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 		}
 	}
 
-	// 7. Success - Build Accept Packet
-	response := r.Response(radius.CodeAccessAccept)
-
-	// Add User-Name back (important for some NAS)
-	rfc2865.UserName_Add(response, []byte(username))
-
-	// Match protocol requirements: Add Framed-Protocol: PPP only for PPP sessions
-	reqServiceType := rfc2865.ServiceType_Get(r.Packet)
-	reqFramedProtocol := rfc2865.FramedProtocol_Get(r.Packet)
-	isPPP := (reqFramedProtocol == rfc2865.FramedProtocol_Value_PPP || reqServiceType == rfc2865.ServiceType_Value_FramedUser)
-	if isPPP {
-		rfc2865.ServiceType_Add(response, rfc2865.ServiceType_Value_FramedUser)
-		rfc2865.FramedProtocol_Add(response, rfc2865.FramedProtocol_Value_PPP)
-	} else if reqServiceType != 0 {
-		rfc2865.ServiceType_Add(response, reqServiceType)
-	} else {
-		rfc2865.ServiceType_Add(response, rfc2865.ServiceType_Value_LoginUser)
+	// 8. Build Access-Accept Packet
+	response := &packet.Packet{
+		Code:          types.AccessAccept,
+		Identifier:    req.Identifier,
+		Authenticator: req.Authenticator,
 	}
 
-	// Optional: Set Interim Interval to 5 minutes
-	rfc2869.AcctInterimInterval_Add(response, 300)
+	// Standard User-Name
+	response.Attributes = append(response.Attributes, packet.NewString(types.AttrUserName, username))
 
-	// Add attributes to response
+	// Determine Service-Type & Framed-Protocol
+	reqServiceType := getAttrInteger(req.Packet, types.AttrServiceType)
+	reqFramedProtocol := getAttrInteger(req.Packet, types.AttrFramedProtocol)
+	isPPP := (reqFramedProtocol == 1 || reqServiceType == 2) // 1 = PPP, 2 = Framed-User
+
+	if isPPP {
+		response.Attributes = append(response.Attributes, packet.NewInteger(types.AttrServiceType, 2))  // Framed-User
+		response.Attributes = append(response.Attributes, packet.NewInteger(types.AttrFramedProtocol, 1)) // PPP
+	} else if reqServiceType != 0 {
+		response.Attributes = append(response.Attributes, packet.NewInteger(types.AttrServiceType, reqServiceType))
+	} else {
+		response.Attributes = append(response.Attributes, packet.NewInteger(types.AttrServiceType, 1)) // Login-User
+	}
+
+	// Acct-Interim-Interval (5 minutes = 300s)
+	response.Attributes = append(response.Attributes, packet.NewInteger(types.AttrAcctInterimInterval, 300))
+
+	// Add Reply Attributes
 	if isExpiredOrDisabled {
 		if expiredPool != "" && isPPP {
-			addReplyAttribute(response, "Framed-Pool", expiredPool)
+			response.Attributes = append(response.Attributes, packet.NewString(88, expiredPool)) // Framed-Pool
 		}
 		if expiredProfile != "" {
-			addReplyAttribute(response, "Mikrotik-Group", expiredProfile)
+			response.Attributes = append(response.Attributes, NewMikrotikString(3, expiredProfile)) // Mikrotik-Group
 		}
 	} else {
-		// Add standard attributes from LMDB for active subscribers
 		for k, v := range attributes {
 			if k == "Enabled" || k == "Expiration" || k == "Simultaneous-Use" || k == "NAS-IP-Address" || k == "Expired-Pool" || k == "Expired-Profile" || k == "User-Group" {
 				continue
 			}
-			// Do NOT send Framed-Pool or Framed-IP-Netmask to HotSpot (non-PPP) users
 			if (k == "Framed-Pool" || k == "Framed-IP-Netmask") && !isPPP {
 				continue
 			}
-			addReplyAttribute(response, k, v)
+			addReplyAttributeToPacket(response, k, v)
 		}
 	}
 
 	// Add MS-CHAPv2 success and MPPE keys if applicable
-	if msc2Resp := microsoft.MSCHAP2Response_Get(r.Packet); msc2Resp != nil && authSuccess {
-		peerResponse := msc2Resp[26:50]
-		challenge := microsoft.MSCHAPChallenge_Get(r.Packet)
-		authResp, _ := rfc2759.GenerateAuthenticatorResponse(challenge, msc2Resp[2:18], peerResponse, []byte(username), []byte(dbPassword))
-		microsoft.MSCHAP2Success_Add(response, append([]byte{msc2Resp[0]}, []byte(authResp)...))
-
+	if len(msChap2Success) > 0 {
+		response.Attributes = append(response.Attributes, packet.NewVendorSpecific(microsoft.VendorID, append([]byte{microsoft.VendorTypeMSCHAP2Success, byte(len(msChap2Success) + 2)}, msChap2Success...)))
 		if len(mppeKeys) == 32 {
-			sendKeyRaw := mppeKeys[0:16]
-			recvKeyRaw := mppeKeys[16:32]
+			sendKeyEnc, _ := crypto.EncryptMPPEKey(mppeKeys[0:16], req.Authenticator, req.Secret)
+			recvKeyEnc, _ := crypto.EncryptMPPEKey(mppeKeys[16:32], req.Authenticator, req.Secret)
 
-			microsoft.MSMPPESendKey_Add(response, sendKeyRaw)
-			microsoft.MSMPPERecvKey_Add(response, recvKeyRaw)
-			microsoft.MSMPPEEncryptionPolicy_Add(response, microsoft.MSMPPEEncryptionPolicy_Value_EncryptionRequired)
-			microsoft.MSMPPEEncryptionTypes_Add(response, microsoft.MSMPPEEncryptionTypes_Value_RC4128bitAllowed)
+			response.Attributes = append(response.Attributes, packet.NewVendorSpecific(microsoft.VendorID, append([]byte{16, byte(len(sendKeyEnc) + 2)}, sendKeyEnc...))) // MS-MPPE-Send-Key
+			response.Attributes = append(response.Attributes, packet.NewVendorSpecific(microsoft.VendorID, append([]byte{17, byte(len(recvKeyEnc) + 2)}, recvKeyEnc...))) // MS-MPPE-Recv-Key
+			
+			// Encryption Policy & Types
+			policyBuf := make([]byte, 6)
+			policyBuf[0] = 7 // MS-MPPE-Encryption-Policy
+			policyBuf[1] = 6
+			binary.BigEndian.PutUint32(policyBuf[2:], 1) // Encryption Required
+			response.Attributes = append(response.Attributes, packet.NewVendorSpecific(microsoft.VendorID, policyBuf))
+
+			typeBuf := make([]byte, 6)
+			typeBuf[0] = 8 // MS-MPPE-Encryption-Types
+			typeBuf[1] = 6
+			binary.BigEndian.PutUint32(typeBuf[2:], 4) // RC4-128bit
+			response.Attributes = append(response.Attributes, packet.NewVendorSpecific(microsoft.VendorID, typeBuf))
 		}
+	}
+
+	// If request contained Message-Authenticator, append empty one so Marshal calculates HMAC-MD5 (RFC 2869/3579)
+	if hasAttribute(req.Packet, types.AttrMessageAuthenticator) {
+		response.Attributes = append(response.Attributes, packet.NewOctets(types.AttrMessageAuthenticator, make([]byte, 16)))
 	}
 
 	if isExpiredOrDisabled {
@@ -636,28 +701,21 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 		if isDisabled {
 			reason = "حساب معطل"
 		}
-		radiusLogger.Printf("[radius] ⚠️ تحويل: قبول اتصال [%s] بالباقة المحدودة (%s) | Pool=%s, Profile=%s | NAS: %v", username, reason, expiredPool, expiredProfile, r.RemoteAddr)
+		radiusLogger.Printf("[radius] ⚠️ تحويل: قبول اتصال [%s] بالباقة المحدودة (%s) | Pool=%s, Profile=%s | NAS: %v", username, reason, expiredPool, expiredProfile, req.RemoteAddr)
 	} else {
-		radiusLogger.Printf("[radius] ✅ مصادقة ناجحة: تم قبول اتصال [%s] بنجاح | البروتوكول: %s | NAS: %v", username, authProtocol, r.RemoteAddr)
+		radiusLogger.Printf("[radius] ✅ مصادقة ناجحة: تم قبول اتصال [%s] بنجاح | البروتوكول: %s | NAS: %v", username, authProtocol, req.RemoteAddr)
 	}
 
-	// Sign Message-Authenticator if the request contained Message-Authenticator (RFC 2869 Requirement)
-	if reqMA := rfc2869.MessageAuthenticator_Get(r.Packet); reqMA != nil {
-		if err := signMessageAuthenticator(response); err != nil {
-			radiusLogger.Printf("[radius] ❌ خطأ في توقيع Message-Authenticator: %v", err)
-		}
-	}
-
-	writeErr := w.Write(response)
-	logPacketOut(response, r.RemoteAddr, startAuthTime, writeErr)
+	logPacketOut(response, req.RemoteAddr, startAuthTime)
+	return response, nil
 }
 
-func handleGlobalHotspotAuth(w radius.ResponseWriter, r *radius.Request, username string) bool {
-	startAuthTime := time.Now()
-	password := rfc2865.UserPassword_GetString(r.Packet)
-	callingStation := rfc2865.CallingStationID_GetString(r.Packet)
-	framedIP := rfc2865.FramedIPAddress_Get(r.Packet)
-	nasIP, _, _ := net.SplitHostPort(r.RemoteAddr.String())
+func handleGlobalHotspotAuth(req *server.Request, username string, startAuthTime time.Time) (*packet.Packet, bool) {
+	passwordRaw := getAttrBytes(req.Packet, types.AttrUserPassword)
+	password, _ := crypto.DecryptUserPassword(passwordRaw, req.Authenticator, req.Secret)
+	callingStation := getAttrString(req.Packet, types.AttrCallingStationID)
+	framedIP := getAttrIP(req.Packet, types.AttrFramedIPAddress)
+	nasIP, _, _ := net.SplitHostPort(req.RemoteAddr.String())
 
 	var framedIPStr string
 	if framedIP != nil {
@@ -666,7 +724,7 @@ func handleGlobalHotspotAuth(w radius.ResponseWriter, r *radius.Request, usernam
 
 	gReq := tunnel.GlobalAuthRequestPayload{
 		Username:      username,
-		Password:      password,
+		Password:      string(password),
 		UserMAC:       callingStation,
 		UserIP:        framedIPStr,
 		NasIP:         nasIP,
@@ -677,64 +735,67 @@ func handleGlobalHotspotAuth(w radius.ResponseWriter, r *radius.Request, usernam
 	resp, err := tunnel.RequestGlobalAuth(gReq, 4*time.Second)
 	if err != nil {
 		radiusLogger.Printf("[radius] ⚠️ تعذر الوصول للسيرفر المركزي للمستخدم [%s]: %v", username, err)
-		return false
+		return nil, false
 	}
 
 	if !resp.Allow {
 		radiusLogger.Printf("[radius] ❌ رفض المصادقة المركزية للمستخدم [%s]: %s", username, resp.RejectReason)
-		writeAccessReject(w, r, username, resp.RejectReason)
-		return true
+		return buildAccessReject(req, username, resp.RejectReason, startAuthTime), true
 	}
 
 	radiusLogger.Printf("[radius] ✅ تم قبول المصادقة المركزية للمستخدم [%s] بنجاح! نوع الحساب: %s | السرعة: %s", username, resp.AccountType, resp.RateLimit)
 
-	reply := r.Response(radius.CodeAccessAccept)
+	reply := &packet.Packet{
+		Code:          types.AccessAccept,
+		Identifier:    req.Identifier,
+		Authenticator: req.Authenticator,
+	}
+
+	reply.Attributes = append(reply.Attributes, packet.NewString(types.AttrUserName, username))
+	reply.Attributes = append(reply.Attributes, packet.NewInteger(types.AttrServiceType, 1)) // Login-User
+
 	if resp.RateLimit != "" {
-		addReplyAttribute(reply, "Mikrotik-Rate-Limit", resp.RateLimit)
+		reply.Attributes = append(reply.Attributes, NewMikrotikString(8, resp.RateLimit))
 	}
 	if resp.SessionTimeout > 0 {
-		rfc2865.SessionTimeout_Add(reply, rfc2865.SessionTimeout(resp.SessionTimeout))
+		reply.Attributes = append(reply.Attributes, packet.NewInteger(types.AttrSessionTimeout, uint32(resp.SessionTimeout)))
 	}
 	if resp.IdleTimeout > 0 {
-		rfc2865.IdleTimeout_Add(reply, rfc2865.IdleTimeout(resp.IdleTimeout))
+		reply.Attributes = append(reply.Attributes, packet.NewInteger(types.AttrIdleTimeout, uint32(resp.IdleTimeout)))
 	}
 	if resp.ReplyMessage != "" {
-		rfc2865.ReplyMessage_Add(reply, []byte(resp.ReplyMessage))
+		reply.Attributes = append(reply.Attributes, packet.NewString(types.AttrReplyMessage, resp.ReplyMessage))
 	} else {
-		rfc2865.ReplyMessage_Add(reply, []byte("SASMAN Global HotSpot Welcome"))
+		reply.Attributes = append(reply.Attributes, packet.NewString(types.AttrReplyMessage, "SASMAN Global HotSpot Welcome"))
 	}
 
-	// Sign Message-Authenticator if request contained it
-	if reqMA := rfc2869.MessageAuthenticator_Get(r.Packet); reqMA != nil {
-		if err := signMessageAuthenticator(reply); err != nil {
-			radiusLogger.Printf("[radius] ❌ خطأ في توقيع Message-Authenticator المركزي: %v", err)
-		}
+	if hasAttribute(req.Packet, types.AttrMessageAuthenticator) {
+		reply.Attributes = append(reply.Attributes, packet.NewOctets(types.AttrMessageAuthenticator, make([]byte, 16)))
 	}
 
-	writeErr := w.Write(reply)
-	logPacketOut(reply, r.RemoteAddr, startAuthTime, writeErr)
-	return true
+	logPacketOut(reply, req.RemoteAddr, startAuthTime)
+	return reply, true
 }
 
-func writeAccessReject(w radius.ResponseWriter, r *radius.Request, username, reason string) {
-	response := r.Response(radius.CodeAccessReject)
+func buildAccessReject(req *server.Request, username, reason string, startAuthTime time.Time) *packet.Packet {
+	response := &packet.Packet{
+		Code:          types.AccessReject,
+		Identifier:    req.Identifier,
+		Authenticator: req.Authenticator,
+	}
 	if username != "" {
-		rfc2865.UserName_Add(response, []byte(username))
+		response.Attributes = append(response.Attributes, packet.NewString(types.AttrUserName, username))
 	}
 	if reason != "" {
-		rfc2865.ReplyMessage_AddString(response, reason)
+		response.Attributes = append(response.Attributes, packet.NewString(types.AttrReplyMessage, reason))
 	}
-	radiusLogger.Printf("[radius] ❌ رفض الاتصال: يوزر [%s] | السبب: %s | NAS: %v", username, translateRejectReason(reason), r.RemoteAddr)
-
-	// Sign Message-Authenticator if request contained it
-	if reqMA := rfc2869.MessageAuthenticator_Get(r.Packet); reqMA != nil {
-		if err := signMessageAuthenticator(response); err != nil {
-			radiusLogger.Printf("[radius] ❌ خطأ في توقيع Message-Authenticator للرفض: %v", err)
-		}
+	if hasAttribute(req.Packet, types.AttrMessageAuthenticator) {
+		response.Attributes = append(response.Attributes, packet.NewOctets(types.AttrMessageAuthenticator, make([]byte, 16)))
 	}
 
-	writeErr := w.Write(response)
-	logPacketOut(response, r.RemoteAddr, time.Now(), writeErr)
+	radiusLogger.Printf("[radius] ❌ رفض الاتصال: يوزر [%s] | السبب: %s | NAS: %v", username, translateRejectReason(reason), req.RemoteAddr)
+	logPacketOut(response, req.RemoteAddr, startAuthTime)
+	return response
 }
 
 func translateRejectReason(reason string) string {
@@ -768,50 +829,58 @@ func countActiveSessions(sessions map[string]string, username string) int {
 	return count
 }
 
-func handleAcctRequest(w radius.ResponseWriter, r *radius.Request) {
-	username := rfc2865.UserName_GetString(r.Packet)
-	statusType := rfc2866.AcctStatusType_Get(r.Packet)
+func handleAcctRequest(ctx context.Context, req *server.Request) (*packet.Packet, error) {
+	startAcctTime := time.Now()
+	username := getAttrString(req.Packet, types.AttrUserName)
+	statusType := getAttrInteger(req.Packet, types.AttrAcctStatusType)
 
-	// Acknowledge immediately
-	w.Write(r.Response(radius.CodeAccountingResponse))
+	// Create Accounting-Response packet
+	reply := &packet.Packet{
+		Code:          types.AccountingResponse,
+		Identifier:    req.Identifier,
+		Authenticator: req.Authenticator,
+	}
 
 	if username == "" {
-		return
+		logPacketOut(reply, req.RemoteAddr, startAcctTime)
+		return reply, nil
 	}
 
-	sid := rfc2866.AcctSessionID_GetString(r.Packet)
-	ip := rfc2865.FramedIPAddress_Get(r.Packet).String()
-	cli := rfc2865.CallingStationID_GetString(r.Packet)
-
-	inOct := uint64(rfc2866.AcctInputOctets_Get(r.Packet))
-	outOct := uint64(rfc2866.AcctOutputOctets_Get(r.Packet))
-
-	// Handle Gigawords (for 64-bit counters)
-	if inGW := r.Packet.Get(rfc2869.AcctInputGigawords_Type); inGW != nil {
-		inOct += uint64(rfc2869.AcctInputGigawords_Get(r.Packet)) << 32
+	sid := getAttrString(req.Packet, types.AttrAcctSessionID)
+	framedIP := getAttrIP(req.Packet, types.AttrFramedIPAddress)
+	ip := ""
+	if framedIP != nil {
+		ip = framedIP.String()
 	}
-	if outGW := r.Packet.Get(rfc2869.AcctOutputGigawords_Type); outGW != nil {
-		outOct += uint64(rfc2869.AcctOutputGigawords_Get(r.Packet)) << 32
-	}
+	cli := getAttrString(req.Packet, types.AttrCallingStationID)
 
-	sessionSecs := int64(rfc2866.AcctSessionTime_Get(r.Packet))
-	nasIP, _, _ := net.SplitHostPort(r.RemoteAddr.String())
-	if nasAttr := rfc2865.NASIPAddress_Get(r.Packet); nasAttr != nil {
+	inOct := uint64(getAttrInteger(req.Packet, types.AttrAcctInputOctets))
+	outOct := uint64(getAttrInteger(req.Packet, types.AttrAcctOutputOctets))
+
+	// Handle Gigawords (Attributes 52 & 53)
+	inGW := uint64(getAttrInteger(req.Packet, 52))
+	outGW := uint64(getAttrInteger(req.Packet, 53))
+	inOct += inGW << 32
+	outOct += outGW << 32
+
+	sessionSecs := int64(getAttrInteger(req.Packet, types.AttrAcctSessionTime))
+	nasIP, _, _ := net.SplitHostPort(req.RemoteAddr.String())
+	if nasAttr := getAttrIP(req.Packet, types.AttrNASIPAddress); nasAttr != nil {
 		nasIP = nasAttr.String()
 	}
-	termCause := rfc2866.AcctTerminateCause_Get(r.Packet)
+	termCause := getAttrInteger(req.Packet, types.AttrAcctTerminateCause)
 
 	statusStr := ""
 	switch statusType {
-	case rfc2866.AcctStatusType_Value_Start:
+	case 1:
 		statusStr = "بدء اتصال 🟢"
-	case rfc2866.AcctStatusType_Value_Stop:
+	case 2:
 		statusStr = "قطع اتصال 🔴"
-	case rfc2866.AcctStatusType_Value_InterimUpdate:
+	case 3:
 		statusStr = "تحديث دوري 🔄"
 	}
-	
-	if statusStr != "" && statusType != rfc2866.AcctStatusType_Value_InterimUpdate {
+
+	if statusStr != "" && statusType != 3 {
 		radiusLogger.Printf("[radius] 📊 محاسبة: يوزر [%s] | الحالة: %s | الجلسة: %s | IP: %s | MAC: %s", username, statusStr, sid, ip, cli)
 	}
 
@@ -825,11 +894,11 @@ func handleAcctRequest(w radius.ResponseWriter, r *radius.Request) {
 	go func() {
 		statusTypeStr := ""
 		switch statusType {
-		case rfc2866.AcctStatusType_Value_Start:
+		case 1:
 			statusTypeStr = "Start"
-		case rfc2866.AcctStatusType_Value_Stop:
+		case 2:
 			statusTypeStr = "Stop"
-		case rfc2866.AcctStatusType_Value_InterimUpdate:
+		case 3:
 			statusTypeStr = "Interim-Update"
 		}
 		if statusTypeStr != "" {
@@ -847,22 +916,24 @@ func handleAcctRequest(w radius.ResponseWriter, r *radius.Request) {
 		}
 	}()
 
-	// 4. Invalidate Session Cache so dashboard and user list reflect changes instantly
+	// 4. Invalidate Session Cache
 	InvalidateSessionCache()
+
+	logPacketOut(reply, req.RemoteAddr, startAcctTime)
+	return reply, nil
 }
 
-func recordSQLiteAccounting(username string, status rfc2866.AcctStatusType, sid, ip, cli, nasIP string, in, out uint64, secs int64, termCause rfc2866.AcctTerminateCause) {
+func recordSQLiteAccounting(username string, status uint32, sid, ip, cli, nasIP string, in, out uint64, secs int64, termCause uint32) {
 	if DB == nil || username == "" {
 		return
 	}
 	switch status {
-	case rfc2866.AcctStatusType_Value_Start:
-		// Close previous open sessions for this user/sid
+	case 1: // Start
 		_, _ = DB.Exec(`UPDATE radacct SET acctstoptime = CURRENT_TIMESTAMP, acctterminatecause = 'Stale-Replaced' WHERE username = ? AND acctstoptime IS NULL`, username)
 		_, _ = DB.Exec(`INSERT INTO radacct (username, acctsessionid, nasipaddress, callingstationid, framedipaddress, acctstarttime, acctupdatetime, acctsessiontime, acctinputoctets, acctoutputoctets)
 			VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'), 0, 0, 0)`,
 			username, sid, nasIP, cli, ip)
-	case rfc2866.AcctStatusType_Value_InterimUpdate:
+	case 3: // Interim-Update
 		res, err := DB.Exec(`UPDATE radacct SET acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, framedipaddress = CASE WHEN ? != '' THEN ? ELSE framedipaddress END
 			WHERE acctsessionid = ? AND acctstoptime IS NULL`,
 			secs, in, out, ip, ip, sid)
@@ -873,9 +944,9 @@ func recordSQLiteAccounting(username string, status rfc2866.AcctStatusType, sid,
 					secs, in, out, ip, ip, username)
 			}
 		}
-	case rfc2866.AcctStatusType_Value_Stop:
-		causeStr := termCause.String()
-		if causeStr == "" {
+	case 2: // Stop
+		causeStr := fmt.Sprintf("Cause-%d", termCause)
+		if termCause == 0 {
 			causeStr = "User-Request"
 		}
 		res, err := DB.Exec(`UPDATE radacct SET acctstoptime = datetime('now', 'localtime'), acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, acctterminatecause = ?
@@ -891,20 +962,14 @@ func recordSQLiteAccounting(username string, status rfc2866.AcctStatusType, sid,
 	}
 }
 
-// getLMDBUserData is a wrapper around LMDB lookups
-// This will be implemented in lmdb_sync.go (Linux) and lmdb_sync_stub.go (Windows)
 func getLMDBUserData(username string) (string, error) {
-	// We'll add this function to lmdb_sync.go
 	return fetchUserFromLMDB(username)
 }
 
-// updateLMDBAccounting is a wrapper around LMDB writes
-func updateLMDBAccounting(username string, status rfc2866.AcctStatusType, sid, ip, cli string, in, out uint64, secs int64) {
-	// We'll add this function to lmdb_sync.go
+func updateLMDBAccounting(username string, status uint32, sid, ip, cli string, in, out uint64, secs int64) {
 	saveAccountingToLMDB(username, status, sid, ip, cli, in, out, secs)
 }
 
-// VerifyLocalUser checks local LMDB / SQLite user credentials for cross-agent validation
 func VerifyLocalUser(username, password string) (bool, string, string, error) {
 	data, err := getLMDBUserData(username)
 	if err != nil {
@@ -944,13 +1009,10 @@ func VerifyLocalUser(username, password string) (bool, string, string, error) {
 	return true, rateLimit, "OK", nil
 }
 
-// addReplyAttribute adds an attribute to the response packet.
-func addReplyAttribute(p *radius.Packet, name, value string) {
-	radiusLogger.Printf("[radius] Adding Reply Attr: %s = %s", name, value)
-
+func addReplyAttributeToPacket(p *packet.Packet, name, value string) {
 	nameLower := strings.ToLower(name)
 
-	// Handle MikroTik specific attributes by name
+	// MikroTik VSAs
 	if strings.HasPrefix(nameLower, "mikrotik-") {
 		var subType byte
 		switch nameLower {
@@ -966,14 +1028,7 @@ func addReplyAttribute(p *radius.Packet, name, value string) {
 			radiusLogger.Printf("[radius] WARNING: Unsupported Mikrotik attribute %s", name)
 			return
 		}
-
-		val := []byte(value)
-		vsa := make([]byte, 4+2+len(val))
-		vsa[0], vsa[1], vsa[2], vsa[3] = 0, 0, 0x3a, 0x98 // Vendor 14988
-		vsa[4] = subType
-		vsa[5] = byte(len(val) + 2)
-		copy(vsa[6:], val)
-		p.Add(26, vsa)
+		p.Attributes = append(p.Attributes, NewMikrotikString(subType, value))
 		return
 	}
 
@@ -981,37 +1036,19 @@ func addReplyAttribute(p *radius.Packet, name, value string) {
 	switch name {
 	case "Framed-IP-Address":
 		if ip := net.ParseIP(value); ip != nil {
-			rfc2865.FramedIPAddress_Add(p, ip)
-		} else {
-			radiusLogger.Printf("[radius] ERROR: Invalid IP address for Framed-IP-Address: %s", value)
+			p.Attributes = append(p.Attributes, packet.NewIPAddr(types.AttrFramedIPAddress, ip))
 		}
 	case "Framed-Pool":
-		p.Add(88, []byte(value))
+		p.Attributes = append(p.Attributes, packet.NewString(88, value))
 	case "Session-Timeout":
 		if v, err := strconv.Atoi(value); err == nil {
-			rfc2865.SessionTimeout_Add(p, rfc2865.SessionTimeout(v))
+			p.Attributes = append(p.Attributes, packet.NewInteger(types.AttrSessionTimeout, uint32(v)))
 		}
 	default:
 		radiusLogger.Printf("[radius] WARNING: Skipping unknown standard attribute %s", name)
 	}
 }
 
-func signMessageAuthenticator(p *radius.Packet) error {
-	rfc2869.MessageAuthenticator_Set(p, make([]byte, md5.Size))
-
-	wire, err := p.MarshalBinary()
-	if err != nil {
-		return err
-	}
-
-	mac := hmac.New(md5.New, p.Secret)
-	mac.Write(wire)
-	return rfc2869.MessageAuthenticator_Set(p, mac.Sum(nil))
-}
-
-// UpdateProfileRedirectsCache loads all expired redirect pool and profile mappings
-// from SQLite into the thread-safe in-memory cache. This must be called at startup
-// and whenever a profile is created/updated.
 func UpdateProfileRedirectsCache() {
 	if DB == nil {
 		return

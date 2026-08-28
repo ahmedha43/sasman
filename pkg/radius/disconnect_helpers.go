@@ -2,41 +2,47 @@ package radius
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"strings"
+	"time"
 
 	"mikrotik-manager/pkg/core"
 
 	"github.com/go-routeros/routeros/v3"
-	layehRadius "layeh.com/radius"
-	"layeh.com/radius/rfc2865"
-	"layeh.com/radius/rfc2866"
+	"github.com/wxccs/radius/v2/packet"
+	"github.com/wxccs/radius/v2/types"
 )
 
 func buildDisconnectPacket(username string, info SessionInfo, secret string) ([]byte, error) {
-	packet := layehRadius.New(layehRadius.CodeDisconnectRequest, []byte(secret))
-	rfc2865.UserName_AddString(packet, username)
+	p := &packet.Packet{
+		Code:       types.DisconnectRequest,
+		Identifier: byte(rand.Intn(256)),
+	}
+	if p.Identifier == 0 {
+		p.Identifier = byte(time.Now().UnixNano() & 0xFF)
+	}
+
+	if username != "" {
+		p.Attributes = append(p.Attributes, packet.NewString(types.AttrUserName, username))
+	}
 	if info.NASIP != "" {
 		if ip := net.ParseIP(info.NASIP).To4(); ip != nil {
-			if err := rfc2865.NASIPAddress_Add(packet, ip); err != nil {
-				return nil, err
-			}
+			p.Attributes = append(p.Attributes, packet.NewIPAddr(types.AttrNASIPAddress, ip))
 		}
 	}
 	if info.IP != "" {
 		if ip := net.ParseIP(info.IP).To4(); ip != nil {
-			if err := rfc2865.FramedIPAddress_Add(packet, ip); err != nil {
-				return nil, err
-			}
+			p.Attributes = append(p.Attributes, packet.NewIPAddr(types.AttrFramedIPAddress, ip))
 		}
 	}
 	if info.SessionID != "" {
-		rfc2866.AcctSessionID_AddString(packet, info.SessionID)
+		p.Attributes = append(p.Attributes, packet.NewString(types.AttrAcctSessionID, info.SessionID))
 	}
 	if info.CallingStation != "" {
-		rfc2865.CallingStationID_AddString(packet, info.CallingStation)
+		p.Attributes = append(p.Attributes, packet.NewString(types.AttrCallingStationID, info.CallingStation))
 	}
-	return packet.Encode()
+	return p.Marshal([]byte(secret))
 }
 
 func removeMatchingSession(client *routeros.Client, printCmd, removeCmd, username string) error {

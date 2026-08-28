@@ -5,19 +5,22 @@ import (
 	"crypto/rand"
 	"flag"
 	"fmt"
+	"net"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	layehRadius "layeh.com/radius"
-	"layeh.com/radius/rfc2759"
-	"layeh.com/radius/rfc2865"
-	"layeh.com/radius/vendors/microsoft"
+	"github.com/wxccs/radius/v2/client"
+	"github.com/wxccs/radius/v2/crypto"
+	"github.com/wxccs/radius/v2/packet"
+	"github.com/wxccs/radius/v2/protocol"
+	"github.com/wxccs/radius/v2/types"
+	"github.com/wxccs/radius/v2/vendors/microsoft"
 )
 
 type result struct {
-	code    layehRadius.Code
+	code    types.Code
 	elapsed time.Duration
 	err     error
 }
@@ -31,7 +34,6 @@ func main() {
 	count := flag.Int("n", 100, "number of Access-Request packets")
 	concurrency := flag.Int("c", 10, "parallel workers")
 	timeout := flag.Duration("timeout", 3*time.Second, "per-request timeout")
-	retry := flag.Duration("retry", 0, "client retry interval, 0 disables retry")
 	flag.Parse()
 
 	if *count <= 0 || *concurrency <= 0 {
@@ -39,14 +41,22 @@ func main() {
 		return
 	}
 
+	udpAddr, err := net.ResolveUDPAddr("udp4", *addr)
+	if err != nil {
+		fmt.Printf("invalid server address: %v\n", err)
+		return
+	}
+
+	c, err := client.NewUDPClient(udpAddr, []byte(*secret), client.Config{Timeout: *timeout})
+	if err != nil {
+		fmt.Printf("failed to initialize RADIUS client: %v\n", err)
+		return
+	}
+	defer c.Close()
+
 	jobs := make(chan int)
 	results := make(chan result, *count)
 	var started atomic.Int64
-
-	client := &layehRadius.Client{
-		Retry:           *retry,
-		MaxPacketErrors: 3,
-	}
 
 	start := time.Now()
 	var wg sync.WaitGroup
@@ -56,7 +66,7 @@ func main() {
 			defer wg.Done()
 			for jobID := range jobs {
 				started.Add(1)
-				results <- sendAccessRequest(client, *addr, []byte(*secret), *username, *password, *mode, jobID, *timeout)
+				results <- sendAccessRequest(c, []byte(*secret), *username, *password, *mode, jobID, *timeout)
 			}
 		}(i)
 	}
@@ -77,11 +87,11 @@ func main() {
 		}
 		latencies = append(latencies, res.elapsed)
 		switch res.code {
-		case layehRadius.CodeAccessAccept:
+		case types.AccessAccept:
 			accepts++
-		case layehRadius.CodeAccessReject:
+		case types.AccessReject:
 			rejects++
-		case layehRadius.CodeAccessChallenge:
+		case types.AccessChallenge:
 			challenges++
 		default:
 			other++
@@ -111,8 +121,8 @@ func main() {
 	}
 }
 
-func sendAccessRequest(client *layehRadius.Client, addr string, secret []byte, username, password, mode string, jobID int, timeout time.Duration) result {
-	packet, err := buildAccessRequest(secret, username, password, mode, jobID)
+func sendAccessRequest(c *client.UDPClient, secret []byte, username, password, mode string, jobID int, timeout time.Duration) result {
+	p, err := buildAccessRequest(secret, username, password, mode, jobID)
 	if err != nil {
 		return result{err: err}
 	}
@@ -121,34 +131,51 @@ func sendAccessRequest(client *layehRadius.Client, addr string, secret []byte, u
 	defer cancel()
 
 	start := time.Now()
-	response, err := client.Exchange(ctx, packet, addr)
+	authReq := &protocol.AccessRequest{
+		Authenticator: p.Authenticator,
+		Attributes:    p.Attributes,
+		Method:        protocol.AuthPAP,
+	}
+	resp, err := c.Authenticate(ctx, authReq)
 	if err != nil {
 		return result{elapsed: time.Since(start), err: err}
 	}
-	return result{code: response.Code, elapsed: time.Since(start)}
+	return result{code: resp.Code, elapsed: time.Since(start)}
 }
 
-func buildAccessRequest(secret []byte, username, password, mode string, jobID int) (*layehRadius.Packet, error) {
-	packet := layehRadius.New(layehRadius.CodeAccessRequest, secret)
-	rfc2865.UserName_AddString(packet, username)
-	rfc2865.ServiceType_Add(packet, rfc2865.ServiceType_Value_FramedUser)
-	rfc2865.NASIdentifier_AddString(packet, "sasman-loadtest")
-	rfc2865.CallingStationID_AddString(packet, fmt.Sprintf("loadtest-%06d", jobID))
+func buildAccessRequest(secret []byte, username, password, mode string, jobID int) (*packet.Packet, error) {
+	p := &packet.Packet{
+		Code:       types.AccessRequest,
+		Identifier: byte(jobID % 255),
+	}
+	if _, err := rand.Read(p.Authenticator[:]); err != nil {
+		return nil, err
+	}
+
+	p.Attributes = append(p.Attributes, packet.NewString(types.AttrUserName, username))
+	p.Attributes = append(p.Attributes, packet.NewInteger(types.AttrServiceType, 2)) // Framed-User
+	p.Attributes = append(p.Attributes, packet.NewString(types.AttrNASIdentifier, "sasman-loadtest"))
+	p.Attributes = append(p.Attributes, packet.NewString(types.AttrCallingStationID, fmt.Sprintf("loadtest-%06d", jobID)))
 
 	switch mode {
 	case "pap":
-		return packet, rfc2865.UserPassword_AddString(packet, password)
-	case "mschapv2":
-		if err := addMSCHAPv2(packet, username, password, byte(jobID%255)); err != nil {
+		encPass, err := crypto.EncryptUserPassword(password, p.Authenticator, secret)
+		if err != nil {
 			return nil, err
 		}
-		return packet, nil
+		p.Attributes = append(p.Attributes, packet.NewOctets(types.AttrUserPassword, encPass))
+		return p, nil
+	case "mschapv2":
+		if err := addMSCHAPv2(p, username, password, byte(jobID%255)); err != nil {
+			return nil, err
+		}
+		return p, nil
 	default:
 		return nil, fmt.Errorf("unknown mode %q", mode)
 	}
 }
 
-func addMSCHAPv2(packet *layehRadius.Packet, username, password string, ident byte) error {
+func addMSCHAPv2(p *packet.Packet, username, password string, ident byte) error {
 	var challenge [16]byte
 	var peerChallenge [16]byte
 	if _, err := rand.Read(challenge[:]); err != nil {
@@ -158,20 +185,20 @@ func addMSCHAPv2(packet *layehRadius.Packet, username, password string, ident by
 		return err
 	}
 
-	ntResponse, err := rfc2759.GenerateNTResponse(challenge[:], peerChallenge[:], []byte(username), []byte(password))
-	if err != nil {
-		return err
-	}
+	ntHash := crypto.NtPasswordHash(password)
+	authChallenge := crypto.ChallengeHash(peerChallenge[:], challenge[:], username)
+	ntResponse := crypto.GenerateNTResponse(authChallenge, ntHash)
 
 	mschapResponse := make([]byte, 50)
 	mschapResponse[0] = ident
 	copy(mschapResponse[2:18], peerChallenge[:])
-	copy(mschapResponse[26:50], ntResponse)
+	copy(mschapResponse[26:50], ntResponse[:])
 
-	if err := microsoft.MSCHAPChallenge_Add(packet, challenge[:]); err != nil {
-		return err
-	}
-	return microsoft.MSCHAP2Response_Add(packet, mschapResponse)
+	// MS-CHAP-Challenge
+	p.Attributes = append(p.Attributes, packet.NewVendorSpecific(microsoft.VendorID, append([]byte{11, 18}, challenge[:]...)))
+	// MS-CHAP2-Response
+	p.Attributes = append(p.Attributes, packet.NewVendorSpecific(microsoft.VendorID, append([]byte{microsoft.VendorTypeMSCHAP2Response, 52}, mschapResponse...)))
+	return nil
 }
 
 func avg(values []time.Duration) time.Duration {
@@ -195,3 +222,4 @@ func percentile(values []time.Duration, p int) time.Duration {
 	}
 	return values[index-1]
 }
+

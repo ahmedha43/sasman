@@ -4,8 +4,6 @@ package radius
 
 import (
 	"log"
-
-	"layeh.com/radius/rfc2866"
 )
 
 // Stub implementations for Windows development environment.
@@ -56,5 +54,5 @@ func fetchUserFromLMDB(username string) (string, error) {
 	return "", nil
 }
 
-func saveAccountingToLMDB(username string, status rfc2866.AcctStatusType, sid, ip, cli string, in, out uint64, secs int64) {
+func saveAccountingToLMDB(username string, status uint32, sid, ip, cli string, in, out uint64, secs int64) {
 }

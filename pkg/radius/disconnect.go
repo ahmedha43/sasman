@@ -10,7 +10,8 @@ import (
 	"mikrotik-manager/pkg/core"
 
 	"github.com/gofiber/fiber/v2"
-	layehRadius "layeh.com/radius"
+	"github.com/wxccs/radius/v2/packet"
+	"github.com/wxccs/radius/v2/types"
 )
 
 const (
@@ -160,7 +161,7 @@ func sendCoADisconnect(username string, info SessionInfo) error {
 	if err != nil {
 		return err
 	}
-	packet, err := buildDisconnectPacket(username, info, secret)
+	wire, err := buildDisconnectPacket(username, info, secret)
 	if err != nil {
 		return err
 	}
@@ -173,7 +174,7 @@ func sendCoADisconnect(username string, info SessionInfo) error {
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(coaTimeout))
 
-	if _, err := conn.Write(packet); err != nil {
+	if _, err := conn.Write(wire); err != nil {
 		return err
 	}
 	buf := make([]byte, 4096)
@@ -185,14 +186,11 @@ func sendCoADisconnect(username string, info SessionInfo) error {
 		return fmt.Errorf("short reply")
 	}
 	reply := buf[:n]
-	if !layehRadius.IsAuthenticResponse(reply, packet, []byte(secret)) {
-		return fmt.Errorf("invalid disconnect response authenticator")
+	var response packet.Packet
+	if err := response.Unmarshal(reply, []byte(secret)); err != nil {
+		return fmt.Errorf("invalid disconnect response: %w", err)
 	}
-	response, err := layehRadius.Parse(reply, []byte(secret))
-	if err != nil {
-		return err
-	}
-	if response.Code != layehRadius.CodeDisconnectACK {
+	if response.Code != types.DisconnectACK {
 		return fmt.Errorf("disconnect NAK code=%d", response.Code)
 	}
 	return nil
