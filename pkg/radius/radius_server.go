@@ -402,17 +402,18 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 	}
 
 	// 7. Success - Build Accept Packet
-	response := r.Packet.Response(radius.CodeAccessAccept)
+	response := r.Response(radius.CodeAccessAccept)
 
 	// Add User-Name back (important for some NAS)
 	rfc2865.UserName_Add(response, []byte(username))
 
-	// Add Message-Authenticator (required by many NAS)
-	rfc2869.MessageAuthenticator_Add(response, make([]byte, 16))
-
-	// Standard requirements for MikroTik
-	rfc2865.ServiceType_Add(response, rfc2865.ServiceType_Value_FramedUser)
-	rfc2865.FramedProtocol_Add(response, rfc2865.FramedProtocol_Value_PPP)
+	// Match protocol requirements: Add Framed-Protocol: PPP only for PPP sessions
+	reqServiceType := rfc2865.ServiceType_Get(r.Packet)
+	reqFramedProtocol := rfc2865.FramedProtocol_Get(r.Packet)
+	if reqFramedProtocol == rfc2865.FramedProtocol_Value_PPP || reqServiceType == rfc2865.ServiceType_Value_FramedUser {
+		rfc2865.ServiceType_Add(response, rfc2865.ServiceType_Value_FramedUser)
+		rfc2865.FramedProtocol_Add(response, rfc2865.FramedProtocol_Value_PPP)
+	}
 
 	// Optional: Set Interim Interval to 5 minutes
 	rfc2869.AcctInterimInterval_Add(response, 300)
@@ -451,12 +452,6 @@ func handleAuthRequest(w radius.ResponseWriter, r *radius.Request) {
 			microsoft.MSMPPEEncryptionPolicy_Add(response, microsoft.MSMPPEEncryptionPolicy_Value_EncryptionRequired)
 			microsoft.MSMPPEEncryptionTypes_Add(response, microsoft.MSMPPEEncryptionTypes_Value_RC4128bitAllowed)
 		}
-	}
-
-	if err := signMessageAuthenticator(response); err != nil {
-		log.Printf("[radius] ❌ خطأ: فشل توقيع حزمة القبول للمشترك [%s]: %v", username, err)
-		w.Write(r.Response(radius.CodeAccessReject))
-		return
 	}
 
 	if isExpiredOrDisabled {
@@ -522,24 +517,19 @@ func handleGlobalHotspotAuth(w radius.ResponseWriter, r *radius.Request, usernam
 		rfc2865.ReplyMessage_Add(reply, []byte("SASMAN Global HotSpot Welcome"))
 	}
 
-	_ = signMessageAuthenticator(reply)
 	w.Write(reply)
 	return true
 }
 
 func writeAccessReject(w radius.ResponseWriter, r *radius.Request, username, reason string) {
-	response := r.Packet.Response(radius.CodeAccessReject)
+	response := r.Response(radius.CodeAccessReject)
 	if username != "" {
 		rfc2865.UserName_Add(response, []byte(username))
 	}
 	if reason != "" {
 		rfc2865.ReplyMessage_AddString(response, reason)
 	}
-	if err := signMessageAuthenticator(response); err != nil {
-		log.Printf("[radius] ❌ خطأ في توقيع الرفض للمستخدم %s: %v", username, err)
-	} else {
-		radiusLogger.Printf("[radius] ❌ رفض الاتصال: يوزر [%s] | السبب: %s | NAS: %v", username, translateRejectReason(reason), r.RemoteAddr)
-	}
+	radiusLogger.Printf("[radius] ❌ رفض الاتصال: يوزر [%s] | السبب: %s | NAS: %v", username, translateRejectReason(reason), r.RemoteAddr)
 	if err := w.Write(response); err != nil {
 		log.Printf("[radius] ❌ خطأ في إرسال الرفض للمستخدم %s: %v", username, err)
 	}
