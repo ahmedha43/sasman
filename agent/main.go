@@ -169,7 +169,7 @@ func startSasmanTunnel(port string) {
 				shared.SaveConfig()
 
 				// Cache on disk
-				_ = os.WriteFile("data/cloud_license.json", payload, 0644)
+				_ = os.WriteFile(filepath.Join(shared.GetDataDir(), "cloud_license.json"), payload, 0644)
 				log.Printf("[License Engine] 🛡️ Received Cloud License Lease: status=%s, expires=%s, valid=%v, days_left=%d", lease.Status, lease.ExpiresAt, lease.Valid, lease.DaysRemaining)
 			}
 		},

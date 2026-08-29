@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 //go:embed default_routing_data.json
@@ -74,24 +75,33 @@ func moveFile(src, dst string) error {
 	return os.Remove(src)
 }
 
+func GetDataDir() string {
+	if os.Getenv("SASMAN_DATA_DIR") != "" {
+		return os.Getenv("SASMAN_DATA_DIR")
+	}
+	if _, err := os.Stat("/app/data"); err == nil {
+		return "/app/data"
+	}
+	return "data"
+}
+
 func LoadData() {
-	// Migrate if old file exists but new one doesn't
-	if _, err := os.Stat("routing_data.json"); err == nil {
-		if _, errNew := os.Stat("data/routing_data.json"); os.IsNotExist(errNew) {
-			if errMigrate := moveFile("routing_data.json", "data/routing_data.json"); errMigrate == nil {
-				log.Println("[Migration] Moved routing_data.json to data/ directory")
-			} else {
-				log.Printf("[Migration] Error moving routing_data.json: %v\n", errMigrate)
-			}
+	dataDir := GetDataDir()
+	_ = os.MkdirAll(dataDir, 0755)
+	routingPath := filepath.Join(dataDir, "routing_data.json")
+
+	// Migrate if old file exists in root
+	if _, err := os.Stat("routing_data.json"); err == nil && routingPath != "routing_data.json" {
+		if _, errNew := os.Stat(routingPath); os.IsNotExist(errNew) {
+			_ = moveFile("routing_data.json", routingPath)
 		}
 	}
 
-	file, err := ioutil.ReadFile("data/routing_data.json")
+	file, err := ioutil.ReadFile(routingPath)
 	if err != nil {
-		log.Printf("[Init] routing_data.json not found on disk, seeding from embedded defaults.\n")
-		_ = os.MkdirAll("data", 0755)
+		log.Printf("[Init] routing_data.json not found at %s, seeding from embedded defaults.\n", routingPath)
 		if len(defaultRoutingDataBytes) > 0 {
-			_ = ioutil.WriteFile("data/routing_data.json", defaultRoutingDataBytes, 0644)
+			_ = ioutil.WriteFile(routingPath, defaultRoutingDataBytes, 0644)
 			json.Unmarshal(defaultRoutingDataBytes, &RoutingDataState)
 			log.Printf("[Init] Successfully seeded and loaded default app groups and ip groups\n")
 			return
@@ -106,18 +116,18 @@ func LoadData() {
 }
 
 func LoadConfig() {
-	// Migrate if old file exists but new one doesn't
-	if _, err := os.Stat("config.json"); err == nil {
-		if _, errNew := os.Stat("data/config.json"); os.IsNotExist(errNew) {
-			if errMigrate := moveFile("config.json", "data/config.json"); errMigrate == nil {
-				log.Println("[Migration] Moved config.json to data/ directory")
-			} else {
-				log.Printf("[Migration] Error moving config.json: %v\n", errMigrate)
-			}
+	dataDir := GetDataDir()
+	_ = os.MkdirAll(dataDir, 0755)
+	configPath := filepath.Join(dataDir, "config.json")
+
+	// Migrate if old file exists in root
+	if _, err := os.Stat("config.json"); err == nil && configPath != "config.json" {
+		if _, errNew := os.Stat(configPath); os.IsNotExist(errNew) {
+			_ = moveFile("config.json", configPath)
 		}
 	}
 
-	file, err := ioutil.ReadFile("data/config.json")
+	file, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		return
 	}
@@ -146,7 +156,9 @@ var OnConfigSaved func()
 
 func SaveConfig() {
 	data, _ := json.MarshalIndent(RouterConfigState, "", "  ")
-	_ = ioutil.WriteFile("data/config.json", data, 0644)
+	configPath := filepath.Join(GetDataDir(), "config.json")
+	_ = os.MkdirAll(filepath.Dir(configPath), 0755)
+	_ = ioutil.WriteFile(configPath, data, 0644)
 	if OnConfigSaved != nil {
 		go OnConfigSaved()
 	}
@@ -157,7 +169,8 @@ func RemoveConfig() {
 	RouterConfigState.Username = ""
 	RouterConfigState.Password = ""
 	RouterConfigState.Serial = ""
-	_ = os.Remove("data/config.json")
+	configPath := filepath.Join(GetDataDir(), "config.json")
+	_ = os.Remove(configPath)
 	if OnConfigSaved != nil {
 		go OnConfigSaved()
 	}

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -229,7 +230,8 @@ func VerifyLicense(licenseKey string, currentSerial string) (bool, string, time.
 	// 1. Check Central Cloud-Managed License Lease
 	if shared.RouterConfigState.CloudLicenseStatus != "" || shared.RouterConfigState.TunnelSubdomain != "" {
 		if shared.RouterConfigState.CloudLicenseStatus == "" {
-			if data, err := os.ReadFile("data/cloud_license.json"); err == nil {
+			licPath := filepath.Join(shared.GetDataDir(), "cloud_license.json")
+			if data, err := os.ReadFile(licPath); err == nil {
 				var lease struct {
 					Status        string `json:"status"`
 					ExpiresAt     string `json:"expires_at"`
