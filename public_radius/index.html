@@ -1778,6 +1778,9 @@
                 <button id="btn-guide-reverse" class="btn guide-tab-btn" style="width:auto; padding:8px 16px; font-size:13px; font-weight:bold; border-radius:6px;" onclick="switchGuideTab('reverse')">
                     🔄 4. القطع العكسي خلف CGNAT
                 </button>
+                <button id="btn-guide-routing" class="btn guide-tab-btn" style="width:auto; padding:8px 16px; font-size:13px; font-weight:bold; border-radius:6px;" onclick="switchGuideTab('routing')">
+                    🌐 5. توجيه وعزل الوكلاء (Routing & Privacy)
+                </button>
             </div>
 
             <!-- Tab 1: Overview & Status Badges -->
@@ -1877,6 +1880,47 @@
                     <div style="font-family:monospace; font-size:13px; color:var(--primary); line-height:2;">
                         [راوتر المايكروتك البعيد] ──(اتصال TLS دائم :2083)──▶ [سيرفر SASMAN المركزي]<br>
                         [راوتر المايكروتك البعيد] ◀──(أمر Disconnect العكسي)── [سيرفر SASMAN المركزي]
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 5: Multi-Agent Routing & Privacy -->
+            <div id="pane-guide-routing" class="guide-tab-pane" style="display:none;">
+                <div style="background:rgba(49, 130, 206, 0.1); border-right:4px solid var(--primary); padding:12px 16px; border-radius:8px; margin-bottom:16px;">
+                    <h4 style="margin:0 0 4px 0; color:var(--primary);">🌐 كيف تتم المصادقة عندما تكون بيانات المشترك في حاوية الوكيل المحلي؟</h4>
+                    <p style="margin:0; font-size:13px; color:var(--text-main);">
+                        تحتفظ كل حاوية وكيل بقاعدة بيانات مشتركيها محلياً لضمان الخصوصية وسرعة الأداء. عند وصول طلب من راوتر برج بعيد للسيرفر المركزي، يقوم السيرفر بالاستعلام اللحظي عبر نفق الـ WebSocket المشفر الخاص بحاوية الوكيل في أجزاء من الثانية.
+                    </p>
+                </div>
+
+                <h4 style="margin:16px 0 10px 0;">🛡️ كيف يميز السيرفر بين الوكيل A والوكيل B ويعزل البيانات؟</h4>
+                <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;">
+                    <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px 16px; border-radius:8px;">
+                        <div style="font-weight:bold; color:var(--primary); margin-bottom:4px;">1. عبر شهادة الراوتر المشفرة (RadSec CommonName & Mapping):</div>
+                        <p style="margin:0; font-size:12px; color:var(--text-muted); line-height:1.6;">
+                            كل برج يحمل شهادة رقمية فريدة تتبع للوكيل المالك له؛ بمجرد اتصال الراوتر بالسيرفر، يعرف السيرفر فوراً أن هذا البرج يتبع <strong>الوكيل A</strong>، ويقوم بتوجيه طلبات مشتركيه حصرياً إلى <strong>حاوية الوكيل A</strong>.
+                        </p>
+                    </div>
+                    <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px 16px; border-radius:8px;">
+                        <div style="font-weight:bold; color:var(--primary); margin-bottom:4px;">2. عبر نطاق التجوال المشترك (User Realm / Roaming):</div>
+                        <p style="margin:0; font-size:12px; color:var(--text-muted); line-height:1.6;">
+                            إذا كان المشترك تابعاً لـ <strong>الوكيل A</strong> ولكنه متصل من برج يتبع <strong>الوكيل B</strong>، يكتب حسابه بصيغة (<code>user@agent_a</code>)، فيتعرف السيرفر على الوكيل A ويفحص حسابه ويفتح له النت على برج الوكيل B مع حفظ رصيده وسرعته!
+                        </p>
+                    </div>
+                    <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px 16px; border-radius:8px;">
+                        <div style="font-weight:bold; color:var(--primary); margin-bottom:4px;">3. عبر الكروت المركزية الموحدة (Global Roaming Vouchers):</div>
+                        <p style="margin:0; font-size:12px; color:var(--text-muted); line-height:1.6;">
+                            الكروت الصادرة مركزياً من السيرفر العام يتم التحقق منها مباشرة دون الحاجة للرجوع لأي وكيل محلي.
+                        </p>
+                    </div>
+                </div>
+
+                <div style="text-align:center; padding:15px; background:var(--bg-app); border-radius:8px; border:1px solid var(--border);">
+                    <div style="font-size:14px; font-weight:bold; color:var(--text-main); margin-bottom:8px;">مخطط تدفق المصادقة وعزل الوكلاء:</div>
+                    <div style="font-family:monospace; font-size:12px; color:var(--primary); line-height:2;">
+                        [راوتر البرج] ──(طلب مصادقة RadSec)──▶ [سيرفر SASMAN المركزي]<br>
+                        [سيرفر SASMAN المركزي] ──(فحص الشهادة وتحديد الوكيل A)──▶ [حاوية الوكيل A عبر نفق WebSocket]<br>
+                        [حاوية الوكيل A] ──(التحقق من قاعدة البيانات المحلية والرد بالسرعات)──▶ [فتح الإنترنت للمشترك]
                     </div>
                 </div>
             </div>
