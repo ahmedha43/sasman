@@ -1,6 +1,7 @@
 package radsec
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wxccs/radius/v2/crypto"
 	"github.com/wxccs/radius/v2/packet"
 	"github.com/wxccs/radius/v2/types"
 
@@ -148,6 +150,8 @@ func (s *CentralRadSecServer) handleConnection(conn net.Conn) {
 			return
 		}
 
+		log.Printf("[radsec-central] 📦 Received packet from CN=%s (len=%d, code=%d)", cn, len(packetBytes), packetBytes[0])
+
 		pkt := &packet.Packet{}
 		if err := pkt.Unmarshal(packetBytes, []byte("radsec")); err != nil {
 			log.Printf("[radsec-central] RADIUS parse error for CN=%s: %v", cn, err)
@@ -188,15 +192,25 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 	username := ""
 	userPassword := ""
 	callingStation := ""
+	var userPasswordRaw []byte
 
 	for _, attr := range p.Attributes {
 		switch attr.Type {
 		case types.AttrUserName:
 			username = string(attr.Value)
 		case types.AttrUserPassword:
-			userPassword = string(attr.Value)
+			userPasswordRaw = attr.Value
 		case types.AttrCallingStationID:
 			callingStation = string(attr.Value)
+		}
+	}
+
+	if len(userPasswordRaw) > 0 {
+		decrypted, err := crypto.DecryptUserPassword(userPasswordRaw, p.Authenticator, []byte("radsec"))
+		if err == nil {
+			userPassword = string(bytes.TrimRight(decrypted, "\x00"))
+		} else {
+			userPassword = string(bytes.TrimRight(userPasswordRaw, "\x00"))
 		}
 	}
 
@@ -211,12 +225,12 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 	}
 
 	reqPayload := tunnel.GlobalAuthRequestPayload{
-		RequestID:      fmt.Sprintf("radsec-%d", time.Now().UnixNano()),
-		Username:       username,
-		Password:       userPassword,
-		UserMAC:        callingStation,
-		UserIP:         "",
-		NasIP:          nasIP,
+		RequestID:   fmt.Sprintf("radsec-%d", time.Now().UnixNano()),
+		Username:    username,
+		Password:    userPassword,
+		UserMAC:     callingStation,
+		UserIP:      "",
+		NasIP:       nasIP,
 	}
 
 	var authResp tunnel.GlobalAuthResponsePayload
@@ -245,10 +259,10 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 		if rateLimit == "" {
 			rateLimit = "10M/10M"
 		}
-		// Mikrotik-Rate-Limit (Vendor: 14988, Type: 1)
+		// Mikrotik-Rate-Limit (Vendor: 14988, Subtype: 8)
 		vsaData := make([]byte, 6+len(rateLimit))
 		binary.BigEndian.PutUint32(vsaData[0:4], 14988)
-		vsaData[4] = 1
+		vsaData[4] = 8
 		vsaData[5] = byte(2 + len(rateLimit))
 		copy(vsaData[6:], []byte(rateLimit))
 		reply.Attributes = append(reply.Attributes, packet.Attribute{

@@ -217,22 +217,34 @@ func main() {
 		// 1. Check if it's a Cross-Agent Roaming User (e.g. user@ahmed.sas-man.net or user@ahmed or ahmed\user or ahmed/user)
 		targetSubdomain := ""
 		actualUsername := uname
+		hasRealm := false
 
 		if idx := strings.Index(uname, "@"); idx != -1 {
 			actualUsername = uname[:idx]
 			targetSubdomain = uname[idx+1:]
+			hasRealm = true
 		} else if idx := strings.Index(uname, "\\"); idx != -1 {
 			targetSubdomain = uname[:idx]
 			actualUsername = uname[idx+1:]
+			hasRealm = true
 		} else if idx := strings.Index(uname, "/"); idx != -1 {
 			targetSubdomain = uname[:idx]
 			actualUsername = uname[idx+1:]
+			hasRealm = true
+		}
+
+		if !hasRealm && visitedSubdomain != "" {
+			targetSubdomain = visitedSubdomain
 		}
 
 		if targetSubdomain != "" {
-			targetSubdomain = tunnel.ExtractSubdomainForHost(targetSubdomain, centralDomain)
-			if targetSubdomain == "" {
-				targetSubdomain = strings.Split(uname[strings.IndexAny(uname, "@/\\")+1:], ".")[0]
+			if hasRealm {
+				sub := tunnel.ExtractSubdomainForHost(targetSubdomain, centralDomain)
+				if sub != "" {
+					targetSubdomain = sub
+				} else {
+					targetSubdomain = strings.Split(targetSubdomain, ".")[0]
+				}
 			}
 			targetSubdomain = strings.ToLower(strings.TrimSpace(targetSubdomain))
 
@@ -242,44 +254,29 @@ func main() {
 			}
 			verifyBytes, _ := json.Marshal(verifyReq)
 
-			_, respBytes, err := svc.SendAgentHTTPRequest(targetSubdomain, "POST", "/radius/api/internal/verify-user", verifyBytes, nil)
-			if err != nil {
-				return tunnel.GlobalAuthResponsePayload{
-					RequestID:    req.RequestID,
-					Allow:        false,
-					RejectReason: fmt.Sprintf("تعذر التحقق من الوكيل الأصلي [%s]: %v", targetSubdomain, err),
+			status, respBytes, err := svc.SendAgentHTTPRequest(targetSubdomain, "POST", "/radius/api/internal/verify-user", verifyBytes, nil)
+			log.Printf("[radsec-central] 🔍 Querying agent [%s] for user [%s]: status=%d, err=%v, resp=%s", targetSubdomain, actualUsername, status, err, string(respBytes))
+			if err == nil {
+				var verifyResp struct {
+					Allow     bool   `json:"allow"`
+					Reason    string `json:"reason"`
+					RateLimit string `json:"rate_limit"`
 				}
-			}
+				if err := json.Unmarshal(respBytes, &verifyResp); err == nil && verifyResp.Allow {
+					rateLimit := verifyResp.RateLimit
+					if rateLimit == "" {
+						rateLimit = "10M/10M"
+					}
 
-			var verifyResp struct {
-				Allow     bool   `json:"allow"`
-				Reason    string `json:"reason"`
-				RateLimit string `json:"rate_limit"`
-			}
-			if err := json.Unmarshal(respBytes, &verifyResp); err != nil || !verifyResp.Allow {
-				reason := verifyResp.Reason
-				if reason == "" {
-					reason = "فشل التحقق من حساب المشترك لدى الوكيل الأصلي"
+					return tunnel.GlobalAuthResponsePayload{
+						RequestID:      req.RequestID,
+						Allow:          true,
+						RateLimit:      rateLimit,
+						SessionTimeout: 86400,
+						AccountType:    "roaming_user",
+						ReplyMessage:   fmt.Sprintf("مرحباً بك عبر شبكة SASMAN الموحدة (وكيل: %s)", targetSubdomain),
+					}
 				}
-				return tunnel.GlobalAuthResponsePayload{
-					RequestID:    req.RequestID,
-					Allow:        false,
-					RejectReason: reason,
-				}
-			}
-
-			rateLimit := verifyResp.RateLimit
-			if rateLimit == "" {
-				rateLimit = "10M/10M"
-			}
-
-			return tunnel.GlobalAuthResponsePayload{
-				RequestID:      req.RequestID,
-				Allow:          true,
-				RateLimit:      rateLimit,
-				SessionTimeout: 86400,
-				AccountType:    "roaming_user",
-				ReplyMessage:   fmt.Sprintf("مرحباً بك عبر شبكة SASMAN الموحدة (وكيل: %s)", targetSubdomain),
 			}
 		}
 
@@ -367,14 +364,22 @@ func main() {
 			return svc.OnGlobalAuthRequest(subdomain, req)
 		},
 		func(cn string, nasIP string) string {
-			parts := strings.Split(cn, "-")
-			if len(parts) >= 2 {
-				sub := parts[1]
-				if svc.GetAgentBySubdomain(sub) != nil {
-					return sub
+			for _, part := range strings.Split(cn, "-") {
+				part = strings.TrimSpace(part)
+				if part != "" && part != "agent" && part != "SASMAN" {
+					if svc.GetAgentBySubdomain(part) != nil {
+						return part
+					}
 				}
 			}
 			agents := svc.ListAgents()
+			for _, a := range agents {
+				if sub, ok := a["subdomain"].(string); ok && sub != "" {
+					if strings.Contains(strings.ToLower(cn), strings.ToLower(sub)) {
+						return sub
+					}
+				}
+			}
 			if len(agents) > 0 {
 				if sub, ok := agents[0]["subdomain"].(string); ok {
 					return sub

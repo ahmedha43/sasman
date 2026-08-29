@@ -3,6 +3,7 @@
 package radius
 
 import (
+	"fmt"
 	"log"
 )
 
@@ -51,7 +52,7 @@ func GetLMDBBandwidth() (map[string]LMDBBandwidth, error) {
 }
 
 func fetchUserFromLMDB(username string) (string, error) {
-	return "", nil
+	return "", fmt.Errorf("lmdb disabled on windows")
 }
 
 func saveAccountingToLMDB(username string, status uint32, sid, ip, cli string, in, out uint64, secs int64) {

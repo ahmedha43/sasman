@@ -974,8 +974,10 @@ func updateLMDBAccounting(username string, status uint32, sid, ip, cli string, i
 }
 
 func VerifyLocalUser(username, password string) (bool, string, string, error) {
+	username = strings.TrimSpace(username)
+	password = strings.TrimRight(strings.TrimSpace(password), "\x00")
 	data, err := getLMDBUserData(username)
-	if err != nil {
+	if err != nil || strings.TrimSpace(data) == "" {
 		if DB == nil {
 			return false, "", "User not found", fmt.Errorf("user not found")
 		}
@@ -984,6 +986,7 @@ func VerifyLocalUser(username, password string) (bool, string, string, error) {
 		if err != nil {
 			return false, "", "المستخدم غير مسجل لدى هذا الوكيل", fmt.Errorf("user not found")
 		}
+		dbPass = strings.TrimRight(strings.TrimSpace(dbPass), "\x00")
 		if password != "" && password != dbPass {
 			return false, "", "كلمة المرور غير صحيحة", nil
 		}
@@ -994,7 +997,7 @@ func VerifyLocalUser(username, password string) (bool, string, string, error) {
 	if len(lines) < 1 {
 		return false, "", "بيانات المستخدم معطوبة", fmt.Errorf("invalid user data")
 	}
-	dbPassword := lines[0]
+	dbPassword := strings.TrimRight(strings.TrimSpace(lines[0]), "\x00\r\n")
 	if password != "" && password != dbPassword {
 		return false, "", "كلمة المرور غير صحيحة", nil
 	}
