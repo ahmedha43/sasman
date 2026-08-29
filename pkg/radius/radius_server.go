@@ -895,20 +895,6 @@ func handleAcctRequest(ctx context.Context, req *server.Request) (*packet.Packet
 	}
 	termCause := getAttrInteger(req.Packet, types.AttrAcctTerminateCause)
 
-	statusStr := ""
-	switch statusType {
-	case 1:
-		statusStr = "بدء اتصال 🟢"
-	case 2:
-		statusStr = "قطع اتصال 🔴"
-	case 3:
-		statusStr = "تحديث دوري 🔄"
-	}
-
-	if statusStr != "" && statusType != 3 {
-		radiusLogger.Printf("[radius] 📊 محاسبة: يوزر [%s] | الحالة: %s | الجلسة: %s | IP: %s | MAC: %s", username, statusStr, sid, ip, cli)
-	}
-
 	// 1. Update High-Performance LMDB Store
 	updateLMDBAccounting(username, statusType, sid, ip, cli, inOct, outOct, sessionSecs)
 

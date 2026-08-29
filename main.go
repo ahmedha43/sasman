@@ -671,11 +671,6 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"success": false})
 		}
 		radius.RecordAccountingPayload(payload)
-		if payload.StatusType == "Stop" || payload.StatusType == "Interim-Update" {
-			radius.LogRadiusActivity("[RadSec] 📊 محاسبة [%s] | %s | مدة: %ds | استهلاك: In=%s, Out=%s",
-				payload.Username, payload.StatusType, payload.SessionTimeSec,
-				radius.FormatBytesHuman(payload.BytesIn), radius.FormatBytesHuman(payload.BytesOut))
-		}
 		return c.JSON(fiber.Map{"success": true})
 	})
 
