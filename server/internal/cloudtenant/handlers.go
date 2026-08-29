@@ -65,6 +65,28 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	radiusAPI.Get("/auth/me", h.handleCloudAuthMe)
 	radiusAPI.Post("/auth/logout", h.handleCloudAuthLogout)
 
+	// Tunnel is fixed and locked in Cloud Edition
+	radiusAPI.Post("/auth/tunnel/config", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "لا يمكن تعديل إعدادات التنل في النسخة السحابية - النطاق مخصص وثابت لحسابك",
+		})
+	})
+	radiusAPI.Get("/auth/tunnel/config", func(c *fiber.Ctx) error {
+		subdomain := ""
+		if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+			subdomain = sub
+		} else {
+			subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+		}
+		return c.JSON(fiber.Map{
+			"mode":        "agent",
+			"subdomain":   subdomain,
+			"token":       "********",
+			"gateway_url": "wss://" + h.mgr.domain + "/api/tunnel/ws",
+			"cloud_mode":  true,
+		})
+	})
+
 	// Protected Data APIs for web_radius
 	protectedRadius := radiusAPI.Group("", h.TenantAuthMiddleware())
 	protectedRadius.Get("/users", h.handleListUsers)

@@ -109,6 +109,16 @@ async function loadLicenseStatus() {
         const res = await apiFetch('/radius/api/license/status');
         const data = await res.json();
         licenseState = data;
+
+        // In Cloud Mode: Completely hide tunnel tab and settings so the user cannot tamper with them
+        if (data && data.cloud_mode) {
+            document.querySelectorAll("button[onclick*=\"showTab('tunnel')\"]").forEach(btn => btn.style.display = 'none');
+            const tabTunnel = document.getElementById('tab-tunnel');
+            if (tabTunnel) tabTunnel.style.display = 'none';
+            const radiusTunnelCard = document.getElementById('radius-tunnel-card');
+            if (radiusTunnelCard) radiusTunnelCard.style.display = 'none';
+        }
+
         if (!isFresh) {
             renderLicenseGate(data);
         }

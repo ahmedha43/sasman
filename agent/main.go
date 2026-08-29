@@ -1677,6 +1677,12 @@ func getTunnelSettingsHandler(c *fiber.Ctx) error {
 }
 
 func saveTunnelSettingsHandler(c *fiber.Ctx) error {
+	if os.Getenv("CLOUD_MODE") == "true" || os.Getenv("SASMAN_CLOUD_MODE") == "true" {
+		return c.Status(403).JSON(fiber.Map{
+			"error": "لا يمكن تعديل إعدادات التنل في النسخة السحابية - النطاق محجوز وثابت لحسابك",
+		})
+	}
+
 	type Request struct {
 		Mode       string `json:"mode"`
 		Subdomain  string `json:"subdomain"`
