@@ -21,6 +21,7 @@ import (
 	aiinternal "mikrotik-manager/server/internal/ai"
 	"mikrotik-manager/server/internal/backup"
 	otainternal "mikrotik-manager/server/internal/ota"
+	"mikrotik-manager/server/internal/radsec"
 	relayinternal "mikrotik-manager/server/internal/relay"
 	"mikrotik-manager/server/internal/storage"
 )
@@ -351,6 +352,40 @@ func main() {
 
 	aiEngine := aiinternal.NewEngine(repo, svc)
 	aiAPI := aiinternal.NewAPIHandler(aiEngine, repo)
+
+	// Initialize and Start Central RadSec Server on port 2083 (RFC 6614 mTLS)
+	centralRadSec := radsec.NewCentralRadSecServer(
+		func(subdomain string, req tunnel.GlobalAuthRequestPayload) tunnel.GlobalAuthResponsePayload {
+			if subdomain == "" {
+				agents := svc.ListAgents()
+				if len(agents) > 0 {
+					if sub, ok := agents[0]["subdomain"].(string); ok {
+						subdomain = sub
+					}
+				}
+			}
+			return svc.OnGlobalAuthRequest(subdomain, req)
+		},
+		func(cn string, nasIP string) string {
+			parts := strings.Split(cn, "-")
+			if len(parts) >= 2 {
+				sub := parts[1]
+				if svc.GetAgentBySubdomain(sub) != nil {
+					return sub
+				}
+			}
+			agents := svc.ListAgents()
+			if len(agents) > 0 {
+				if sub, ok := agents[0]["subdomain"].(string); ok {
+					return sub
+				}
+			}
+			return ""
+		},
+	)
+	if err := centralRadSec.Start(2083); err != nil {
+		log.Printf("[CentralRadSec] ❌ Failed to start Central RadSec Server on :2083: %v", err)
+	}
 
 	app := fiber.New(fiber.Config{
 		AppName:   "SASMAN Central Server",

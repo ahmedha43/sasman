@@ -180,11 +180,19 @@ func generateServerCert() error {
 		return err
 	}
 
+	serverHost := os.Getenv("RADSEC_SERVER_CN")
+	if serverHost == "" {
+		serverHost = os.Getenv("SASMAN_CENTRAL_DOMAIN")
+	}
+	if serverHost == "" {
+		serverHost = "167.86.73.203"
+	}
+
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			Organization: []string{"SASMAN Network Systems"},
-			CommonName:   "SASMAN RadSec Server",
+			CommonName:   serverHost,
 		},
 		NotBefore:   time.Now().Add(-10 * time.Minute),
 		NotAfter:    time.Now().AddDate(5, 0, 0), // 5 years
@@ -194,11 +202,22 @@ func generateServerCert() error {
 			net.ParseIP("127.0.0.1"),
 			net.ParseIP("0.0.0.0"),
 			net.ParseIP("::1"),
+			net.ParseIP("167.86.73.203"),
+			net.ParseIP("172.17.0.1"),
+			net.ParseIP("172.17.0.2"),
+			net.ParseIP("192.168.10.1"),
+			net.ParseIP("192.168.10.221"),
+			net.ParseIP("192.168.88.1"),
 		},
 		DNSNames: []string{
 			"localhost",
+			"sas-man.net",
+			"*.sas-man.net",
+			"radsec.sas-man.net",
+			"radius.sas-man.net",
 			"radsec.sasman.local",
 			"radius.sasman.local",
+			"167.86.73.203",
 		},
 	}
 
