@@ -8,6 +8,7 @@ on:
       - 'pkg/**'
       - 'go.mod'
       - 'go.sum'
+      - 'server/deploy_central.ps1'
       - 'deploy_central.ps1'
       - '.github/workflows/deploy-central.yml'
   workflow_dispatch:
