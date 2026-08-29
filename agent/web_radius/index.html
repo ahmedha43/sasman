@@ -513,6 +513,34 @@
 
                 <!-- ================= 4. TAB NAS (ROUTERS) ================= -->
                 <div id="tab-nas" class="tab-content">
+                    <!-- Live Router Connection & Ping Widget -->
+                    <div id="nas-live-status-card" style="margin-bottom:20px; padding:16px 20px; background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,78,59,0.04)); border:1px solid rgba(16,185,129,0.25); border-radius:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+                        <div style="display:flex; align-items:center; gap:14px;">
+                            <div id="nas-status-indicator" style="width:44px; height:44px; border-radius:50%; background:rgba(16,185,129,0.15); display:flex; align-items:center; justify-content:center; font-size:20px; color:#10b981;">
+                                <i class="fa-solid fa-tower-broadcast"></i>
+                            </div>
+                            <div>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span id="nas-status-badge" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#10b981; box-shadow:0 0 10px #10b981;"></span>
+                                    <strong id="nas-status-title" style="font-size:15px; color:var(--text-main);">جاري فحص حالة اتصال الراوتر بالراديوس...</strong>
+                                    <span id="nas-mode-badge" style="font-size:11px; padding:2px 8px; border-radius:6px; background:rgba(14,165,233,0.15); color:#0284c7; font-weight:700;">فحص</span>
+                                </div>
+                                <div id="nas-status-desc" style="font-size:12px; color:var(--text-muted); margin-top:3px;">بروتوكول الراديوس والمصادقة اللحظية</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:16px;">
+                            <!-- Ping Counter -->
+                            <div style="text-align:center; padding:6px 18px; background:var(--bg-app); border:1px solid var(--border); border-radius:10px;">
+                                <div style="font-size:11px; color:var(--text-muted); font-weight:600;">⚡ البنج / زمن الاستجابة</div>
+                                <div id="nas-ping-val" style="font-size:20px; font-weight:800; color:#10b981; font-family:monospace;">- ms</div>
+                            </div>
+                            <!-- Refresh Button -->
+                            <button class="btn" style="width:auto; padding:8px 14px; font-size:12px; background:var(--bg-app); border:1px solid var(--border);" onclick="refreshNASLiveStatus()">
+                                <i class="fa-solid fa-rotate"></i> فحص البنج الآن
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- NAS list table -->
                     <div class="card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px;">

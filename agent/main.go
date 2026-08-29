@@ -758,6 +758,7 @@ func main() {
 	radiusSecure.Post("/nas/:id/revoke-cert", radius.RevokeNASCertificate)
 	radiusSecure.Get("/nas/radsec-status", radius.GetRadSecStatus)
 	radiusSecure.Get("/nas/provision-code", radius.GetNASProvisionCode)
+	radiusSecure.Get("/nas/status", radius.GetNASLiveStatus)
 
 	// Vouchers (Management)
 	radiusSecure.Get("/vouchers", radius.GetVouchers)

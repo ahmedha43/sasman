@@ -129,6 +129,16 @@
     const subInput = document.getElementById('subdomain');
     const subStatus = document.getElementById('subStatus');
 
+    // Auto fill subdomain if passed in query string ?sub=...
+    const urlParams = new URLSearchParams(window.location.search);
+    const subParam = urlParams.get('sub');
+    if (subParam) {
+      subInput.value = subParam.trim().toLowerCase();
+      setTimeout(() => {
+        subInput.dispatchEvent(new Event('input'));
+      }, 100);
+    }
+
     subInput.addEventListener('input', () => {
       clearTimeout(typingTimer);
       subStatus.textContent = 'جاري الفحص...';

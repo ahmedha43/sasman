@@ -1,4 +1,5 @@
 async function loadNAS() {
+    refreshNASLiveStatus();
     try {
         const res = await apiFetch('/radius/api/nas');
         if (!res.ok) return;
@@ -340,3 +341,54 @@ window.quickSetupNAS = quickSetupNAS;
 window.generateNASCert = generateNASCert;
 window.downloadNASCertBundle = downloadNASCertBundle;
 window.revokeNASCert = revokeNASCert;
+
+async function refreshNASLiveStatus() {
+    const pingEl = document.getElementById('nas-ping-val');
+    const titleEl = document.getElementById('nas-status-title');
+    const badgeEl = document.getElementById('nas-status-badge');
+    const descEl = document.getElementById('nas-status-desc');
+    const modeBadge = document.getElementById('nas-mode-badge');
+    const indicator = document.getElementById('nas-status-indicator');
+
+    if (pingEl) pingEl.textContent = '...';
+
+    try {
+        const res = await apiFetch('/radius/api/nas/status');
+        if (!res.ok) throw new Error('فشل جلب الحالة');
+        const data = await res.json();
+
+        if (pingEl) {
+            pingEl.textContent = `${data.latency_ms} ms`;
+            if (data.latency_ms <= 5) {
+                pingEl.style.color = '#10b981'; // Green (< 5ms local)
+            } else if (data.latency_ms <= 40) {
+                pingEl.style.color = '#0284c7'; // Blue (< 40ms cloud)
+            } else {
+                pingEl.style.color = '#f59e0b'; // Amber
+            }
+        }
+
+        if (titleEl) titleEl.textContent = data.status_text || (data.connected ? '🟢 راوتر المايكروتك متصل الآن' : '🔴 الراوتر غير متصل');
+        if (descEl) descEl.textContent = `البروتوكول: ${data.protocol} | المعرّف: ${data.common_name || data.router_ip || '-'}`;
+
+        if (modeBadge) {
+            modeBadge.textContent = data.mode === 'cloud' ? 'RadSec TLS السحابي' : 'محلي (Loopback)';
+            modeBadge.style.background = data.mode === 'cloud' ? 'rgba(14,165,233,0.15)' : 'rgba(16,185,129,0.15)';
+            modeBadge.style.color = data.mode === 'cloud' ? '#0284c7' : '#10b981';
+        }
+
+        if (badgeEl) {
+            badgeEl.style.background = data.connected ? '#10b981' : '#ef4444';
+            badgeEl.style.boxShadow = data.connected ? '0 0 10px #10b981' : '0 0 10px #ef4444';
+        }
+
+        if (indicator) {
+            indicator.style.color = data.connected ? '#10b981' : '#ef4444';
+            indicator.style.background = data.connected ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
+        }
+    } catch (err) {
+        if (pingEl) pingEl.textContent = '-';
+        if (titleEl) titleEl.textContent = 'تعذر فحص حالة الراوتر';
+    }
+}
+window.refreshNASLiveStatus = refreshNASLiveStatus;
