@@ -645,16 +645,21 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"allow": false, "reason": "Invalid body"})
 		}
 
-		log.Printf("[verify-user] 🔍 Received verification query for user [%s] (pass_len=%d, pass_hex=%x, pass=%q)", req.Username, len(req.Password), []byte(req.Password), req.Password)
+		radius.LogRadiusActivity("============================== [🛡️ RadSec TLS CLOUD AUTH] ==============================")
+		radius.LogRadiusActivity("  🔹 User: %s | Mode: Remote RadSec mTLS", req.Username)
 
 		ok, rateLimit, dbPass, reason, err := radius.VerifyLocalUser(req.Username, req.Password)
-		log.Printf("[verify-user] 👉 Verification result for [%s]: ok=%t, rate=%s, reason=%s, err=%v", req.Username, ok, rateLimit, reason, err)
 		if err != nil || !ok {
+			radius.LogRadiusActivity("  ❌ رفض الاتصال (RadSec TLS): يوزر [%s] | السبب: %s", req.Username, reason)
+			radius.LogRadiusActivity("-----------------------------------------------------------------------------------------")
 			return c.JSON(fiber.Map{
 				"allow":  false,
 				"reason": reason,
 			})
 		}
+
+		radius.LogRadiusActivity("  ✅ مصادقة ناجحة (RadSec TLS): تم قبول اتصال [%s] بنجاح | السرعة: %s", req.Username, rateLimit)
+		radius.LogRadiusActivity("=========================================================================================")
 
 		return c.JSON(fiber.Map{
 			"allow":      true,
@@ -671,6 +676,7 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"success": false})
 		}
 		radius.RecordAccountingPayload(payload)
+		radius.LogRadiusActivity("[radius] 📊 محاسبة سحابية (RadSec TLS): يوزر [%s] | الحالة: %s | مدة الجلسة: %d ثانية | استهلاك: %d B In, %d B Out", payload.Username, payload.StatusType, payload.SessionTimeSec, payload.BytesIn, payload.BytesOut)
 		return c.JSON(fiber.Map{"success": true})
 	})
 

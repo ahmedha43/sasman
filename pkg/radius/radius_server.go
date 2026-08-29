@@ -40,6 +40,15 @@ var (
 	profileRedirectsMu    sync.RWMutex
 )
 
+// LogRadiusActivity writes formatted activity to data/radius.log and stdout
+func LogRadiusActivity(format string, v ...any) {
+	if radiusLogger != nil {
+		radiusLogger.Printf(format, v...)
+	} else {
+		log.Printf(format, v...)
+	}
+}
+
 // StartRadiusServer initializes and starts the Go RADIUS server using github.com/wxccs/radius/v2
 func StartRadiusServer() {
 	// Initialize Logger
