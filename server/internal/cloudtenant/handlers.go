@@ -137,6 +137,9 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Get("/logs", h.handleGetTenantLogs)
 	protectedRadius.Delete("/logs", h.handleClearTenantLogs)
 
+	radiusAPI.Get("/audit-logs", h.handleListAuditLogs)
+	protectedRadius.Get("/audit-logs", h.handleListAuditLogs)
+
 	protectedRadius.Get("/sessions", h.handleListActiveSessions)
 	protectedRadius.Post("/sessions/disconnect", h.handleDisconnectSession)
 }
@@ -1188,5 +1191,15 @@ func (h *APIHandler) handleClearTenantLogs(c *fiber.Ctx) error {
 	_ = os.WriteFile(logFile, []byte(""), 0644)
 	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير السجل"})
 }
+
+func (h *APIHandler) handleListAuditLogs(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"logs":        []interface{}{},
+		"total":       0,
+		"total_pages": 1,
+		"page":        1,
+	})
+}
+
 
 

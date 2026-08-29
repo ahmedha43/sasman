@@ -4,9 +4,10 @@ async function fetchLogs() {
     const area = document.getElementById('logs-area');
     if (!area) return;
     try {
-        const res = await fetch('/radius/api/logs', {
-            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('radius_token') }
+        const fetcher = (typeof apiFetch === 'function') ? apiFetch('/radius/api/logs') : fetch('/radius/api/logs', {
+            headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('radius_token') || '') }
         });
+        const res = await fetcher;
         if (!res.ok) throw new Error('Failed to fetch logs');
         const text = await res.text();
 
@@ -19,7 +20,7 @@ async function fetchLogs() {
             }
         }
     } catch (e) {
-        // Only log once to avoid console flooding
+        // Silent catch to avoid console spam
     }
 }
 
