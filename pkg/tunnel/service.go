@@ -237,7 +237,7 @@ func (s *Service) RestoreSessions() {
 		s.mu.RLock()
 		exists := false
 		for _, sess := range s.sessions {
-			if sess.Subdomain == subdomain {
+			if strings.EqualFold(sess.Subdomain, subdomain) {
 				exists = true
 				break
 			}
@@ -313,7 +313,6 @@ func (s *Service) RegisterAgent(subdomain, token string) *AgentSession {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	id := fmt.Sprintf("agent-%d", time.Now().UnixNano())
 	if strings.TrimSpace(subdomain) == "" {
 		subdomain = generateDefaultSubdomain()
 	}
@@ -321,8 +320,20 @@ func (s *Service) RegisterAgent(subdomain, token string) *AgentSession {
 		token = generateDefaultToken()
 	}
 
+	// Deduplicate: If an agent with the same subdomain exists, reuse it and update token
+	for _, sess := range s.sessions {
+		if strings.EqualFold(sess.Subdomain, subdomain) {
+			if token != "" {
+				sess.Token = token
+			}
+			_ = s.SaveSession(sess, "customer-default", fmt.Sprintf("license-%s", sess.ID))
+			return sess
+		}
+	}
+
 	winboxPort := s.allocateFreeWinboxPort()
 
+	id := fmt.Sprintf("agent-%d", time.Now().UnixNano())
 	session := &AgentSession{
 		ID:         id,
 		Subdomain:  subdomain,
@@ -461,8 +472,26 @@ func (s *Service) ListAgents() []map[string]any {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]map[string]any, 0, len(s.sessions))
+	sessMap := make(map[string]*AgentSession)
 	for _, session := range s.sessions {
+		subKey := strings.ToLower(strings.TrimSpace(session.Subdomain))
+		if subKey == "" {
+			continue
+		}
+		existing, found := sessMap[subKey]
+		if !found {
+			sessMap[subKey] = session
+		} else {
+			if session.Connected && !existing.Connected {
+				sessMap[subKey] = session
+			} else if session.LastSeen.After(existing.LastSeen) && (!existing.Connected || session.Connected) {
+				sessMap[subKey] = session
+			}
+		}
+	}
+
+	out := make([]map[string]any, 0, len(sessMap))
+	for _, session := range sessMap {
 		out = append(out, map[string]any{
 			"id":          session.ID,
 			"subdomain":   session.Subdomain,
@@ -487,7 +516,12 @@ func (s *Service) GetAgentBySubdomain(subdomain string) *AgentSession {
 	defer s.mu.RUnlock()
 
 	for _, session := range s.sessions {
-		if session.Subdomain == subdomain && session.Connected {
+		if strings.EqualFold(session.Subdomain, subdomain) && session.Connected {
+			return session
+		}
+	}
+	for _, session := range s.sessions {
+		if strings.EqualFold(session.Subdomain, subdomain) {
 			return session
 		}
 	}
@@ -501,9 +535,12 @@ func (s *Service) ListOnlineAgents() []string {
 	var result []string
 	seen := make(map[string]bool)
 	for _, session := range s.sessions {
-		if session.Connected && session.Conn != nil && session.Subdomain != "" && !seen[session.Subdomain] {
-			result = append(result, session.Subdomain)
-			seen[session.Subdomain] = true
+		if session.Connected && session.Conn != nil && session.Subdomain != "" {
+			subKey := strings.ToLower(session.Subdomain)
+			if !seen[subKey] {
+				result = append(result, session.Subdomain)
+				seen[subKey] = true
+			}
 		}
 	}
 	return result
@@ -513,14 +550,18 @@ func (s *Service) RemoveAgent(subdomain string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	found := false
 	for id, session := range s.sessions {
-		if session.Subdomain == subdomain {
+		if strings.EqualFold(session.Subdomain, subdomain) {
 			session.CloseTCP()
+			if session.Conn != nil {
+				_ = session.Conn.Close()
+			}
 			delete(s.sessions, id)
-			return true
+			found = true
 		}
 	}
-	return false
+	return found
 }
 
 func (s *Service) RotateToken(subdomain string) (string, bool) {
@@ -791,10 +832,15 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 				}
 				_ = json.Unmarshal(msg.Payload, &reg)
 
+				regSub := strings.TrimSpace(reg.Subdomain)
+				if regSub == "" {
+					regSub = generateDefaultSubdomain()
+				}
+
 				var session *AgentSession
 				s.mu.Lock()
 				for _, sess := range s.sessions {
-					if sess.Subdomain == reg.Subdomain && sess.Token == reg.Token && reg.Subdomain != "" {
+					if strings.EqualFold(sess.Subdomain, regSub) {
 						session = sess
 						break
 					}
@@ -802,13 +848,19 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 				s.mu.Unlock()
 
 				if session == nil {
-					session = s.RegisterAgent(reg.Subdomain, reg.Token)
+					session = s.RegisterAgent(regSub, reg.Token)
 				}
 
 				boundSession = session
 				session.writeMu.Lock()
+				if session.Conn != nil && session.Conn != conn {
+					_ = session.Conn.Close()
+				}
 				session.Conn = conn
 				session.Connected = true
+				if reg.Token != "" {
+					session.Token = reg.Token
+				}
 				if reg.Version != "" {
 					session.Version = reg.Version
 				}

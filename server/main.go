@@ -1354,11 +1354,9 @@ func main() {
 
 	app.Post("/api/agents/:subdomain/delete", func(c *fiber.Ctx) error {
 		subdomain := c.Params("subdomain")
-		deleted := svc.RemoveAgent(subdomain)
-		if deleted {
-			_ = repo.DeleteSubdomain(subdomain)
-		}
-		return c.JSON(fiber.Map{"success": deleted, "subdomain": subdomain})
+		svc.RemoveAgent(subdomain)
+		_ = repo.DeleteSubdomain(subdomain)
+		return c.JSON(fiber.Map{"success": true, "subdomain": subdomain})
 	})
 
 	app.Post("/api/agents/:subdomain/credentials", func(c *fiber.Ctx) error {
