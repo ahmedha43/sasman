@@ -1384,6 +1384,43 @@ func main() {
 			}
 		}
 
+		seen := make(map[string]bool)
+		for _, a := range agents {
+			if s, ok := a["subdomain"].(string); ok {
+				seen[strings.ToLower(s)] = true
+			}
+		}
+
+		for sub, owner := range owners {
+			subLower := strings.ToLower(sub)
+			if !seen[subLower] {
+				cloudAgent := fiber.Map{
+					"subdomain":     sub,
+					"online":        true, // Cloud tenant is natively hosted
+					"owner_name":    owner.Name,
+					"owner_phone":   owner.Phone,
+					"company_name":  owner.CompanyName,
+					"mode":          "cloud",
+					"agent_version": "Cloud Edition",
+					"arch":          "x86_64",
+					"ip":            c.IP(),
+				}
+				if lic, ok := licenses[subLower]; ok {
+					cloudAgent["license_status"] = lic.Status
+					cloudAgent["license_expires_at"] = lic.ExpiresAtStr
+					cloudAgent["days_remaining"] = lic.DaysRemaining
+					cloudAgent["is_expired"] = lic.IsExpired
+				} else {
+					cloudAgent["license_status"] = "active"
+					cloudAgent["license_expires_at"] = "Active"
+					cloudAgent["days_remaining"] = 365
+					cloudAgent["is_expired"] = false
+				}
+				agents = append(agents, cloudAgent)
+				seen[subLower] = true
+			}
+		}
+
 		return c.JSON(agents)
 	})
 
