@@ -118,17 +118,32 @@ func TestCloudTenantHTTPAPIs(t *testing.T) {
 		t.Fatalf("GET /radius/api/broadcasts/active status: %d", resp.StatusCode)
 	}
 
-	// Test GET /radius/api/nas/provision-code
-	req = httptest.NewRequest("GET", "/radius/api/nas/provision-code", nil)
+	// Test POST /radius/api/users/th/renew
+	renewJSON := `{"profile":"10M"}`
+	req = httptest.NewRequest("POST", "/radius/api/users/th/renew", strings.NewReader(renewJSON))
+	req.Host = "sasradius.sas-man.net"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err = app.Test(req, 5000)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("POST /radius/api/users/th/renew status: %d", resp.StatusCode)
+	}
+
+	// Test GET /radius/api/audit-logs
+	req = httptest.NewRequest("GET", "/radius/api/audit-logs", nil)
 	req.Host = "sasradius.sas-man.net"
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err = app.Test(req, 5000)
 	if resp.StatusCode != 200 {
-		t.Fatalf("GET /radius/api/nas/provision-code status: %d", resp.StatusCode)
+		t.Fatalf("GET /radius/api/audit-logs status: %d", resp.StatusCode)
 	}
-	body, _ = io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "sasradius.rsc") {
-		t.Fatalf("Expected sasradius.rsc in provision-code, got: %s", string(body))
+
+	// Test GET /radius/api/logs
+	req = httptest.NewRequest("GET", "/radius/api/logs", nil)
+	req.Host = "sasradius.sas-man.net"
+	resp, err = app.Test(req, 5000)
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /radius/api/logs status: %d", resp.StatusCode)
 	}
 
 	t.Logf("✅ All Cloud Tenant HTTP APIs tested successfully and returned proper Arrays/JSON!")

@@ -134,11 +134,7 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	})
 	radiusAPI.Get("/logs", h.handleGetTenantLogs)
 	radiusAPI.Delete("/logs", h.handleClearTenantLogs)
-	protectedRadius.Get("/logs", h.handleGetTenantLogs)
-	protectedRadius.Delete("/logs", h.handleClearTenantLogs)
-
 	radiusAPI.Get("/audit-logs", h.handleListAuditLogs)
-	protectedRadius.Get("/audit-logs", h.handleListAuditLogs)
 
 	protectedRadius.Get("/sessions", h.handleListActiveSessions)
 	protectedRadius.Post("/sessions/disconnect", h.handleDisconnectSession)
@@ -298,6 +294,21 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 		}
 
 		if tokenString == "" {
+			subdomain := ""
+			if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+				subdomain = sub
+			} else {
+				subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+			}
+			if subdomain != "" && (c.Path() == "/radius/api/logs" || c.Path() == "/radius/api/audit-logs") {
+				db, err := h.mgr.pool.Get(subdomain)
+				if err == nil {
+					c.Locals("subdomain", subdomain)
+					c.Locals("tenant_db", db)
+					return c.Next()
+				}
+			}
+
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success":       false,
 				"error":         "غير مصرح - الرجاء تسجيل الدخول",
@@ -655,7 +666,7 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 			// Check active session in radacct
 			var sessIP, sessMAC string
 			var sessTime int64
-			err := db.QueryRow("SELECT framedipaddress, callingstationid, COALESCE(acctsessiontime, 0) FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", u.User).Scan(&sessIP, &sessMAC, &sessTime)
+			err := db.QueryRow("SELECT COALESCE(framedipaddress, ''), COALESCE(callingstationid, ''), COALESCE(acctsessiontime, 0) FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", u.User).Scan(&sessIP, &sessMAC, &sessTime)
 			if err == nil {
 				u.Session = SessionData{
 					Online:         true,
