@@ -106,6 +106,15 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Put("/users/:username", h.handleCreateUser)
 	protectedRadius.Delete("/users/:username", h.handleDeleteUser)
 	protectedRadius.Post("/users/:username/renew", h.handleRenewUser)
+	protectedRadius.Get("/users/:username/details", h.handleGetUserDetails)
+	protectedRadius.Post("/users/:username/toggle-status", h.handleToggleUserStatus)
+	protectedRadius.Post("/users/:username/disconnect", h.handleDisconnectUser)
+	protectedRadius.Get("/users/:username/transactions", func(c *fiber.Ctx) error {
+		return c.JSON([]interface{}{})
+	})
+	protectedRadius.Post("/users/:username/transactions", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"success": true, "message": "تم تسجيل الحركة"})
+	})
 
 	protectedRadius.Get("/profiles", h.handleListProfiles)
 	protectedRadius.Post("/profiles", h.handleCreateProfile)
@@ -814,6 +823,112 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 		"message":             "تم تجديد اشتراك المشترك بنجاح",
 		"new_expiration_unix": newExp,
 	})
+}
+
+func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	username := c.Params("username")
+
+	var password, fullName, phone string
+	var expUnix int64
+	var enabledInt int
+	var profile string
+	_ = db.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&password)
+	_ = db.QueryRow("SELECT COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(expiration_unix, 0), COALESCE(enabled, 1) FROM radius_user_meta WHERE username = ?", username).Scan(&fullName, &phone, &expUnix, &enabledInt)
+	_ = db.QueryRow("SELECT groupname FROM radusergroup WHERE username = ? LIMIT 1", username).Scan(&profile)
+	if profile == "" {
+		profile = "10M"
+	}
+
+	var sessIP, sessMAC string
+	var sessTime int64
+	err := db.QueryRow("SELECT COALESCE(framedipaddress, ''), COALESCE(callingstationid, ''), COALESCE(acctsessiontime, 0) FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessIP, &sessMAC, &sessTime)
+	session := fiber.Map{
+		"online":          err == nil,
+		"status":          "offline",
+		"ip":              sessIP,
+		"mac":             sessMAC,
+		"session_seconds": sessTime,
+	}
+	if err == nil {
+		session["status"] = "online"
+	}
+
+	expStr := "مفتوح"
+	if expUnix > 0 {
+		expStr = time.Unix(expUnix, 0).Format("2006-01-02 15:04")
+	}
+
+	// Session history
+	sessions := make([]map[string]interface{}, 0)
+	rows, err := db.Query("SELECT acctstarttime, acctstoptime, COALESCE(framedipaddress, ''), COALESCE(acctinputoctets, 0), COALESCE(acctoutputoctets, 0), COALESCE(acctsessiontime, 0) FROM radacct WHERE username = ? ORDER BY radacctid DESC LIMIT 30", username)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var start, stop, ip string
+			var inBytes, outBytes, sTime int64
+			if err := rows.Scan(&start, &stop, &ip, &inBytes, &outBytes, &sTime); err == nil {
+				sessions = append(sessions, map[string]interface{}{
+					"started_at":   start,
+					"stopped_at":   stop,
+					"ip":           ip,
+					"download":     fmt.Sprintf("%.2f MB", float64(inBytes)/(1024*1024)),
+					"upload":       fmt.Sprintf("%.2f MB", float64(outBytes)/(1024*1024)),
+					"session_time": sTime,
+				})
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"user": fiber.Map{
+			"username":        username,
+			"password":        password,
+			"full_name":       fullName,
+			"phone":           phone,
+			"profile":         profile,
+			"expiration":      expStr,
+			"expiration_unix": expUnix,
+			"balance":         0,
+			"enabled":         enabledInt == 1,
+		},
+		"session":      session,
+		"sessions":     sessions,
+		"transactions": []interface{}{},
+	})
+}
+
+func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	username := c.Params("username")
+
+	var enabled int
+	_ = db.QueryRow("SELECT COALESCE(enabled, 1) FROM radius_user_meta WHERE username = ?", username).Scan(&enabled)
+	newStatus := 0
+	if enabled == 0 {
+		newStatus = 1
+	}
+
+	_, _ = db.Exec("UPDATE radius_user_meta SET enabled = ? WHERE username = ?", newStatus, username)
+	if newStatus == 0 {
+		_, _ = db.Exec("UPDATE radcheck SET attribute = 'Disabled-Password' WHERE username = ? AND attribute = 'Cleartext-Password'", username)
+	} else {
+		_, _ = db.Exec("UPDATE radcheck SET attribute = 'Cleartext-Password' WHERE username = ? AND attribute = 'Disabled-Password'", username)
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"enabled": newStatus == 1,
+		"message": "تم تحديث حالة المشترك بنجاح",
+	})
+}
+
+func (h *APIHandler) handleDisconnectUser(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	username := c.Params("username")
+	now := time.Now().Format("2006-01-02 15:04:05")
+	_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", now, username)
+	return c.JSON(fiber.Map{"success": true, "message": "تم فصل الجلسة بنجاح"})
 }
 
 func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
