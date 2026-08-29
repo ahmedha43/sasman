@@ -21,6 +21,7 @@ import (
 	"mikrotik-manager/server/internal/api"
 	aiinternal "mikrotik-manager/server/internal/ai"
 	"mikrotik-manager/server/internal/backup"
+	"mikrotik-manager/server/internal/cloudtenant"
 	otainternal "mikrotik-manager/server/internal/ota"
 	"mikrotik-manager/server/internal/radsec"
 	relayinternal "mikrotik-manager/server/internal/relay"
@@ -30,7 +31,7 @@ import (
 //go:embed index.html
 var landingHTML string
 
-//go:embed web/*
+//go:embed web/* web/cloud/*
 var webFS embed.FS
 
 //go:embed hotspot_template/*
@@ -346,6 +347,10 @@ func main() {
 	aiEngine := aiinternal.NewEngine(repo, svc)
 	aiAPI := aiinternal.NewAPIHandler(aiEngine, repo)
 
+	// Initialize Cloud Multi-Tenant Engine (Database-per-Tenant)
+	cloudTenantPool := cloudtenant.NewTenantDBPool("")
+	cloudTenantMgr := cloudtenant.NewManager(repo, cloudTenantPool, centralDomain, []byte("SASMAN_CLOUD_SECRET_KEY_9977_SECURE"))
+
 	// Initialize and Start Central RadSec Server on port 2083 (RFC 6614 mTLS)
 	centralRadSec := radsec.NewCentralRadSecServer(
 		func(subdomain string, req tunnel.GlobalAuthRequestPayload) tunnel.GlobalAuthResponsePayload {
@@ -357,7 +362,26 @@ func main() {
 					}
 				}
 			}
-			return svc.OnGlobalAuthRequest(subdomain, req)
+			// 1. If agent is connected via container WebSocket tunnel
+			if svc.GetAgentBySubdomain(subdomain) != nil {
+				return svc.OnGlobalAuthRequest(subdomain, req)
+			}
+
+			// 2. Cloud Tenant fallback: Authenticate directly against isolated tenant database
+			allow, rateLimit, _, reason, err := cloudTenantMgr.VerifyCloudUser(subdomain, req.Username, req.Password)
+			if err == nil && allow {
+				return tunnel.GlobalAuthResponsePayload{
+					RequestID:      req.RequestID,
+					Allow:          true,
+					RateLimit:      rateLimit,
+					SessionTimeout: 86400,
+				}
+			}
+			return tunnel.GlobalAuthResponsePayload{
+				RequestID:    req.RequestID,
+				Allow:        false,
+				RejectReason: reason,
+			}
 		},
 		func(subdomain string, req tunnel.GlobalAcctPayload) {
 			if subdomain == "" {
@@ -368,17 +392,38 @@ func main() {
 					}
 				}
 			}
-			svc.OnGlobalAcctUpdate(subdomain, req)
-			if subdomain != "" {
-				acctBytes, _ := json.Marshal(req)
-				_, _, _ = svc.SendAgentHTTPRequest(subdomain, "POST", "/radius/api/internal/sync-acct", acctBytes, nil)
+			// 1. Container mode
+			if svc.GetAgentBySubdomain(subdomain) != nil {
+				svc.OnGlobalAcctUpdate(subdomain, req)
+				if subdomain != "" {
+					acctBytes, _ := json.Marshal(req)
+					_, _, _ = svc.SendAgentHTTPRequest(subdomain, "POST", "/radius/api/internal/sync-acct", acctBytes, nil)
+				}
+				return
 			}
+
+			// 2. Cloud Tenant mode: Record accounting directly in tenant's isolated DB
+			_ = cloudTenantMgr.RecordCloudAccounting(subdomain, cloudtenant.CloudAccountingPayload{
+				Username:       req.Username,
+				StatusType:     req.StatusType,
+				SessionID:      req.SessionID,
+				UserIP:         req.UserIP,
+				UserMAC:        req.UserMAC,
+				NasIP:          req.NasIP,
+				BytesIn:        req.BytesIn,
+				BytesOut:       req.BytesOut,
+				SessionTimeSec: int64(req.SessionTimeSec),
+			})
 		},
 		func(cn string, nasIP string) string {
 			for _, part := range strings.Split(cn, "-") {
 				part = strings.TrimSpace(part)
 				if part != "" && part != "agent" && part != "SASMAN" {
 					if svc.GetAgentBySubdomain(part) != nil {
+						return part
+					}
+					// Check if cloud tenant exists
+					if _, err := os.Stat(cloudTenantPool.GetTenantDir(part)); err == nil {
 						return part
 					}
 				}
@@ -407,6 +452,36 @@ func main() {
 	relayAPI.RegisterRoutes(app)
 	otaAPI.RegisterRoutes(app)
 	aiAPI.RegisterRoutes(app)
+	cloudtenant.NewAPIHandler(cloudTenantMgr).RegisterRoutes(app)
+
+	// Cloud Edition Public Web Pages
+	app.Get("/cloud", func(c *fiber.Ctx) error {
+		return c.Redirect("/cloud/register")
+	})
+	app.Get("/cloud/register", func(c *fiber.Ctx) error {
+		content, err := webFS.ReadFile("web/cloud/register.html")
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("Error loading cloud register page")
+		}
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		return c.Send(content)
+	})
+	app.Get("/cloud/login", func(c *fiber.Ctx) error {
+		content, err := webFS.ReadFile("web/cloud/login.html")
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("Error loading cloud login page")
+		}
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		return c.Send(content)
+	})
+	app.Get("/cloud/dashboard", func(c *fiber.Ctx) error {
+		content, err := webFS.ReadFile("web/cloud/dashboard.html")
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("Error loading cloud dashboard")
+		}
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		return c.Send(content)
+	})
 
 	if centralDomain == "" {
 		centralDomain = "sas-man.net"

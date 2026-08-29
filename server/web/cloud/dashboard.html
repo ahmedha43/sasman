@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SASMAN Cloud | لوحة تحكم الشبكة السحابية</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Cairo', sans-serif; }
+    .glass {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+  <!-- Background Gradients -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden">
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl"></div>
+    <div class="absolute top-1/2 -right-40 w-96 h-96 bg-cyan-600/10 rounded-full blur-3xl"></div>
+  </div>
+
+  <!-- Navbar -->
+  <header class="relative z-20 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-xl">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-500/20">S</div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-black tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">SASMAN</span>
+            <span id="tenantBadge" class="text-xs bg-indigo-500/20 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/30 font-mono font-bold">cloud</span>
+          </div>
+          <span class="text-[11px] text-slate-400">إدارة سحابية مباشرة عبر RadSec</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button onclick="logout()" class="text-xs font-bold text-rose-400 hover:text-rose-300 transition bg-rose-500/10 hover:bg-rose-500/20 px-3.5 py-2 rounded-xl border border-rose-500/20">
+          تسجيل الخروج 🚪
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="relative z-10 max-w-7xl w-full mx-auto px-6 py-8 flex-1 space-y-8">
+
+    <!-- Top Notice / Quick Connect Banner -->
+    <div class="glass rounded-3xl p-6 border-indigo-500/20 bg-gradient-to-r from-indigo-950/40 to-slate-900/60 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+      <div class="space-y-1">
+        <div class="flex items-center gap-2">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <h2 class="text-lg font-bold text-white">الربط السريع بالمايكروتك (RadSec TLS mTLS)</h2>
+        </div>
+        <p class="text-slate-400 text-xs">انسخ السطر التالي والصقه في Terminal الراوتر لتفعيل المصادقة المشفرة سحابياً فوراً:</p>
+      </div>
+      <div class="flex items-center gap-2 w-full lg:w-auto">
+        <input type="text" id="quickScript" readonly class="w-full lg:w-96 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-cyan-300 text-left outline-none" dir="ltr">
+        <button onclick="copyQuickScript()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 whitespace-nowrap">
+          نسخ 📋
+        </button>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="glass p-5 rounded-2xl space-y-2 border-slate-800">
+        <span class="text-xs text-slate-400 font-medium">المتصلون الآن (Online)</span>
+        <div class="text-3xl font-black text-emerald-400" id="statOnline">-</div>
+        <span class="text-[11px] text-slate-500">جلسة نشطة حالياً في الراوتر</span>
+      </div>
+      <div class="glass p-5 rounded-2xl space-y-2 border-slate-800">
+        <span class="text-xs text-slate-400 font-medium">إجمالي المشتركين</span>
+        <div class="text-3xl font-black text-indigo-400" id="statUsers">-</div>
+        <span class="text-[11px] text-slate-500">مستخدم مسجل في قاعدة البيانات</span>
+      </div>
+      <div class="glass p-5 rounded-2xl space-y-2 border-slate-800">
+        <span class="text-xs text-slate-400 font-medium">الكروت المتاحة</span>
+        <div class="text-3xl font-black text-amber-400" id="statVouchers">-</div>
+        <span class="text-[11px] text-slate-500">قسيمة جاهزة للبيع والاستخدام</span>
+      </div>
+      <div class="glass p-5 rounded-2xl space-y-2 border-slate-800">
+        <span class="text-xs text-slate-400 font-medium">باقات السرعة النشطة</span>
+        <div class="text-3xl font-black text-cyan-400" id="statProfiles">-</div>
+        <span class="text-[11px] text-slate-500">باقة محددة بالسرعة والمحددات</span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+      <button onclick="switchTab('users')" id="tabBtn_users" class="px-4 py-2 rounded-xl text-sm font-bold transition bg-indigo-600 text-white">
+        👥 المشتركون
+      </button>
+      <button onclick="switchTab('sessions')" id="tabBtn_sessions" class="px-4 py-2 rounded-xl text-sm font-bold transition text-slate-400 hover:text-white">
+        ⚡ الجلسات النشطة
+      </button>
+      <button onclick="switchTab('vouchers')" id="tabBtn_vouchers" class="px-4 py-2 rounded-xl text-sm font-bold transition text-slate-400 hover:text-white">
+        🎟️ الكروت والقسائم
+      </button>
+      <button onclick="switchTab('profiles')" id="tabBtn_profiles" class="px-4 py-2 rounded-xl text-sm font-bold transition text-slate-400 hover:text-white">
+        🚀 الباقات والسرعات
+      </button>
+    </div>
+
+    <!-- TAB 1: USERS -->
+    <section id="tab_users" class="space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-bold text-white">قائمة المشتركين السحابيين</h3>
+        <button onclick="openAddUserModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-lg shadow-indigo-600/20">
+          + إضافة مشترك جديد
+        </button>
+      </div>
+
+      <div class="glass rounded-2xl overflow-hidden border-slate-800">
+        <div class="overflow-x-auto">
+          <table class="w-full text-right text-xs">
+            <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">اسم المستخدم</th>
+                <th class="py-3 px-4">كلمة المرور</th>
+                <th class="py-3 px-4">الاسم الكامل</th>
+                <th class="py-3 px-4">الباقة</th>
+                <th class="py-3 px-4">تاريخ الانتهاء</th>
+                <th class="py-3 px-4">الحالة</th>
+                <th class="py-3 px-4 text-left">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="usersTbody" class="divide-y divide-slate-800/60">
+              <tr><td colspan="7" class="py-8 text-center text-slate-500">جاري تحميل المشتركين...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: ACTIVE SESSIONS -->
+    <section id="tab_sessions" class="hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-bold text-white">المتصلون بالراوتر لحظياً (Live Sessions)</h3>
+        <button onclick="loadSessions()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-white font-bold transition">
+          تحديث 🔄
+        </button>
+      </div>
+      <div class="glass rounded-2xl overflow-hidden border-slate-800">
+        <div class="overflow-x-auto">
+          <table class="w-full text-right text-xs">
+            <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">المستخدم</th>
+                <th class="py-3 px-4">IP المشترك</th>
+                <th class="py-3 px-4">MAC العنوان</th>
+                <th class="py-3 px-4">تنزيل (Download)</th>
+                <th class="py-3 px-4">رفع (Upload)</th>
+                <th class="py-3 px-4">وقت البدء</th>
+                <th class="py-3 px-4 text-left">إجراء</th>
+              </tr>
+            </thead>
+            <tbody id="sessionsTbody" class="divide-y divide-slate-800/60">
+              <tr><td colspan="7" class="py-8 text-center text-slate-500">لا توجد جلسات نشطة حالياً</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: VOUCHERS -->
+    <section id="tab_vouchers" class="hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-bold text-white">قسائم وكروت الشبكة</h3>
+        <button onclick="openGenVoucherModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-lg shadow-indigo-600/20">
+          + توليد كروت جديدة
+        </button>
+      </div>
+      <div class="glass rounded-2xl overflow-hidden border-slate-800">
+        <div class="overflow-x-auto">
+          <table class="w-full text-right text-xs">
+            <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">كود الكرت / PIN</th>
+                <th class="py-3 px-4">الباقة</th>
+                <th class="py-3 px-4">الصلاحية</th>
+                <th class="py-3 px-4">السعر</th>
+                <th class="py-3 px-4">الحالة</th>
+                <th class="py-3 px-4">تاريخ الإنشاء</th>
+              </tr>
+            </thead>
+            <tbody id="vouchersTbody" class="divide-y divide-slate-800/60">
+              <tr><td colspan="6" class="py-8 text-center text-slate-500">جاري تحميل الكروت...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: PROFILES -->
+    <section id="tab_profiles" class="hidden space-y-4">
+      <h3 class="text-base font-bold text-white">باقات السرعة والاشتراكات</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="profilesGrid">
+        <div class="glass p-5 rounded-2xl text-center text-slate-500">جاري تحميل الباقات...</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal: Add User -->
+  <div id="addUserModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="glass max-w-md w-full rounded-3xl p-6 border-slate-800 space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h4 class="font-bold text-white text-sm">إضافة مشترك سحابي جديد</h4>
+        <button onclick="closeModal('addUserModal')" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+      <form id="addUserForm" class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 mb-1">اسم المستخدم</label>
+          <input type="text" id="newUsername" required class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 mb-1">كلمة المرور</label>
+          <input type="text" id="newPassword" required class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 mb-1">الاسم الكامل</label>
+          <input type="text" id="newFullName" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 mb-1">الباقة</label>
+          <select id="newProfile" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+            <option value="10M">10M (10M/10M)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 mb-1">صلاحية الاشتراك (بالأيام)</label>
+          <input type="number" id="newDays" value="30" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+        </div>
+        <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition mt-4">
+          حفظ المشترك
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Generate Vouchers -->
+  <div id="genVoucherModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="glass max-w-md w-full rounded-3xl p-6 border-slate-800 space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h4 class="font-bold text-white text-sm">توليد كروت جديدة</h4>
+        <button onclick="closeModal('genVoucherModal')" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+      <form id="genVoucherForm" class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 mb-1">عدد الكروت المطلوب</label>
+          <input type="number" id="vCount" value="50" min="1" max="1000" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 mb-1">الباقة</label>
+          <select id="vProfile" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+            <option value="10M">10M (10M/10M)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 mb-1">سعر البيع (دينار)</label>
+          <input type="number" id="vPrice" value="5000" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none">
+        </div>
+        <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition mt-4">
+          توليد وطباعة الكروت
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    function switchTab(tab) {
+      ['users', 'sessions', 'vouchers', 'profiles'].forEach(t => {
+        document.getElementById(`tab_${t}`).classList.add('hidden');
+        const btn = document.getElementById(`tabBtn_${t}`);
+        btn.className = 'px-4 py-2 rounded-xl text-sm font-bold transition text-slate-400 hover:text-white';
+      });
+      document.getElementById(`tab_${tab}`).classList.remove('hidden');
+      document.getElementById(`tabBtn_${tab}`).className = 'px-4 py-2 rounded-xl text-sm font-bold transition bg-indigo-600 text-white';
+
+      if (tab === 'users') loadUsers();
+      if (tab === 'sessions') loadSessions();
+      if (tab === 'vouchers') loadVouchers();
+      if (tab === 'profiles') loadProfiles();
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/cloud/api/tenant/stats');
+        const data = await res.json();
+        if (!data.success) {
+          window.location.href = '/cloud/login';
+          return;
+        }
+        document.getElementById('statOnline').textContent = data.data.online;
+        document.getElementById('statUsers').textContent = data.data.users;
+        document.getElementById('statVouchers').textContent = data.data.vouchers;
+        document.getElementById('statProfiles').textContent = data.data.profiles;
+        document.getElementById('tenantBadge').textContent = data.data.subdomain;
+
+        const fetchCmd = `/tool fetch url="${data.data.install_script}" dst-path="sasman_cloud.rsc" mode=https; :delay 2s; /import sasman_cloud.rsc;`;
+        document.getElementById('quickScript').value = fetchCmd;
+      } catch(e) {
+        window.location.href = '/cloud/login';
+      }
+    }
+
+    async function loadUsers() {
+      const tbody = document.getElementById('usersTbody');
+      try {
+        const res = await fetch('/cloud/api/tenant/users');
+        const data = await res.json();
+        if (!data.users || data.users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-500">لا يوجد مشتركين حالياً. أضف أول مشترك!</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.users.map(u => {
+          const expDate = u.expiration ? new Date(u.expiration * 1000).toLocaleDateString('ar-EG') : 'دائم';
+          return `
+            <tr class="hover:bg-slate-900/40 transition">
+              <td class="py-3 px-4 font-mono font-bold text-cyan-300">${u.username}</td>
+              <td class="py-3 px-4 font-mono text-slate-400">${u.password}</td>
+              <td class="py-3 px-4 text-white">${u.full_name || '-'}</td>
+              <td class="py-3 px-4"><span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-lg border border-indigo-500/30 text-[11px] font-bold">${u.profile}</span></td>
+              <td class="py-3 px-4 text-slate-400">${expDate}</td>
+              <td class="py-3 px-4">
+                <span class="inline-block w-2 h-2 rounded-full ${u.enabled ? 'bg-emerald-400' : 'bg-rose-400'} ml-1"></span>
+                ${u.enabled ? 'نشط' : 'معطل'}
+              </td>
+              <td class="py-3 px-4 text-left">
+                <button onclick="deleteUser('${u.username}')" class="text-rose-400 hover:text-rose-300 text-xs font-bold">حذف 🗑️</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-rose-500">خطأ في تحميل المشتركين</td></tr>';
+      }
+    }
+
+    async function loadSessions() {
+      const tbody = document.getElementById('sessionsTbody');
+      try {
+        const res = await fetch('/cloud/api/tenant/sessions');
+        const data = await res.json();
+        if (!data.sessions || data.sessions.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-500">لا توجد جلسات نشطة حالياً</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.sessions.map(s => {
+          const downMB = (s.bytes_in / (1024 * 1024)).toFixed(1);
+          const upMB = (s.bytes_out / (1024 * 1024)).toFixed(1);
+          return `
+            <tr class="hover:bg-slate-900/40 transition">
+              <td class="py-3 px-4 font-mono font-bold text-emerald-300">${s.username}</td>
+              <td class="py-3 px-4 font-mono text-slate-300">${s.user_ip}</td>
+              <td class="py-3 px-4 font-mono text-slate-500">${s.user_mac}</td>
+              <td class="py-3 px-4 text-cyan-400 font-bold">${downMB} MB</td>
+              <td class="py-3 px-4 text-amber-400 font-bold">${upMB} MB</td>
+              <td class="py-3 px-4 text-slate-400">${new Date(s.start_time).toLocaleTimeString('ar-EG')}</td>
+              <td class="py-3 px-4 text-left">
+                <button onclick="disconnectUser('${s.username}', '${s.session_id}')" class="text-rose-400 hover:text-rose-300 font-bold">فصل ⚡</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-rose-500">خطأ في تحميل الجلسات</td></tr>';
+      }
+    }
+
+    async function loadVouchers() {
+      const tbody = document.getElementById('vouchersTbody');
+      try {
+        const res = await fetch('/cloud/api/tenant/vouchers');
+        const data = await res.json();
+        if (!data.vouchers || data.vouchers.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500">لا توجد قسائم حالياً. اضغط على توليد كروت!</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.vouchers.map(v => `
+          <tr class="hover:bg-slate-900/40 transition">
+            <td class="py-3 px-4 font-mono font-bold text-amber-300">${v.code}</td>
+            <td class="py-3 px-4 font-bold text-indigo-300">${v.profile_name}</td>
+            <td class="py-3 px-4 text-slate-400">${v.validity_days} يوم</td>
+            <td class="py-3 px-4 text-emerald-400 font-bold">${v.price} د.ع</td>
+            <td class="py-3 px-4">${v.is_used ? '<span class="text-rose-400">مستخدم</span>' : '<span class="text-emerald-400 font-bold">جاهز</span>'}</td>
+            <td class="py-3 px-4 text-slate-500">${v.created_at}</td>
+          </tr>
+        `).join('');
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-rose-500">خطأ في تحميل الكروت</td></tr>';
+      }
+    }
+
+    async function loadProfiles() {
+      const grid = document.getElementById('profilesGrid');
+      try {
+        const res = await fetch('/cloud/api/tenant/profiles');
+        const data = await res.json();
+        if (!data.profiles || data.profiles.length === 0) {
+          grid.innerHTML = '<div class="glass p-5 rounded-2xl text-center text-slate-500">لا توجد باقات معرفة</div>';
+          return;
+        }
+        grid.innerHTML = data.profiles.map(p => `
+          <div class="glass p-5 rounded-2xl space-y-3 border-slate-800">
+            <div class="flex justify-between items-center">
+              <span class="text-base font-black text-white">${p.name}</span>
+              <span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-lg border border-indigo-500/30 font-bold">${p.rate_limit || '10M/10M'}</span>
+            </div>
+            <div class="text-2xl font-black text-emerald-400">${p.price} د.ع</div>
+            <div class="text-xs text-slate-400 font-medium">الصلاحية: ${p.validity_days} يوم</div>
+          </div>
+        `).join('');
+      } catch(e) {
+        grid.innerHTML = '<div class="glass p-5 rounded-2xl text-center text-rose-500">خطأ في تحميل الباقات</div>';
+      }
+    }
+
+    // Modal controls
+    function openAddUserModal() { document.getElementById('addUserModal').classList.remove('hidden'); }
+    function openGenVoucherModal() { document.getElementById('genVoucherModal').classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    // Actions
+    async function deleteUser(username) {
+      if (!confirm(`هل أنت متأكد من حذف المشترك [${username}]؟`)) return;
+      await fetch(`/cloud/api/tenant/users/${username}`, { method: 'DELETE' });
+      loadUsers();
+      loadStats();
+    }
+
+    async function disconnectUser(username, sessionID) {
+      await fetch('/cloud/api/tenant/sessions/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, session_id: sessionID })
+      });
+      loadSessions();
+      loadStats();
+    }
+
+    document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        username: document.getElementById('newUsername').value.trim(),
+        password: document.getElementById('newPassword').value.trim(),
+        full_name: document.getElementById('newFullName').value.trim(),
+        profile: document.getElementById('newProfile').value,
+        days: parseInt(document.getElementById('newDays').value) || 30
+      };
+      await fetch('/cloud/api/tenant/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      closeModal('addUserModal');
+      loadUsers();
+      loadStats();
+    });
+
+    document.getElementById('genVoucherForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        count: parseInt(document.getElementById('vCount').value) || 50,
+        profile_name: document.getElementById('vProfile').value,
+        price: parseFloat(document.getElementById('vPrice').value) || 5000,
+        validity_days: 30
+      };
+      await fetch('/cloud/api/tenant/vouchers/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      closeModal('genVoucherModal');
+      loadVouchers();
+      loadStats();
+    });
+
+    function copyQuickScript() {
+      const text = document.getElementById('quickScript').value;
+      navigator.clipboard.writeText(text);
+      alert('تم نسخ سكربت الربط! الصقه في Terminal المايكروتك.');
+    }
+
+    function logout() {
+      document.cookie = 'sasman_cloud_token=; Max-Age=0; path=/;';
+      window.location.href = '/cloud/login';
+    }
+
+    // Init
+    loadStats();
+    loadUsers();
+  </script>
+</body>
+</html>

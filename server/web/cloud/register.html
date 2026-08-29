@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SASMAN Cloud | تسجيل وكيل سحابي جديد</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Cairo', sans-serif; }
+    .glass {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+
+  <!-- Background Gradients -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden">
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl"></div>
+    <div class="absolute top-1/2 -right-40 w-96 h-96 bg-cyan-600/20 rounded-full blur-3xl"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="relative z-10 w-full max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-500/20">S</div>
+      <div>
+        <span class="text-xl font-black tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">SASMAN</span>
+        <span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30 mr-1.5 font-bold">Cloud Edition</span>
+      </div>
+    </div>
+    <a href="/cloud/login" class="text-sm font-semibold text-slate-300 hover:text-white transition flex items-center gap-1 bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-800 hover:border-slate-700">
+      تسجيل الدخول &larr;
+    </a>
+  </header>
+
+  <!-- Main Card -->
+  <main class="relative z-10 w-full max-w-xl mx-auto px-6 py-8">
+    <div class="glass rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+      
+      <!-- Title -->
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-black text-white mb-2">إنشاء شبكة سحابية جديدة</h1>
+        <p class="text-slate-400 text-sm">ابدأ بإدارة راوترك مباشرة عبر السحابة وبدون الحاجة لأي حاوية داخل الراوتر!</p>
+      </div>
+
+      <!-- Registration Form -->
+      <form id="regForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5">اسم الوكيل أو البرج</label>
+          <input type="text" id="ownerName" required placeholder="مثال: شبكة القمر" class="w-full bg-slate-900/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-sm transition outline-none text-white placeholder-slate-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5">رقم الهاتف (للتواصل والواتساب)</label>
+          <input type="tel" id="phone" required placeholder="07XXXXXXXXX" class="w-full bg-slate-900/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-sm transition outline-none text-white placeholder-slate-500 text-left" dir="ltr">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5">البريد الإلكتروني</label>
+          <input type="email" id="email" required placeholder="name@domain.com" class="w-full bg-slate-900/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-sm transition outline-none text-white placeholder-slate-500 text-left" dir="ltr">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5 flex justify-between">
+            <span>اسم النطاق الفرعي (Subdomain)</span>
+            <span id="subStatus" class="text-xs font-normal text-slate-400"></span>
+          </label>
+          <div class="relative flex items-center" dir="ltr">
+            <input type="text" id="subdomain" required placeholder="moonnet" class="w-full bg-slate-900/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl pl-4 pr-32 py-3 text-sm transition outline-none text-white font-mono placeholder-slate-600 lowercase">
+            <span class="absolute right-3 text-xs text-slate-500 font-mono pointer-events-none">.sas-man.net</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5">كلمة مرور لوحة التحكم</label>
+          <input type="password" id="password" required minlength="6" placeholder="••••••••" class="w-full bg-slate-900/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-sm transition outline-none text-white placeholder-slate-500 text-left" dir="ltr">
+        </div>
+
+        <div id="errorBox" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium text-center"></div>
+
+        <button type="submit" id="submitBtn" class="w-full mt-6 py-3.5 px-6 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 font-bold text-sm shadow-lg shadow-indigo-500/25 transition transform active:scale-95 flex items-center justify-center gap-2">
+          <span>إنشاء الحساب السحابي فوراً</span>
+          <svg id="spinner" class="hidden animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+        </button>
+      </form>
+
+      <!-- Success Screen -->
+      <div id="successBox" class="hidden text-center space-y-5">
+        <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/30">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        </div>
+        <h2 class="text-2xl font-black text-white">تم إنشاء شبكتك السحابية بنجاح!</h2>
+        <p class="text-slate-300 text-sm leading-relaxed">
+          تم إنشاء قاعدة البيانات المعزولة وتوليد شهادات الـ mTLS للراوتر.
+        </p>
+
+        <!-- Command to copy -->
+        <div class="text-right bg-slate-900/90 p-4 rounded-2xl border border-slate-800 space-y-2">
+          <span class="text-xs font-bold text-amber-400 flex items-center gap-1">
+            ⚡ كود الربط السريع (الصقه في Terminal المايكروتك):
+          </span>
+          <div class="relative">
+            <pre id="scriptCmd" class="text-xs font-mono bg-slate-950 p-3 rounded-xl border border-slate-800 text-cyan-300 overflow-x-auto text-left selection:bg-cyan-500 selection:text-black" dir="ltr"></pre>
+            <button onclick="copyScript()" class="mt-2 text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg transition font-bold">
+              نسخ الكود 📋
+            </button>
+          </div>
+        </div>
+
+        <a id="dashLink" href="/cloud/dashboard" class="inline-block w-full py-3.5 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-600 font-bold text-sm shadow-lg shadow-emerald-500/20 transition">
+          الانتقال إلى لوحة التحكم السحابية &rarr;
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="relative z-10 py-6 text-center text-xs text-slate-500">
+    نظام SASMAN السحابي الموحد &copy; 2026 | حماية وتشفير تام RFC 6614 RadSec
+  </footer>
+
+  <script>
+    let typingTimer;
+    const subInput = document.getElementById('subdomain');
+    const subStatus = document.getElementById('subStatus');
+
+    subInput.addEventListener('input', () => {
+      clearTimeout(typingTimer);
+      subStatus.textContent = 'جاري الفحص...';
+      subStatus.className = 'text-xs text-slate-400';
+
+      typingTimer = setTimeout(async () => {
+        const sub = subInput.value.trim().toLowerCase();
+        if (sub.length < 3) {
+          subStatus.textContent = 'أدخل 3 أحرف على الأقل';
+          subStatus.className = 'text-xs text-amber-400';
+          return;
+        }
+        try {
+          const res = await fetch(`/cloud/api/check-subdomain?sub=${encodeURIComponent(sub)}`);
+          const data = await res.json();
+          if (data.available) {
+            subStatus.textContent = '✅ متاح للاستخدام';
+            subStatus.className = 'text-xs text-emerald-400 font-bold';
+          } else {
+            subStatus.textContent = '❌ ' + (data.message || 'غير متاح');
+            subStatus.className = 'text-xs text-rose-400 font-bold';
+          }
+        } catch(e) {
+          subStatus.textContent = '';
+        }
+      }, 400);
+    });
+
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById('errorBox');
+      const submitBtn = document.getElementById('submitBtn');
+      const spinner = document.getElementById('spinner');
+
+      errBox.classList.add('hidden');
+      submitBtn.disabled = true;
+      spinner.classList.remove('hidden');
+
+      const payload = {
+        owner_name: document.getElementById('ownerName').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        subdomain: document.getElementById('subdomain').value.trim().toLowerCase(),
+        password: document.getElementById('password').value
+      };
+
+      try {
+        const res = await fetch('/cloud/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'فشل التسجيل');
+        }
+
+        document.getElementById('regForm').classList.add('hidden');
+        document.getElementById('successBox').classList.remove('hidden');
+        
+        const fetchCmd = `/tool fetch url="${data.install_script_url}" dst-path="sasman_cloud.rsc" mode=https; :delay 2s; /import sasman_cloud.rsc;`;
+        document.getElementById('scriptCmd').textContent = fetchCmd;
+        document.getElementById('dashLink').href = `/cloud/dashboard?sub=${data.tenant.subdomain}`;
+
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        spinner.classList.add('hidden');
+      }
+    });
+
+    function copyScript() {
+      const text = document.getElementById('scriptCmd').textContent;
+      navigator.clipboard.writeText(text);
+      alert('تم نسخ سكربت المايكروتك! الصقه في Terminal الراوتر.');
+    }
+  </script>
+</body>
+</html>

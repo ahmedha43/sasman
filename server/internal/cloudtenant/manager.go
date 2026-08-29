@@ -1,0 +1,375 @@
+package cloudtenant
+
+import (
+	"crypto/rand"
+	"database/sql"
+	"encoding/hex"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+
+	"mikrotik-manager/pkg/pki"
+	"mikrotik-manager/server/internal/storage"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
+)
+
+var validSubdomainRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{1,28}[a-z0-9])?$`)
+
+var reservedSubdomains = map[string]bool{
+	"admin":    true,
+	"api":      true,
+	"cloud":    true,
+	"www":      true,
+	"central":  true,
+	"sasman":   true,
+	"radius":   true,
+	"portal":   true,
+	"static":   true,
+	"pki":      true,
+	"system":   true,
+	"hotspot":  true,
+	"support":  true,
+	"root":     true,
+	"internal": true,
+}
+
+type Manager struct {
+	repo      *storage.SQLiteRepository
+	pool      *TenantDBPool
+	domain    string
+	jwtSecret []byte
+}
+
+func NewManager(repo *storage.SQLiteRepository, pool *TenantDBPool, domain string, jwtSecret []byte) *Manager {
+	if len(jwtSecret) == 0 {
+		jwtSecret = []byte("SASMAN_CLOUD_SECRET_KEY_9977_SECURE")
+	}
+	if domain == "" {
+		domain = "sas-man.net"
+	}
+	return &Manager{
+		repo:      repo,
+		pool:      pool,
+		domain:    domain,
+		jwtSecret: jwtSecret,
+	}
+}
+
+func (m *Manager) GetPool() *TenantDBPool {
+	return m.pool
+}
+
+func (m *Manager) IsSubdomainAvailable(subdomain string) (bool, string) {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	if len(sub) < 3 {
+		return false, "اسم النطاق يجب أن يكون 3 أحرف على الأقل"
+	}
+	if len(sub) > 30 {
+		return false, "اسم النطاق يجب ألا يتجاوز 30 حرفاً"
+	}
+	if !validSubdomainRegex.MatchString(sub) {
+		return false, "اسم النطاق يجب أن يحتوي على أحرف إنجليزية وأرقام وشرطة فقط"
+	}
+	if reservedSubdomains[sub] {
+		return false, "هذا النطاق محجوز للنظام"
+	}
+
+	// Check central database
+	if m.repo != nil {
+		available, err := m.repo.IsSubdomainAvailable(sub)
+		if err != nil {
+			return false, "خطأ في التحقق من النطاق: " + err.Error()
+		}
+		if !available {
+			return false, "هذا النطاق مستخدم بالفعل"
+		}
+	}
+
+	// Check if directory exists
+	tenantDir := m.pool.GetTenantDir(sub)
+	if _, err := os.Stat(tenantDir); err == nil {
+		return false, "هذا النطاق مستخدم بالفعل"
+	}
+
+	return true, ""
+}
+
+func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
+	sub := strings.ToLower(strings.TrimSpace(req.Subdomain))
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	password := strings.TrimSpace(req.Password)
+
+	if ok, reason := m.IsSubdomainAvailable(sub); !ok {
+		return nil, fmt.Errorf("%s", reason)
+	}
+
+	if email == "" || !strings.Contains(email, "@") {
+		return nil, fmt.Errorf("البريد الإلكتروني غير صالح")
+	}
+
+	if len(password) < 6 {
+		return nil, fmt.Errorf("كلمة المرور يجب أن تكون 6 خانات على الأقل")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("فشل تشفير كلمة المرور: %w", err)
+	}
+
+	// 1. Create Tenant Directory
+	tenantDir := m.pool.GetTenantDir(sub)
+	_ = os.MkdirAll(tenantDir, 0755)
+
+	// 2. Generate mTLS Certificates for MikroTik RadSec Client
+	_ = pki.InitPKI()
+	commonName := fmt.Sprintf("agent-%s-SASMAN", sub)
+	certBundle, err := pki.GenerateClientCertificate(commonName, 365*5) // 5 years validity
+	if err != nil {
+		return nil, fmt.Errorf("فشل توليد شهادات التشفير: %w", err)
+	}
+
+	// Save to PKI repository and tenant certs directory
+	pkiAgentDir := filepath.Join("data", "pki", "agents", sub)
+	if _, e := os.Stat("/app/data"); e == nil {
+		pkiAgentDir = filepath.Join("/app/data", "pki", "agents", sub)
+	}
+	_ = os.MkdirAll(pkiAgentDir, 0755)
+	_ = os.WriteFile(filepath.Join(pkiAgentDir, "agent.crt"), []byte(certBundle.CertPEM), 0644)
+	_ = os.WriteFile(filepath.Join(pkiAgentDir, "agent.key"), []byte(certBundle.KeyPEM), 0600)
+
+	tenantCertsDir := filepath.Join(tenantDir, "certs")
+	_ = os.MkdirAll(tenantCertsDir, 0755)
+	_ = os.WriteFile(filepath.Join(tenantCertsDir, "agent.crt"), []byte(certBundle.CertPEM), 0644)
+	_ = os.WriteFile(filepath.Join(tenantCertsDir, "agent.key"), []byte(certBundle.KeyPEM), 0600)
+
+	// 3. Initialize Tenant Isolated SQLite Database
+	tenantDB, err := m.pool.Get(sub)
+	if err != nil {
+		return nil, fmt.Errorf("فشل تهيئة قاعدة بيانات المستأجر: %w", err)
+	}
+
+	// Insert initial administrator
+	adminPassHash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	_, _ = tenantDB.Exec(`
+		INSERT INTO radius_admins (username, password, role, name, phone, is_active)
+		VALUES (?, ?, 'superadmin', ?, ?, 1)
+	`, "admin", string(adminPassHash), req.OwnerName, req.Phone)
+
+	// 4. Save Customer and Subdomain in Central Storage
+	customerID := fmt.Sprintf("cust_%s", sub)
+	licenseID := fmt.Sprintf("lic_%s", sub)
+	now := time.Now()
+	expiresAt := now.Add(30 * 24 * time.Hour)
+
+	if m.repo != nil {
+		_ = m.repo.SaveCustomer(storage.Customer{
+			ID:          customerID,
+			Name:        req.OwnerName,
+			Phone:       req.Phone,
+			Email:       email,
+			CompanyName: sub,
+			Status:      "active",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		})
+
+		_ = m.repo.SaveLicense(storage.License{
+			ID:         licenseID,
+			CustomerID: customerID,
+			LicenseKey: generateRandomToken(24),
+			PlanName:   "cloud_pro",
+			Status:     "active",
+			IssuedAt:   now,
+			ExpiresAt:  &expiresAt,
+			Metadata:   `{"type":"cloud_tenant"}`,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		})
+
+		_, _ = m.repo.CreateOrGetSubdomain(customerID, licenseID, sub)
+		_ = m.repo.UpdateSubdomainOwner(sub, req.OwnerName, req.Phone, sub)
+	}
+
+	tenant := &CloudTenant{
+		ID:           customerID,
+		Subdomain:    sub,
+		Email:        email,
+		PasswordHash: string(hashedPassword),
+		OwnerName:    req.OwnerName,
+		Phone:        req.Phone,
+		Status:       "active",
+		Plan:         "cloud_pro",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	log.Printf("[cloudtenant] ✅ Successfully registered Cloud Tenant [%s] (%s)", sub, email)
+	return tenant, nil
+}
+
+func (m *Manager) AuthenticateTenant(loginID, password string) (*CloudTenant, string, error) {
+	loginID = strings.ToLower(strings.TrimSpace(loginID))
+	password = strings.TrimSpace(password)
+
+	subdomain := loginID
+	tenantDB, err := m.pool.Get(subdomain)
+	if err != nil {
+		return nil, "", fmt.Errorf("المستأجر السحابي غير موجود")
+	}
+
+	// Verify against tenant's admin table
+	var hash string
+	var role string
+	var name, phone sql.NullString
+	err = tenantDB.QueryRow("SELECT password, role, name, phone FROM radius_admins WHERE username = 'admin'").Scan(&hash, &role, &name, &phone)
+	if err != nil {
+		return nil, "", fmt.Errorf("بيانات تسجيل الدخول غير صحيحة")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
+		return nil, "", fmt.Errorf("كلمة المرور غير صحيحة")
+	}
+
+	// Generate JWT Token
+	claims := jwt.MapClaims{
+		"subdomain": subdomain,
+		"role":      role,
+		"type":      "cloud",
+		"exp":       time.Now().Add(7 * 24 * time.Hour).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(m.jwtSecret)
+	if err != nil {
+		return nil, "", fmt.Errorf("فشل إصدار رمز الدخول: %w", err)
+	}
+
+	tenant := &CloudTenant{
+		Subdomain: subdomain,
+		OwnerName: name.String,
+		Phone:     phone.String,
+		Status:    "active",
+		Plan:      "cloud_pro",
+	}
+
+	return tenant, tokenString, nil
+}
+
+func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, string, string, string, error) {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	username = strings.TrimSpace(username)
+	password = strings.TrimRight(strings.TrimSpace(password), "\x00")
+
+	tenantDB, err := m.pool.Get(subdomain)
+	if err != nil {
+		return false, "", "", "قاعدة بيانات المستأجر غير متاحة", err
+	}
+
+	// 1. Strip realm if provided
+	lookupUser := username
+	if strings.Contains(username, "@") {
+		lookupUser = strings.Split(username, "@")[0]
+	}
+
+	// 2. Query radcheck for password
+	var dbPass string
+	err = tenantDB.QueryRow("SELECT value FROM radcheck WHERE (username = ? OR username = ?) AND attribute = 'Cleartext-Password'", username, lookupUser).Scan(&dbPass)
+	if err != nil {
+		// Check voucher
+		var isUsed int
+		var profileName string
+		vErr := tenantDB.QueryRow("SELECT is_used, profile_name FROM radius_vouchers WHERE code = ? OR code = ?", username, lookupUser).Scan(&isUsed, &profileName)
+		if vErr == nil {
+			// Voucher exists
+			rateLimit := "10M/10M"
+			_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", profileName).Scan(&rateLimit)
+			return true, rateLimit, username, "OK", nil
+		}
+		return false, "", "", "المستخدم غير مسجل", fmt.Errorf("user not found")
+	}
+
+	dbPass = strings.TrimRight(strings.TrimSpace(dbPass), "\x00")
+	if password != "" && password != dbPass {
+		return false, "", "", "كلمة المرور غير صحيحة", nil
+	}
+
+	// 3. Check expiration and active status in radius_user_meta
+	var enabled int
+	var expUnix sql.NullInt64
+	metaErr := tenantDB.QueryRow("SELECT enabled, expiration_unix FROM radius_user_meta WHERE username = ? OR username = ?", username, lookupUser).Scan(&enabled, &expUnix)
+	if metaErr == nil {
+		if enabled == 0 {
+			return false, "", "", "الحساب معطل", nil
+		}
+		if expUnix.Valid && expUnix.Int64 > 0 && expUnix.Int64 < time.Now().Unix() {
+			return false, "", "", "انتهى اشتراك المستخدم", nil
+		}
+	}
+
+	// 4. Query Rate Limit
+	rateLimit := "10M/10M"
+	var grpRate string
+	err = tenantDB.QueryRow(`
+		SELECT rgr.value 
+		FROM radusergroup rug
+		JOIN radgroupreply rgr ON rug.groupname = rgr.groupname
+		WHERE (rug.username = ? OR rug.username = ?) AND rgr.attribute = 'Mikrotik-Rate-Limit'
+		LIMIT 1
+	`, username, lookupUser).Scan(&grpRate)
+	if err == nil && grpRate != "" {
+		rateLimit = grpRate
+	}
+
+	return true, rateLimit, dbPass, "OK", nil
+}
+
+func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPayload) error {
+	tenantDB, err := m.pool.Get(subdomain)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	switch p.StatusType {
+	case "Start":
+		_, err = tenantDB.Exec(`
+			INSERT INTO radacct (
+				acctsessionid, username, nasipaddress, acctstarttime, 
+				framedipaddress, callingstationid, acctinputoctets, acctoutputoctets
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, p.SessionID, p.Username, p.NasIP, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut)
+	case "Stop":
+		_, err = tenantDB.Exec(`
+			UPDATE radacct SET 
+				acctstoptime = ?,
+				acctsessiontime = ?,
+				acctinputoctets = ?,
+				acctoutputoctets = ?,
+				acctterminatecause = ?
+			WHERE acctsessionid = ? OR (username = ? AND acctstoptime IS NULL)
+		`, now, p.SessionTimeSec, p.BytesIn, p.BytesOut, p.TerminateCause, p.SessionID, p.Username)
+	case "Interim-Update":
+		_, err = tenantDB.Exec(`
+			UPDATE radacct SET 
+				acctupdatetime = ?,
+				acctsessiontime = ?,
+				acctinputoctets = ?,
+				acctoutputoctets = ?
+			WHERE acctsessionid = ? OR (username = ? AND acctstoptime IS NULL)
+		`, now, p.SessionTimeSec, p.BytesIn, p.BytesOut, p.SessionID, p.Username)
+	}
+
+	return err
+}
+
+func generateRandomToken(length int) string {
+	b := make([]byte, length)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
