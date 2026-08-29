@@ -300,9 +300,13 @@ async function openAutoRadSecModal() {
             const badge = document.getElementById('auto-subdomain-badge');
             if (badge) badge.innerText = data.subdomain;
         } else {
-            const sub = (currentAdmin && currentAdmin.username) ? currentAdmin.username : 'default';
-            const cmd = `/tool fetch url="https://sas-man.net/pki/install/${sub}.rsc" dst-path=radsec.rsc; :delay 2s; /import radsec.rsc`;
+            const hostParts = window.location.hostname.split('.');
+            let inferredSub = (hostParts.length > 2 && hostParts[0] !== 'www') ? hostParts[0] : '';
+            const sub = (currentAdmin && currentAdmin.subdomain) ? currentAdmin.subdomain : (inferredSub || 'default');
+            const cmd = `/tool fetch url="https://sas-man.net/pki/install/${sub}.rsc" dst-path="sasman_cloud.rsc" mode=https; :delay 2s; /import sasman_cloud.rsc;`;
             document.getElementById('auto-provision-cmd').value = cmd;
+            const badge = document.getElementById('auto-subdomain-badge');
+            if (badge) badge.innerText = sub;
         }
     } catch (e) {
         console.error(e);

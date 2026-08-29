@@ -87,8 +87,9 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 		})
 	})
 
-	// Live RadSec / Router Ping Status
+	// Live RadSec / Router Ping Status & Provision Code
 	radiusAPI.Get("/nas/status", h.handleNASLiveStatus)
+	radiusAPI.Get("/nas/provision-code", h.handleNASProvisionCode)
 
 	// Broadcasts & System configs (Public / semi-public for UI initialization)
 	radiusAPI.Get("/broadcasts/active", func(c *fiber.Ctx) error {
@@ -97,6 +98,7 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 
 	// Protected Data APIs for web_radius
 	protectedRadius := radiusAPI.Group("", h.TenantAuthMiddleware())
+	protectedRadius.Get("/nas/provision-code", h.handleNASProvisionCode)
 	protectedRadius.Get("/users", h.handleListUsers)
 	protectedRadius.Post("/users", h.handleCreateUser)
 	protectedRadius.Put("/users/:username", h.handleCreateUser)
@@ -1082,3 +1084,26 @@ func (h *APIHandler) handleNASLiveStatus(c *fiber.Ctx) error {
 		"last_seen_sec": secAgo.Int64,
 	})
 }
+
+func (h *APIHandler) handleNASProvisionCode(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		subdomain = "default"
+	}
+
+	command := fmt.Sprintf(`/tool fetch url="https://%s/pki/install/%s.rsc" dst-path="sasman_cloud.rsc" mode=https; :delay 2s; /import sasman_cloud.rsc;`, h.mgr.domain, subdomain)
+
+	return c.JSON(fiber.Map{
+		"success":        true,
+		"subdomain":      subdomain,
+		"central_domain": h.mgr.domain,
+		"command":        command,
+		"script_url":     fmt.Sprintf("https://%s/pki/install/%s.rsc", h.mgr.domain, subdomain),
+	})
+}
+

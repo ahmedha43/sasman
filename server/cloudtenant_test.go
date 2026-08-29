@@ -118,6 +118,19 @@ func TestCloudTenantHTTPAPIs(t *testing.T) {
 		t.Fatalf("GET /radius/api/broadcasts/active status: %d", resp.StatusCode)
 	}
 
+	// Test GET /radius/api/nas/provision-code
+	req = httptest.NewRequest("GET", "/radius/api/nas/provision-code", nil)
+	req.Host = "sasradius.sas-man.net"
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err = app.Test(req, 5000)
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /radius/api/nas/provision-code status: %d", resp.StatusCode)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "sasradius.rsc") {
+		t.Fatalf("Expected sasradius.rsc in provision-code, got: %s", string(body))
+	}
+
 	t.Logf("✅ All Cloud Tenant HTTP APIs tested successfully and returned proper Arrays/JSON!")
 }
 

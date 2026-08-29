@@ -4,7 +4,7 @@ const radiusModules = {
     profiles: ['/radius/js/profiles.js?v=10'],
     users: ['/radius/js/profiles.js?v=10', '/radius/js/transactions.js?v=10', '/radius/js/users.js?v=10'],
     vouchers: ['/radius/js/vouchers.js?v=10'],
-    nas: ['/radius/js/nas.js?v=15'],
+    nas: ['/radius/js/nas.js?v=16'],
     devices: ['/radius/js/devices.js?v=10'],
     streams: ['/radius/js/streams.js?v=10'],
     whatsapp: ['/radius/js/whatsapp.js?v=10'],
