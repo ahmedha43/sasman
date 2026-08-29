@@ -303,7 +303,22 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			Value: groupData,
 		})
 
-		// MS-CHAP2-Success if MS-CHAPv2 was requested
+		// Service-Type: Framed-User (2) & Framed-Protocol: PPP (1)
+		stBuf := make([]byte, 4)
+		binary.BigEndian.PutUint32(stBuf, 2)
+		reply.Attributes = append(reply.Attributes, packet.Attribute{
+			Type:  types.AttrServiceType,
+			Value: stBuf,
+		})
+
+		fpBuf := make([]byte, 4)
+		binary.BigEndian.PutUint32(fpBuf, 1)
+		reply.Attributes = append(reply.Attributes, packet.Attribute{
+			Type:  types.AttrFramedProtocol,
+			Value: fpBuf,
+		})
+
+		// MS-CHAP2-Success & MPPE Keys if MS-CHAPv2 was requested
 		dbPass := authResp.Password
 		if dbPass == "" {
 			dbPass = userPassword
@@ -330,6 +345,53 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 				Type:  types.AttrVendorSpecific,
 				Value: vsaMS,
 			})
+
+			// MPPE Encryption Keys
+			sendKey, recvKey, errMPPE := crypto.DeriveMPPEKeysFromPassword(dbPass, ntResp, 16)
+			if errMPPE == nil {
+				sendKeyEnc, _ := crypto.EncryptMPPEKey(sendKey, p.Authenticator, []byte("radsec"))
+				recvKeyEnc, _ := crypto.EncryptMPPEKey(recvKey, p.Authenticator, []byte("radsec"))
+
+				vsaSend := make([]byte, 6+len(sendKeyEnc))
+				binary.BigEndian.PutUint32(vsaSend[0:4], 311)
+				vsaSend[4] = 16 // MS-MPPE-Send-Key
+				vsaSend[5] = byte(2 + len(sendKeyEnc))
+				copy(vsaSend[6:], sendKeyEnc)
+				reply.Attributes = append(reply.Attributes, packet.Attribute{
+					Type:  types.AttrVendorSpecific,
+					Value: vsaSend,
+				})
+
+				vsaRecv := make([]byte, 6+len(recvKeyEnc))
+				binary.BigEndian.PutUint32(vsaRecv[0:4], 311)
+				vsaRecv[4] = 17 // MS-MPPE-Recv-Key
+				vsaRecv[5] = byte(2 + len(recvKeyEnc))
+				copy(vsaRecv[6:], recvKeyEnc)
+				reply.Attributes = append(reply.Attributes, packet.Attribute{
+					Type:  types.AttrVendorSpecific,
+					Value: vsaRecv,
+				})
+
+				policyBuf := make([]byte, 10)
+				binary.BigEndian.PutUint32(policyBuf[0:4], 311)
+				policyBuf[4] = 7 // MS-MPPE-Encryption-Policy
+				policyBuf[5] = 6
+				binary.BigEndian.PutUint32(policyBuf[6:], 1) // Encryption Required
+				reply.Attributes = append(reply.Attributes, packet.Attribute{
+					Type:  types.AttrVendorSpecific,
+					Value: policyBuf,
+				})
+
+				typeBuf := make([]byte, 10)
+				binary.BigEndian.PutUint32(typeBuf[0:4], 311)
+				typeBuf[4] = 8 // MS-MPPE-Encryption-Types
+				typeBuf[5] = 6
+				binary.BigEndian.PutUint32(typeBuf[6:], 6) // RC4-40 or RC4-128
+				reply.Attributes = append(reply.Attributes, packet.Attribute{
+					Type:  types.AttrVendorSpecific,
+					Value: typeBuf,
+				})
+			}
 		}
 
 		timeout := authResp.SessionTimeout
@@ -354,6 +416,12 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			Value: []byte(reason),
 		})
 	}
+
+	// Always append Message-Authenticator (RFC 2869/3579) so reply.Marshal signs the entire packet
+	reply.Attributes = append(reply.Attributes, packet.Attribute{
+		Type:  types.AttrMessageAuthenticator,
+		Value: make([]byte, 16),
+	})
 
 	replyWire, err := reply.Marshal([]byte("radsec"))
 	if err != nil {
