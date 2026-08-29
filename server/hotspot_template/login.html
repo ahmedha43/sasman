@@ -259,20 +259,13 @@
             } else {
                 var user = document.getElementById('agent-user').value.trim();
                 var pass = document.getElementById('agent-pass').value;
-                var domain = document.getElementById('agent-domain').value.trim().toLowerCase();
 
                 if (!user) {
                     showClientError('يرجى إدخال اسم المستخدم أولاً');
                     return false;
                 }
 
-                if (domain) {
-                    domain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-                    if (domain.indexOf(':') !== -1) domain = domain.split(':')[0];
-                    finalUser = user + '@' + domain;
-                } else {
-                    finalUser = user;
-                }
+                finalUser = user;
                 finalPass = pass;
             }
 
@@ -332,12 +325,6 @@
                 <div class="form-group">
                     <label class="form-label" for="agent-pass">كلمة المرور (Password):</label>
                     <input type="password" id="agent-pass" class="form-input" placeholder="••••••••">
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="agent-domain">نطاق الوكيل (Subdomain / اختياري للتجوال):</label>
-                    <input type="text" id="agent-domain" class="form-input" placeholder="اتركه فارغاً للدخول المحلي، أو اكتب نطاق الوكيل" autocomplete="off" autocorrect="off" autocapitalize="none">
-                    <div class="form-hint">⚡ اتركه فارغاً للدخول على هذا السيرفر المحلي مباشرة، أو أدخل نطاق الوكيل (مثل: ahmed) في حال التجوال من شبكة أخرى.</div>
                 </div>
             </div>
 
@@ -399,20 +386,13 @@
             } else {
                 var user = document.getElementById('agent-user').value.trim();
                 var pass = document.getElementById('agent-pass').value;
-                var domain = document.getElementById('agent-domain').value.trim().toLowerCase();
 
                 if (!user) {
                     showClientError('يرجى إدخال اسم المستخدم أولاً');
                     return false;
                 }
 
-                if (domain) {
-                    domain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-                    if (domain.indexOf(':') !== -1) domain = domain.split(':')[0];
-                    mtUser.value = user + '@' + domain;
-                } else {
-                    mtUser.value = user;
-                }
+                mtUser.value = user;
                 mtPass.value = pass;
             }
             return true;
