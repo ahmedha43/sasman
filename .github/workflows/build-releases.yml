@@ -61,6 +61,9 @@ jobs:
           docker cp $CID:/app/main output/${{ matrix.bin }}
           docker rm -f $CID
           
+          # Compress binary for distribution
+          tar -czvf output/${{ matrix.bin }}.tar.gz -C output ${{ matrix.bin }}
+          
           ls -lh output/
 
       - name: Upload Single Architecture Artifact
