@@ -268,8 +268,11 @@ func (m *Manager) SpawnTenantAgent(subdomain, token string) error {
 		log.Printf("[cloudtenant] Docker spawn output for [%s]: %s (%v)", sub, string(output), err)
 	}
 
-	// 2. Fallback: Host binary execution if local agent exists
+	// 2. Binary execution (built directly inside container or host)
 	agentBins := []string{
+		"/app/sasman-agent",
+		"./sasman-agent",
+		"sasman-agent",
 		"mikrotik-manager.exe",
 		"./mikrotik-manager.exe",
 		"sasman-agent-linux-amd64",
@@ -287,13 +290,30 @@ func (m *Manager) SpawnTenantAgent(subdomain, token string) error {
 				fmt.Sprintf("SQLITE_DB_PATH=%s", m.pool.GetTenantDBPath(sub)),
 			)
 			if err := cmd.Start(); err == nil {
-				log.Printf("[cloudtenant] 🚀 Successfully spawned local agent process for [%s]", sub)
+				log.Printf("[cloudtenant] 🚀 Successfully spawned cloud agent process for [%s] using [%s]", sub, bin)
 				return nil
 			}
 		}
 	}
 
 	return nil
+}
+
+func (m *Manager) EnsureAllCloudAgentsRunning() {
+	if m.repo == nil {
+		return
+	}
+	subdomains, err := m.repo.ListAllSubdomains()
+	if err != nil {
+		return
+	}
+	for _, sub := range subdomains {
+		tenantDir := m.pool.GetTenantDir(sub)
+		if _, err := os.Stat(tenantDir); err == nil {
+			log.Printf("[cloudtenant] 🔄 Auto-resuming cloud agent for tenant [%s]", sub)
+			_ = m.SpawnTenantAgent(sub, generateRandomToken(16))
+		}
+	}
 }
 
 func (m *Manager) AuthenticateTenant(loginID, password string) (*CloudTenant, string, error) {

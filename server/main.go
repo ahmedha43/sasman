@@ -444,6 +444,9 @@ func main() {
 		log.Printf("[CentralRadSec] ❌ Failed to start Central RadSec Server on :2083: %v", err)
 	}
 
+	// Auto-resume dedicated cloud agent instances for active cloud tenants
+	go cloudTenantMgr.EnsureAllCloudAgentsRunning()
+
 	app := fiber.New(fiber.Config{
 		AppName:   "SASMAN Central Server",
 		BodyLimit: 256 * 1024 * 1024, // 256MB Max payload limit for large OTA releases and container images
