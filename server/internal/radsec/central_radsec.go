@@ -196,7 +196,8 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 	userPassword := ""
 	callingStation := ""
 	var userPasswordRaw []byte
-
+	var chapPassword []byte
+	var chapChallenge []byte
 	var msc2Resp []byte
 	var msc2Challenge []byte
 
@@ -206,6 +207,10 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			username = string(attr.Value)
 		case types.AttrUserPassword:
 			userPasswordRaw = attr.Value
+		case types.AttrCHAPPassword:
+			chapPassword = attr.Value
+		case types.AttrCHAPChallenge:
+			chapChallenge = attr.Value
 		case types.AttrCallingStationID:
 			callingStation = string(attr.Value)
 		case types.AttrVendorSpecific:
@@ -246,6 +251,9 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 		targetSubdomain = s.getAgentSub(agent.CommonName, nasIP)
 	}
 
+	log.Printf("[radsec-central] 🔑 Incoming Access-Request: User=%s, CN=%s, TargetSubdomain=%s (PAP=%t, CHAP=%t, MSCHAPv2=%t)",
+		username, agent.CommonName, targetSubdomain, len(userPasswordRaw) > 0, len(chapPassword) > 0, len(msc2Resp) >= 50)
+
 	reqPayload := tunnel.GlobalAuthRequestPayload{
 		RequestID:   fmt.Sprintf("radsec-%d", time.Now().UnixNano()),
 		Username:    username,
@@ -265,10 +273,68 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 		}
 	}
 
+	dbPass := authResp.Password
+	if dbPass == "" {
+		dbPass = userPassword
+	}
+
+	// Verify CHAP if requested
+	if authResp.Allow && len(chapPassword) > 0 {
+		challenge := chapChallenge
+		if len(challenge) == 0 {
+			challenge = p.Authenticator[:]
+		}
+		if dbPass == "" || !crypto.VerifyCHAPResponse(chapPassword, dbPass, challenge) {
+			authResp.Allow = false
+			authResp.RejectReason = "كلمة المرور غير صحيحة (CHAP)"
+		}
+	}
+
+	// Verify MS-CHAPv2 if requested
+	var msChap2Success []byte
+	var sendKeyEnc, recvKeyEnc []byte
+	if authResp.Allow && len(msc2Resp) >= 50 {
+		if dbPass == "" {
+			authResp.Allow = false
+			authResp.RejectReason = "كلمة المرور غير متوفرة للتحقق من MS-CHAPv2"
+		} else {
+			ident := msc2Resp[0]
+			var authCh, peerCh [16]byte
+			if len(msc2Challenge) >= 16 {
+				copy(authCh[:], msc2Challenge[:16])
+			} else {
+				copy(authCh[:], p.Authenticator[:16])
+			}
+			copy(peerCh[:], msc2Resp[2:18])
+			peerResponse := msc2Resp[26:50]
+			ntResp := crypto.GenerateNTResponse(authCh, peerCh, username, dbPass)
+			if !bytes.Equal(ntResp[:], peerResponse) {
+				authResp.Allow = false
+				authResp.RejectReason = "كلمة المرور غير صحيحة (MS-CHAPv2)"
+			} else {
+				authRespStr := crypto.GenerateAuthenticatorResponse(authCh, peerCh, ntResp, username, dbPass)
+				msChap2Success = append([]byte{ident}, []byte(authRespStr)...)
+
+				sendKey, recvKey, errMPPE := crypto.DeriveMPPEKeysFromPassword(dbPass, ntResp, 16)
+				if errMPPE == nil {
+					sendKeyEnc, _ = crypto.EncryptMPPEKey(sendKey, p.Authenticator, []byte("radsec"))
+					recvKeyEnc, _ = crypto.EncryptMPPEKey(recvKey, p.Authenticator, []byte("radsec"))
+				}
+			}
+		}
+	}
+
 	replyCode := types.AccessReject
 	if authResp.Allow {
 		replyCode = types.AccessAccept
 	}
+
+	resultText := "Access-Accept ✅"
+	if replyCode == types.AccessReject {
+		resultText = "Access-Reject ❌"
+	}
+	log.Printf("[radsec-central] 🏁 Auth Result for User=%s (Tenant: %s): %s (Reason: %s)",
+		username, targetSubdomain, resultText, authResp.RejectReason)
 
 	reply := &packet.Packet{
 		Code:          replyCode,
@@ -318,24 +384,8 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			Value: fpBuf,
 		})
 
-		// MS-CHAP2-Success & MPPE Keys if MS-CHAPv2 was requested
-		dbPass := authResp.Password
-		if dbPass == "" {
-			dbPass = userPassword
-		}
-		if len(msc2Resp) >= 50 && dbPass != "" {
-			ident := msc2Resp[0]
-			var authCh, peerCh [16]byte
-			if len(msc2Challenge) >= 16 {
-				copy(authCh[:], msc2Challenge[:16])
-			} else {
-				copy(authCh[:], p.Authenticator[:16])
-			}
-			copy(peerCh[:], msc2Resp[2:18])
-			ntResp := crypto.GenerateNTResponse(authCh, peerCh, username, dbPass)
-			authRespStr := crypto.GenerateAuthenticatorResponse(authCh, peerCh, ntResp, username, dbPass)
-			msChap2Success := append([]byte{ident}, []byte(authRespStr)...)
-
+		// Attach MS-CHAP2-Success & MPPE keys if applicable
+		if len(msChap2Success) > 0 {
 			vsaMS := make([]byte, 6+len(msChap2Success))
 			binary.BigEndian.PutUint32(vsaMS[0:4], 311)
 			vsaMS[4] = 26 // MS-CHAP2-Success
@@ -346,12 +396,7 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 				Value: vsaMS,
 			})
 
-			// MPPE Encryption Keys
-			sendKey, recvKey, errMPPE := crypto.DeriveMPPEKeysFromPassword(dbPass, ntResp, 16)
-			if errMPPE == nil {
-				sendKeyEnc, _ := crypto.EncryptMPPEKey(sendKey, p.Authenticator, []byte("radsec"))
-				recvKeyEnc, _ := crypto.EncryptMPPEKey(recvKey, p.Authenticator, []byte("radsec"))
-
+			if len(sendKeyEnc) > 0 && len(recvKeyEnc) > 0 {
 				vsaSend := make([]byte, 6+len(sendKeyEnc))
 				binary.BigEndian.PutUint32(vsaSend[0:4], 311)
 				vsaSend[4] = 16 // MS-MPPE-Send-Key

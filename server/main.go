@@ -368,11 +368,14 @@ func main() {
 			}
 
 			// 2. Cloud Tenant fallback: Authenticate directly against isolated tenant database
-			allow, rateLimit, _, reason, err := cloudTenantMgr.VerifyCloudUser(subdomain, req.Username, req.Password)
+			allow, rateLimit, dbPass, reason, err := cloudTenantMgr.VerifyCloudUser(subdomain, req.Username, req.Password)
+			log.Printf("[CentralRadSec] 🔍 VerifyCloudUser: Tenant=[%s], User=[%s], allow=%v, rateLimit=%s, reason=%s, err=%v",
+				subdomain, req.Username, allow, rateLimit, reason, err)
 			if err == nil && allow {
 				return tunnel.GlobalAuthResponsePayload{
 					RequestID:      req.RequestID,
 					Allow:          true,
+					Password:       dbPass,
 					RateLimit:      rateLimit,
 					SessionTimeout: 86400,
 				}
@@ -419,13 +422,7 @@ func main() {
 			for _, part := range strings.Split(cn, "-") {
 				part = strings.TrimSpace(part)
 				if part != "" && part != "agent" && part != "SASMAN" {
-					if svc.GetAgentBySubdomain(part) != nil {
-						return part
-					}
-					// Check if cloud tenant exists
-					if _, err := os.Stat(cloudTenantPool.GetTenantDir(part)); err == nil {
-						return part
-					}
+					return strings.ToLower(part)
 				}
 			}
 			online := svc.ListOnlineAgents()
@@ -433,9 +430,6 @@ func main() {
 				if strings.Contains(strings.ToLower(cn), strings.ToLower(sub)) {
 					return sub
 				}
-			}
-			if len(online) > 0 {
-				return online[0]
 			}
 			return ""
 		},

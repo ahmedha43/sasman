@@ -369,7 +369,8 @@ func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, s
 	if m.repo != nil {
 		lic, err := m.repo.GetAgentLicenseInfo(subdomain)
 		if err == nil && lic != nil && (lic.Status == "unlicensed" || lic.Status == "suspended" || lic.IsExpired) {
-			return false, "", "", "اشتراك السحابة غير مفعّل أو منتهي الصلاحية، يرجى مراجعة إدارة SASMAN", fmt.Errorf("tenant unlicensed")
+			log.Printf("[cloudtenant] ⛔ Tenant [%s] license check: Status=%s, Expired=%t, rejecting user [%s]", subdomain, lic.Status, lic.IsExpired, username)
+			return false, "", "", fmt.Sprintf("اشتراك السحابة (%s) غير مفعّل أو منتهي الصلاحية، يرجى تفعيله من لوحة إدارة SASMAN", subdomain), fmt.Errorf("tenant unlicensed")
 		}
 	}
 
