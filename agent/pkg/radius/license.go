@@ -1,6 +1,7 @@
 package radius
 
 import (
+	"os"
 	"strings"
 
 	"github.com/go-routeros/routeros/v3"
@@ -68,6 +69,19 @@ func RouterConnectHandler(c *fiber.Ctx) error {
 }
 
 func LicenseStatusHandler(c *fiber.Ctx) error {
+	if os.Getenv("CLOUD_MODE") == "true" || os.Getenv("SASMAN_CLOUD_MODE") == "true" {
+		subdomain := os.Getenv("SASMAN_SUBDOMAIN")
+		return c.JSON(fiber.Map{
+			"valid":            true,
+			"router_connected": true,
+			"cloud_mode":       true,
+			"subdomain":        subdomain,
+			"message":          "SASMAN Cloud Edition active via RadSec TLS",
+			"serial":           "CLOUD-" + subdomain,
+			"expires":          "Active (Cloud Subscription)",
+		})
+	}
+
 	serial := shared.RouterConfigState.Serial
 	if serial == "" && shared.RouterConfigState.Address != "" {
 		if client, err := core.GetSharedClient(); err == nil {

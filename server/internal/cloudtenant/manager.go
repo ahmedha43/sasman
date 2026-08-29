@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -196,6 +197,14 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 		_ = m.repo.UpdateSubdomainOwner(sub, req.OwnerName, req.Phone, sub)
 	}
 
+	// 5. Spawn Dedicated Cloud Agent Instance (Runs full SASMAN Agent for this tenant)
+	tokenStr := generateRandomToken(16)
+	go func() {
+		if err := m.SpawnTenantAgent(sub, tokenStr); err != nil {
+			log.Printf("[cloudtenant] Warning spawning agent instance for [%s]: %v", sub, err)
+		}
+	}()
+
 	tenant := &CloudTenant{
 		ID:           customerID,
 		Subdomain:    sub,
@@ -211,6 +220,80 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 
 	log.Printf("[cloudtenant] ✅ Successfully registered Cloud Tenant [%s] (%s)", sub, email)
 	return tenant, nil
+}
+
+func (m *Manager) SpawnTenantAgent(subdomain, token string) error {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	containerName := fmt.Sprintf("sasman-cloud-%s", sub)
+	dataDir := m.pool.GetTenantDir(sub)
+
+	// 1. Check if Docker CLI is available on host
+	if _, err := exec.LookPath("docker"); err == nil {
+		_ = exec.Command("docker", "rm", "-f", containerName).Run()
+
+		imageName := "sasman:latest"
+		if os.Getenv("SASMAN_AGENT_DOCKER_IMAGE") != "" {
+			imageName = os.Getenv("SASMAN_AGENT_DOCKER_IMAGE")
+		} else if _, err := exec.Command("docker", "inspect", "sasman-manager:latest").Output(); err == nil {
+			imageName = "sasman-manager:latest"
+		} else if _, err := exec.Command("docker", "inspect", "sasman:amd64").Output(); err == nil {
+			imageName = "sasman:amd64"
+		}
+
+		centralURL := "ws://127.0.0.1:8080/api/tunnel/ws"
+		if os.Getenv("SASMAN_INTERNAL_WS_URL") != "" {
+			centralURL = os.Getenv("SASMAN_INTERNAL_WS_URL")
+		}
+
+		args := []string{
+			"run", "-d",
+			"--name", containerName,
+			"--restart", "unless-stopped",
+			"--network", "host",
+			"-e", fmt.Sprintf("SASMAN_SUBDOMAIN=%s", sub),
+			"-e", fmt.Sprintf("SASMAN_TUNNEL_TOKEN=%s", token),
+			"-e", fmt.Sprintf("SASMAN_CENTRAL_URL=%s", centralURL),
+			"-e", "CLOUD_MODE=true",
+			"-e", "SQLITE_DB_PATH=/app/data/radius.db",
+			"-v", fmt.Sprintf("%s:/app/data", dataDir),
+			imageName,
+		}
+
+		cmd := exec.Command("docker", args...)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			log.Printf("[cloudtenant] 🚀 Successfully spawned Docker agent container [%s]", containerName)
+			return nil
+		}
+		log.Printf("[cloudtenant] Docker spawn output for [%s]: %s (%v)", sub, string(output), err)
+	}
+
+	// 2. Fallback: Host binary execution if local agent exists
+	agentBins := []string{
+		"mikrotik-manager.exe",
+		"./mikrotik-manager.exe",
+		"sasman-agent-linux-amd64",
+		"./sasman-agent-linux-amd64",
+	}
+
+	for _, bin := range agentBins {
+		if _, err := os.Stat(bin); err == nil {
+			cmd := exec.Command(bin)
+			cmd.Env = append(os.Environ(),
+				fmt.Sprintf("SASMAN_SUBDOMAIN=%s", sub),
+				fmt.Sprintf("SASMAN_TUNNEL_TOKEN=%s", token),
+				"SASMAN_CENTRAL_URL=ws://127.0.0.1:8080/api/tunnel/ws",
+				"CLOUD_MODE=true",
+				fmt.Sprintf("SQLITE_DB_PATH=%s", m.pool.GetTenantDBPath(sub)),
+			)
+			if err := cmd.Start(); err == nil {
+				log.Printf("[cloudtenant] 🚀 Successfully spawned local agent process for [%s]", sub)
+				return nil
+			}
+		}
+	}
+
+	return nil
 }
 
 func (m *Manager) AuthenticateTenant(loginID, password string) (*CloudTenant, string, error) {

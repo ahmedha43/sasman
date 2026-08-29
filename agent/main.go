@@ -97,6 +97,17 @@ func startSasmanTunnel(port string) {
 		token = strings.TrimSpace(os.Getenv("SASMAN_TUNNEL_TOKEN"))
 	}
 
+	if os.Getenv("CLOUD_MODE") == "true" || os.Getenv("SASMAN_CLOUD_MODE") == "true" {
+		mode = "agent"
+		shared.RouterConfigState.TunnelMode = "agent"
+		if subdomain == "" {
+			subdomain = strings.TrimSpace(os.Getenv("SASMAN_SUBDOMAIN"))
+		}
+		if token == "" {
+			token = strings.TrimSpace(os.Getenv("SASMAN_TUNNEL_TOKEN"))
+		}
+	}
+
 	if mode != "agent" || subdomain == "" {
 		sasmanTunnelMu.Unlock()
 		log.Printf("[Tunnel] Agent mode disabled or subdomain not set. Tunnel stopped.")
@@ -107,8 +118,11 @@ func startSasmanTunnel(port string) {
 	if gatewayURL == "" {
 		gatewayURL = strings.TrimSpace(os.Getenv("SASMAN_TUNNEL_GATEWAY_URL"))
 	}
+	if gatewayURL == "" && os.Getenv("SASMAN_CENTRAL_URL") != "" {
+		gatewayURL = strings.TrimSpace(os.Getenv("SASMAN_CENTRAL_URL"))
+	}
 	if gatewayURL == "" {
-		gatewayURL = "wss://sas-man.net/ws"
+		gatewayURL = "wss://sas-man.net/api/tunnel/ws"
 	}
 
 	client := tunnel.NewResilientAgentClient(tunnel.AgentClientConfig{
@@ -366,6 +380,9 @@ func main() {
 			(strings.HasPrefix(path, "/radius") && !strings.HasPrefix(path, "/radius/api")) {
 
 			validLicense, _, _ := core.VerifyLicense(shared.RouterConfigState.License, shared.RouterConfigState.Serial)
+			if os.Getenv("CLOUD_MODE") == "true" || os.Getenv("SASMAN_CLOUD_MODE") == "true" {
+				validLicense = true
+			}
 			if strings.HasPrefix(path, "/radius") && !validLicense {
 				return c.Next()
 			}

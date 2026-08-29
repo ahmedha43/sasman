@@ -111,8 +111,8 @@
           </div>
         </div>
 
-        <a id="dashLink" href="/cloud/dashboard" class="inline-block w-full py-3.5 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-600 font-bold text-sm shadow-lg shadow-emerald-500/20 transition">
-          الانتقال إلى لوحة التحكم السحابية &rarr;
+        <a id="dashLink" href="#" class="inline-block w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 font-bold text-sm shadow-lg shadow-indigo-500/25 transition text-white">
+          الدخول إلى نظام الأيجنت السحابي الكامل (SASMAN RADIUS) &rarr;
         </a>
       </div>
 
@@ -192,7 +192,10 @@
         
         const fetchCmd = `/tool fetch url="${data.install_script_url}" dst-path="sasman_cloud.rsc" mode=https; :delay 2s; /import sasman_cloud.rsc;`;
         document.getElementById('scriptCmd').textContent = fetchCmd;
-        document.getElementById('dashLink').href = `/cloud/dashboard?sub=${data.tenant.subdomain}`;
+        const hostParts = window.location.host.split(':');
+        const portStr = hostParts.length > 1 ? ':' + hostParts[1] : '';
+        const agentURL = window.location.protocol + '//' + data.tenant.subdomain + '.' + hostParts[0] + portStr + '/radius';
+        document.getElementById('dashLink').href = agentURL;
 
       } catch (err) {
         errBox.textContent = err.message;
