@@ -1859,7 +1859,7 @@
 /certificate import file-name=agent.key passphrase=""
 
 # 2. ربط الـ RADIUS بنمط RadSec عبر منفذ 2083
-/radius add address=YOUR_SERVER_IP protocol=radsec certificate=agent.crt tls-certificate=ca.crt service=hotspot,ppp,wireless secret=radsec timeout=3000ms authentication-port=2083 accounting-port=2083
+/radius add address=YOUR_SERVER_IP protocol=radsec certificate=agent.crt service=hotspot,ppp,wireless secret=radsec timeout=3000ms authentication-port=2083 accounting-port=2083
 
 # 3. تفعيل استقبال أوامر القطع
 /radius incoming set accept=yes port=3799</pre>

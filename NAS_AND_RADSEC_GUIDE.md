@@ -117,7 +117,7 @@ sudo ufw allow 2083/tcp
 #### الخطوة 4: تفعيل RadSec في المايكروتك
 نفذ الأمر التالي (استبدل `YOUR_SERVER_IP` بعنوان الـ IP العام أو الدومين لسيرفرك المركزي):
 ```routeros
-/radius add address=YOUR_SERVER_IP protocol=radsec certificate=agent.crt tls-certificate=ca.crt service=hotspot,ppp,wireless secret=radsec timeout=3000ms authentication-port=2083 accounting-port=2083
+/radius add address=YOUR_SERVER_IP protocol=radsec certificate=agent.crt service=hotspot,ppp,wireless secret=radsec timeout=3000ms authentication-port=2083 accounting-port=2083
 ```
 
 #### الخطوة 5: تفعيل استقبال طلبات القطع (Incoming)
