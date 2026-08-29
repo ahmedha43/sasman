@@ -616,7 +616,7 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 		       COALESCE((SELECT groupname FROM radusergroup WHERE username = rc.username LIMIT 1), '10M')
 		FROM radcheck rc
 		LEFT JOIN radius_user_meta rum ON rc.username = rum.username
-		WHERE rc.attribute = 'Cleartext-Password'
+		WHERE rc.attribute = 'Cleartext-Password' OR rc.attribute = 'Disabled-Password'
 		ORDER BY rc.id DESC
 		LIMIT 200
 	`)
@@ -909,11 +909,19 @@ func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
 		newStatus = 1
 	}
 
-	_, _ = db.Exec("UPDATE radius_user_meta SET enabled = ? WHERE username = ?", newStatus, username)
+	_, _ = db.Exec(`
+		INSERT INTO radius_user_meta (username, enabled, updated_at) 
+		VALUES (?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(username) DO UPDATE SET enabled=excluded.enabled, updated_at=CURRENT_TIMESTAMP
+	`, username, newStatus)
+
+	// Ensure radcheck always has Cleartext-Password so the user is never lost
+	_, _ = db.Exec("UPDATE radcheck SET attribute = 'Cleartext-Password' WHERE username = ? AND attribute = 'Disabled-Password'", username)
+
+	// If disabled, disconnect active sessions in radacct
 	if newStatus == 0 {
-		_, _ = db.Exec("UPDATE radcheck SET attribute = 'Disabled-Password' WHERE username = ? AND attribute = 'Cleartext-Password'", username)
-	} else {
-		_, _ = db.Exec("UPDATE radcheck SET attribute = 'Cleartext-Password' WHERE username = ? AND attribute = 'Disabled-Password'", username)
+		now := time.Now().Format("2006-01-02 15:04:05")
+		_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", now, username)
 	}
 
 	return c.JSON(fiber.Map{
