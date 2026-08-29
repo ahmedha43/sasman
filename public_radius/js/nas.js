@@ -240,3 +240,48 @@ async function quickSetupNAS() {
         alert("حدث خطأ أثناء الاتصال بالخادم: " + e);
     }
 }
+
+function openNASGuideModal() {
+    const modal = document.getElementById('nas-guide-modal');
+    if (modal) {
+        modal.classList.add('active');
+        switchGuideTab('overview');
+    }
+}
+
+function closeNASGuideModal() {
+    const modal = document.getElementById('nas-guide-modal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+}
+
+function switchGuideTab(tabId) {
+    document.querySelectorAll('.guide-tab-btn').forEach(btn => {
+        btn.style.background = 'transparent';
+        btn.style.color = 'var(--text-muted)';
+        btn.style.borderBottom = '2px solid transparent';
+    });
+    document.querySelectorAll('.guide-tab-pane').forEach(pane => pane.style.display = 'none');
+    
+    const activeBtn = document.getElementById(`btn-guide-${tabId}`);
+    if (activeBtn) {
+        activeBtn.style.background = 'rgba(66, 153, 225, 0.1)';
+        activeBtn.style.color = 'var(--primary)';
+        activeBtn.style.borderBottom = '2px solid var(--primary)';
+    }
+    
+    const activePane = document.getElementById(`pane-guide-${tabId}`);
+    if (activePane) activePane.style.display = 'block';
+}
+
+function copyCodeText(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const text = el.innerText || el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        alert('تم نسخ الأمر إلى الحافظة بنجاح 📋');
+    }).catch(err => {
+        alert('تعذر النسخ التلقائي: ' + err);
+    });
+}

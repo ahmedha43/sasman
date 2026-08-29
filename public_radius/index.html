@@ -517,7 +517,8 @@
                     <div class="card">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px;">
                             <h3 style="margin:0; border:none; padding:0;"><i class="fa-solid fa-server"></i> الراوترات المربوطة حالياً</h3>
-                            <div style="display:flex; gap:10px;">
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button class="btn" style="width:auto; padding:10px 18px; background:var(--primary); color:white; border:none;" onclick="callWhenReady('/radius/js/nas.js?v=10', 'openNASGuideModal')"><i class="fa-solid fa-book-open"></i> 📖 دليل التوثيق والإعداد (UDP / RadSec)</button>
                                 <button class="btn superadmin-only" style="width:auto; padding:10px 20px; background:var(--success); color:white; border:none; display:none;" onclick="callWhenReady('/radius/js/nas.js?v=10', 'quickSetupNAS')">⚡ إعداد راديوس سريع (نظام ومايكروتك)</button>
                                 <button class="btn btn-primary" style="width:auto; padding:10px 20px;" onclick="openNASModal()">➕ ربط راوتر جديد (NAS)</button>
                             </div>
@@ -1748,6 +1749,140 @@
             <div class="action-row" style="margin-top:25px;">
                 <button id="nas-submit-btn" class="btn btn-primary" style="width:auto; padding:12px 30px;" onclick="createNAS()">إضافة الراوتر</button>
                 <button class="btn" style="width:auto; padding:12px 25px;" onclick="closeNASModal()">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 9.1 NAS & RadSec Documentation & Guide Modal -->
+    <div id="nas-guide-modal" class="modal-backdrop">
+        <div class="modal-card" style="width: min(100%, 900px); max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 style="margin:0; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-book-open" style="color:var(--primary);"></i>
+                    دليل توثيق وإعداد أجهزة الراوتر (UDP & RadSec TLS)
+                </h3>
+                <button class="modal-close" onclick="closeNASGuideModal()">×</button>
+            </div>
+
+            <!-- Guide Tabs Header -->
+            <div style="display:flex; gap:8px; border-bottom:1px solid var(--border); margin-bottom:18px; padding-bottom:8px; overflow-x:auto;">
+                <button id="btn-guide-overview" class="btn guide-tab-btn" style="width:auto; padding:8px 16px; font-size:13px; font-weight:bold; border-radius:6px;" onclick="switchGuideTab('overview')">
+                    📌 1. نظرة عامة والشارات
+                </button>
+                <button id="btn-guide-udp" class="btn guide-tab-btn" style="width:auto; padding:8px 16px; font-size:13px; font-weight:bold; border-radius:6px;" onclick="switchGuideTab('udp')">
+                    ⚡ 2. الاتصال المحلي (UDP)
+                </button>
+                <button id="btn-guide-radsec" class="btn guide-tab-btn" style="width:auto; padding:8px 16px; font-size:13px; font-weight:bold; border-radius:6px;" onclick="switchGuideTab('radsec')">
+                    🛡️ 3. الاتصال المشفر (RadSec / CGNAT)
+                </button>
+                <button id="btn-guide-reverse" class="btn guide-tab-btn" style="width:auto; padding:8px 16px; font-size:13px; font-weight:bold; border-radius:6px;" onclick="switchGuideTab('reverse')">
+                    🔄 4. القطع العكسي خلف CGNAT
+                </button>
+            </div>
+
+            <!-- Tab 1: Overview & Status Badges -->
+            <div id="pane-guide-overview" class="guide-tab-pane">
+                <div style="background:rgba(66, 153, 225, 0.1); border-right:4px solid var(--primary); padding:12px 16px; border-radius:8px; margin-bottom:16px;">
+                    <h4 style="margin:0 0 6px 0; color:var(--primary);">💡 المحرك المزدوج (Dual-Stack RADIUS Engine)</h4>
+                    <p style="margin:0; font-size:13px; line-height:1.6; color:var(--text-main);">
+                        يدعم نظام <strong>SASMAN</strong> استقبال طلبات الراديوس بنمطين متزامنين في نفس الوقت بدون أي تعارض؛ حيث تعمل راوتراتك المحلية في البرج أو الحاوية بنمط <strong>UDP السريع</strong>، بينما تعمل الفروع البعيدة التي تعمل خلف <strong>CGNAT</strong> بنمط <strong>RadSec TLS المشفر</strong>.
+                    </p>
+                </div>
+
+                <h4 style="margin:16px 0 10px 0;"><i class="fa-solid fa-tags"></i> شرح شارات الحالة في الجدول:</h4>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:20px;">
+                    <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px; border-radius:8px;">
+                        <div style="margin-bottom:6px;"><span class="badge" style="background:#2f855a; color:#fff; padding:4px 8px; border-radius:6px;"><i class="fa-solid fa-shield-halved"></i> متصل RadSec 🟢</span></div>
+                        <p style="margin:0; font-size:12px; color:var(--text-muted);">الراوتر متصل حالياً بالسيرفر عبر جلسة mTLS مشفرة ونشطة، وخاصية القطع العكسي تعمل بنجاح.</p>
+                    </div>
+                    <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px; border-radius:8px;">
+                        <div style="margin-bottom:6px;"><span class="badge" style="background:#4a5568; color:#e2e8f0; padding:4px 8px; border-radius:6px;"><i class="fa-solid fa-key"></i> شهادة صادرة ⚪</span></div>
+                        <p style="margin:0; font-size:12px; color:var(--text-muted);">تم إصدار شهادات التشفير الرقمية للراوتر، وبانتظار قيامك باستيرادها وربطها بالمايكروتك.</p>
+                    </div>
+                    <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px; border-radius:8px;">
+                        <div style="margin-bottom:6px;"><span class="badge" style="background:rgba(66, 153, 225, 0.2); color:#63b3ed; padding:4px 8px; border-radius:6px;">UDP مباشر 🔵</span></div>
+                        <p style="margin:0; font-size:12px; color:var(--text-muted);">الراوتر يعمل بنمط الـ UDP المباشر القياسي (منافذ 1812 و 1813) للشبكات المحلية بدون شهادات.</p>
+                    </div>
+                </div>
+
+                <h4 style="margin:16px 0 10px 0;"><i class="fa-solid fa-hand-pointer"></i> وظائف الأزرار في الجدول:</h4>
+                <ul style="font-size:13px; line-height:1.8; color:var(--text-main); padding-right:20px; margin:0;">
+                    <li><strong>🔑 شهادة:</strong> توليد شهادة عميل رقمية ومفتاح مشفر خاص بالراوتر موقعين من Root CA الداخلي.</li>
+                    <li><strong>📥 الحزمة:</strong> تحميل ملف مضغوط (ZIP) يحتوي على الشهادات وملف التكوين التلقائي.</li>
+                    <li><strong>🚫 إبطال:</strong> إلغاء شهادة الراوتر وفصل اتصاله بالسيرفر فوراً لأسباب أمنية.</li>
+                    <li><strong>⚡ إعداد راديوس سريع:</strong> برمجة راوتر المايكروتك المحلي المرتبط بالحاوية تلقائياً بضغطة زر واحدة.</li>
+                </ul>
+            </div>
+
+            <!-- Tab 2: UDP Local Mode -->
+            <div id="pane-guide-udp" class="guide-tab-pane" style="display:none;">
+                <div style="background:rgba(72, 187, 120, 0.1); border-right:4px solid var(--success); padding:12px 16px; border-radius:8px; margin-bottom:16px;">
+                    <h4 style="margin:0 0 4px 0; color:var(--success);">⚡ نمط الـ UDP المحلي (أعلى سرعة وأسهل إعداد)</h4>
+                    <p style="margin:0; font-size:13px; color:var(--text-main);">مناسب عندما يكون سيرفر SASMAN والمايكروتك في نفس البرج أو نفس الكابينة أو داخل نفس الشبكة المحلية (LAN).</p>
+                </div>
+
+                <h4 style="margin:12px 0 6px 0;">📋 الأوامر الجاهزة لتنفيذها في Terminal المايكروتك:</h4>
+                <div style="position:relative; background:#1a202c; color:#e2e8f0; padding:14px; border-radius:8px; font-family:monospace; font-size:13px; direction:ltr; text-align:left; margin-bottom:12px;">
+                    <button class="btn" style="position:absolute; top:8px; right:8px; padding:4px 10px; font-size:11px; background:var(--primary); color:#fff;" onclick="copyCodeText('code-udp')">📋 نسخ الأمر</button>
+                    <pre id="code-udp" style="margin:0; white-space:pre-wrap;"># 1. إضافة خادم الراديوس المحلي
+/radius add address=172.17.0.1 secret=123456 service=hotspot,ppp,wireless authentication-port=1812 accounting-port=1813 timeout=3000ms
+
+# 2. تفعيل استقبال طلبات طرد وفصل المستخدمين
+/radius incoming set accept=yes port=3799</pre>
+                </div>
+                <p style="font-size:12px; color:var(--text-muted);">* استبدل <code>172.17.0.1</code> بـ IP السيرفر المحلي لديك إذا كان مختلفاً، وتأكد من تطابق الكلمة السرية (Secret).</p>
+            </div>
+
+            <!-- Tab 3: RadSec TLS & CGNAT Mode -->
+            <div id="pane-guide-radsec" class="guide-tab-pane" style="display:none;">
+                <div style="background:rgba(128, 90, 213, 0.1); border-right:4px solid #805ad5; padding:12px 16px; border-radius:8px; margin-bottom:16px;">
+                    <h4 style="margin:0 0 4px 0; color:#805ad5;">🛡️ نمط RadSec TLS (التشفير التام والربط للفروع البعيدة خلف CGNAT)</h4>
+                    <p style="margin:0; font-size:13px; color:var(--text-main);">مناسب للراوترات البعيدة عبر الإنترنت العام، أو الراوترات التي تعمل خلف شركات اتصالات تطبق الـ CGNAT ولا تمتلك Real IP.</p>
+                </div>
+
+                <h4 style="margin:12px 0 6px 0;">خطوات الإعداد خطوة بخطوة:</h4>
+                <ol style="font-size:13px; line-height:1.8; color:var(--text-main); padding-right:20px; margin-bottom:16px;">
+                    <li>اضغط على زر <strong>"🔑 شهادة"</strong> أمام الراوتر في الجدول لتوليد الشهادة المشفرة.</li>
+                    <li>اضغط على زر <strong>"📥 الحزمة"</strong> لتحميل ملف الـ ZIP وفك الضغط عنه (يحتوي على <code>ca.crt</code> و <code>agent.crt</code> و <code>agent.key</code>).</li>
+                    <li>اسحب الملفات الثلاثة وضعها في قائمة <strong>Files</strong> داخل برنامج <strong>Winbox</strong>.</li>
+                    <li>افتح <strong>Terminal</strong> المايكروتك ونفذ الأوامر التالية:</li>
+                </ol>
+
+                <div style="position:relative; background:#1a202c; color:#e2e8f0; padding:14px; border-radius:8px; font-family:monospace; font-size:13px; direction:ltr; text-align:left; margin-bottom:12px;">
+                    <button class="btn" style="position:absolute; top:8px; right:8px; padding:4px 10px; font-size:11px; background:var(--primary); color:#fff;" onclick="copyCodeText('code-radsec')">📋 نسخ الأوامر</button>
+                    <pre id="code-radsec" style="margin:0; white-space:pre-wrap;"># 1. استيراد الشهادات الثلاثة في المايكروتك
+/certificate import file-name=ca.crt passphrase=""
+/certificate import file-name=agent.crt passphrase=""
+/certificate import file-name=agent.key passphrase=""
+
+# 2. ربط الـ RADIUS بنمط RadSec عبر منفذ 2083
+/radius add address=YOUR_SERVER_IP protocol=radsec certificate=agent.crt tls-certificate=ca.crt service=hotspot,ppp,wireless secret=radsec timeout=3000ms authentication-port=2083 accounting-port=2083
+
+# 3. تفعيل استقبال أوامر القطع
+/radius incoming set accept=yes port=3799</pre>
+                </div>
+                <p style="font-size:12px; color:var(--text-muted);">* استبدل <code>YOUR_SERVER_IP</code> بعنوان الـ IP العام أو اسم النطاق لسيرفرك المركزي.</p>
+            </div>
+
+            <!-- Tab 4: Reverse Disconnect for CGNAT -->
+            <div id="pane-guide-reverse" class="guide-tab-pane" style="display:none;">
+                <div style="background:rgba(237, 137, 54, 0.1); border-right:4px solid #ed8936; padding:12px 16px; border-radius:8px; margin-bottom:16px;">
+                    <h4 style="margin:0 0 4px 0; color:#ed8936;">🔄 كيف تعمل ميزة القطع والتحكم العكسي (Reverse Disconnect)؟</h4>
+                    <p style="margin:0; font-size:13px; color:var(--text-main);">
+                        في الراوترات البعيدة التي تعمل خلف <strong>CGNAT</strong>، لا يمكن للسيرفر الاتصال بالراوتر من الخارج لطرده أو فصل المشتركين المنتهيين. مع <strong>SASMAN RadSec</strong>، يقوم الراوتر بفتح اتصال TLS دائم بالسيرفر، وعند انتهاء اشتراك مستخدم يقوم السيرفر بضخ أمر القطع <strong>عكسياً عبر نفس القناة المفتوحة</strong> ليتم طرد المشترك فوراً بدون الحاجة لـ Real IP أو فتح أي بورت!
+                    </p>
+                </div>
+                <div style="text-align:center; padding:15px; background:var(--bg-app); border-radius:8px; border:1px solid var(--border);">
+                    <div style="font-size:14px; font-weight:bold; color:var(--text-main); margin-bottom:8px;">مخطط تدفق الاتصال العكسي:</div>
+                    <div style="font-family:monospace; font-size:13px; color:var(--primary); line-height:2;">
+                        [راوتر المايكروتك البعيد] ──(اتصال TLS دائم :2083)──▶ [سيرفر SASMAN المركزي]<br>
+                        [راوتر المايكروتك البعيد] ◀──(أمر Disconnect العكسي)── [سيرفر SASMAN المركزي]
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-row" style="margin-top:20px;">
+                <button class="btn btn-primary" style="width:auto; padding:10px 25px;" onclick="closeNASGuideModal()">فهمت ذلك، إغلاق الدليل</button>
             </div>
         </div>
     </div>
