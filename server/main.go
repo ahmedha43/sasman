@@ -261,11 +261,16 @@ func main() {
 					Allow     bool   `json:"allow"`
 					Reason    string `json:"reason"`
 					RateLimit string `json:"rate_limit"`
+					Password  string `json:"password"`
 				}
 				if err := json.Unmarshal(respBytes, &verifyResp); err == nil && verifyResp.Allow {
 					rateLimit := verifyResp.RateLimit
 					if rateLimit == "" {
 						rateLimit = "10M/10M"
+					}
+					pass := verifyResp.Password
+					if pass == "" {
+						pass = req.Password
 					}
 
 					return tunnel.GlobalAuthResponsePayload{
@@ -275,6 +280,7 @@ func main() {
 						SessionTimeout: 86400,
 						AccountType:    "roaming_user",
 						ReplyMessage:   fmt.Sprintf("مرحباً بك عبر شبكة SASMAN الموحدة (وكيل: %s)", targetSubdomain),
+						Password:       pass,
 					}
 				}
 			}

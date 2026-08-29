@@ -160,6 +160,7 @@ type GlobalAuthResponsePayload struct {
 	ReplyMessage   string `json:"reply_message,omitempty"`
 	RejectReason   string `json:"reject_reason,omitempty"`
 	AccountType    string `json:"account_type,omitempty"` // 'voucher' | 'roaming_user'
+	Password       string `json:"password,omitempty"`
 }
 
 type GlobalAcctPayload struct {

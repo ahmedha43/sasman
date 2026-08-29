@@ -197,6 +197,9 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 	callingStation := ""
 	var userPasswordRaw []byte
 
+	var msc2Resp []byte
+	var msc2Challenge []byte
+
 	for _, attr := range p.Attributes {
 		switch attr.Type {
 		case types.AttrUserName:
@@ -205,6 +208,22 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			userPasswordRaw = attr.Value
 		case types.AttrCallingStationID:
 			callingStation = string(attr.Value)
+		case types.AttrVendorSpecific:
+			if len(attr.Value) >= 6 {
+				vID := binary.BigEndian.Uint32(attr.Value[0:4])
+				if vID == 311 { // Microsoft
+					subType := attr.Value[4]
+					subLen := int(attr.Value[5])
+					if len(attr.Value) >= 6+subLen-2 {
+						subVal := attr.Value[6 : 6+subLen-2]
+						if subType == 25 { // MS-CHAP2-Response
+							msc2Resp = subVal
+						} else if subType == 11 { // MS-CHAP-Challenge
+							msc2Challenge = subVal
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -272,6 +291,46 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			Type:  types.AttrVendorSpecific,
 			Value: vsaData,
 		})
+
+		// Mikrotik-Group: full (Vendor: 14988, Subtype: 3, Value: "full")
+		groupData := make([]byte, 6+len("full"))
+		binary.BigEndian.PutUint32(groupData[0:4], 14988)
+		groupData[4] = 3
+		groupData[5] = byte(2 + len("full"))
+		copy(groupData[6:], []byte("full"))
+		reply.Attributes = append(reply.Attributes, packet.Attribute{
+			Type:  types.AttrVendorSpecific,
+			Value: groupData,
+		})
+
+		// MS-CHAP2-Success if MS-CHAPv2 was requested
+		dbPass := authResp.Password
+		if dbPass == "" {
+			dbPass = userPassword
+		}
+		if len(msc2Resp) >= 50 && dbPass != "" {
+			ident := msc2Resp[0]
+			var authCh, peerCh [16]byte
+			if len(msc2Challenge) >= 16 {
+				copy(authCh[:], msc2Challenge[:16])
+			} else {
+				copy(authCh[:], p.Authenticator[:16])
+			}
+			copy(peerCh[:], msc2Resp[2:18])
+			ntResp := crypto.GenerateNTResponse(authCh, peerCh, username, dbPass)
+			authRespStr := crypto.GenerateAuthenticatorResponse(authCh, peerCh, ntResp, username, dbPass)
+			msChap2Success := append([]byte{ident}, []byte(authRespStr)...)
+
+			vsaMS := make([]byte, 6+len(msChap2Success))
+			binary.BigEndian.PutUint32(vsaMS[0:4], 311)
+			vsaMS[4] = 26 // MS-CHAP2-Success
+			vsaMS[5] = byte(2 + len(msChap2Success))
+			copy(vsaMS[6:], msChap2Success)
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrVendorSpecific,
+				Value: vsaMS,
+			})
+		}
 
 		timeout := authResp.SessionTimeout
 		if timeout <= 0 {

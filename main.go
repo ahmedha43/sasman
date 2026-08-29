@@ -647,7 +647,7 @@ func main() {
 
 		log.Printf("[verify-user] 🔍 Received verification query for user [%s] (pass_len=%d, pass_hex=%x, pass=%q)", req.Username, len(req.Password), []byte(req.Password), req.Password)
 
-		ok, rateLimit, reason, err := radius.VerifyLocalUser(req.Username, req.Password)
+		ok, rateLimit, dbPass, reason, err := radius.VerifyLocalUser(req.Username, req.Password)
 		log.Printf("[verify-user] 👉 Verification result for [%s]: ok=%t, rate=%s, reason=%s, err=%v", req.Username, ok, rateLimit, reason, err)
 		if err != nil || !ok {
 			return c.JSON(fiber.Map{
@@ -660,6 +660,7 @@ func main() {
 			"allow":      true,
 			"username":   req.Username,
 			"rate_limit": rateLimit,
+			"password":   dbPass,
 		})
 	})
 

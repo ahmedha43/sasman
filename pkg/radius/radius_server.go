@@ -1004,33 +1004,33 @@ func updateLMDBAccounting(username string, status uint32, sid, ip, cli string, i
 	saveAccountingToLMDB(username, status, sid, ip, cli, in, out, secs)
 }
 
-func VerifyLocalUser(username, password string) (bool, string, string, error) {
+func VerifyLocalUser(username, password string) (bool, string, string, string, error) {
 	username = strings.TrimSpace(username)
 	password = strings.TrimRight(strings.TrimSpace(password), "\x00")
 	data, err := getLMDBUserData(username)
 	if err != nil || strings.TrimSpace(data) == "" {
 		if DB == nil {
-			return false, "", "User not found", fmt.Errorf("user not found")
+			return false, "", "", "User not found", fmt.Errorf("user not found")
 		}
 		var dbPass string
 		err = DB.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&dbPass)
 		if err != nil {
-			return false, "", "المستخدم غير مسجل لدى هذا الوكيل", fmt.Errorf("user not found")
+			return false, "", "", "المستخدم غير مسجل لدى هذا الوكيل", fmt.Errorf("user not found")
 		}
 		dbPass = strings.TrimRight(strings.TrimSpace(dbPass), "\x00")
 		if password != "" && password != dbPass {
-			return false, "", "كلمة المرور غير صحيحة", nil
+			return false, "", "", "كلمة المرور غير صحيحة", nil
 		}
-		return true, "10M/10M", "OK", nil
+		return true, "10M/10M", dbPass, "OK", nil
 	}
 
 	lines := strings.Split(data, "\n")
 	if len(lines) < 1 {
-		return false, "", "بيانات المستخدم معطوبة", fmt.Errorf("invalid user data")
+		return false, "", "", "بيانات المستخدم معطوبة", fmt.Errorf("invalid user data")
 	}
 	dbPassword := strings.TrimRight(strings.TrimSpace(lines[0]), "\x00\r\n")
 	if password != "" && password != dbPassword {
-		return false, "", "كلمة المرور غير صحيحة", nil
+		return false, "", "", "كلمة المرور غير صحيحة", nil
 	}
 
 	rateLimit := "10M/10M"
@@ -1043,7 +1043,7 @@ func VerifyLocalUser(username, password string) (bool, string, string, error) {
 			}
 		}
 	}
-	return true, rateLimit, "OK", nil
+	return true, rateLimit, dbPassword, "OK", nil
 }
 
 func addReplyAttributeToPacket(p *packet.Packet, name, value string) {
