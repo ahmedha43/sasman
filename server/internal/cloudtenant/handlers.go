@@ -8,6 +8,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
+	"mikrotik-manager/pkg/tunnel"
 )
 
 type APIHandler struct {
@@ -39,6 +41,40 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	tenant.Post("/vouchers/generate", h.handleGenerateVouchers)
 	tenant.Get("/sessions", h.handleListActiveSessions)
 	tenant.Post("/sessions/disconnect", h.handleDisconnectSession)
+
+	// =========================================================================
+	// Compatibility routes for web_radius when running in multi-tenant cloud mode
+	// =========================================================================
+	radiusAPI := app.Group("/radius/api")
+
+	// License & Router Status
+	radiusAPI.Get("/license/status", h.handleCloudLicenseStatus)
+	radiusAPI.Post("/license/activate", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"success": true, "message": "License managed by SASMAN Cloud", "valid": true})
+	})
+	radiusAPI.Post("/router/connect", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"message": "Connected via RadSec TLS", "router_connected": true})
+	})
+	radiusAPI.Get("/setup/status", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"installed": true, "cloud_mode": true})
+	})
+
+	// Auth APIs
+	radiusAPI.Post("/auth/login", h.handleCloudAuthLogin)
+	app.Post("/radius/login", h.handleCloudAuthLogin)
+	radiusAPI.Get("/auth/me", h.handleCloudAuthMe)
+	radiusAPI.Post("/auth/logout", h.handleCloudAuthLogout)
+
+	// Protected Data APIs for web_radius
+	protectedRadius := radiusAPI.Group("", h.TenantAuthMiddleware())
+	protectedRadius.Get("/users", h.handleListUsers)
+	protectedRadius.Post("/users", h.handleCreateUser)
+	protectedRadius.Delete("/users/:username", h.handleDeleteUser)
+	protectedRadius.Get("/profiles", h.handleListProfiles)
+	protectedRadius.Get("/vouchers", h.handleListVouchers)
+	protectedRadius.Post("/vouchers/generate", h.handleGenerateVouchers)
+	protectedRadius.Get("/sessions", h.handleListActiveSessions)
+	protectedRadius.Post("/sessions/disconnect", h.handleDisconnectSession)
 }
 
 func (h *APIHandler) handleCheckSubdomain(c *fiber.Ctx) error {
@@ -189,12 +225,16 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 			tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 		} else {
 			tokenString = c.Cookies("sasman_cloud_token")
+			if tokenString == "" {
+				tokenString = c.Cookies("sasman_admin_session")
+			}
 		}
 
 		if tokenString == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"error":   "غير مصرح - الرجاء تسجيل الدخول",
+				"success":       false,
+				"error":         "غير مصرح - الرجاء تسجيل الدخول",
+				"auth_required": true,
 			})
 		}
 
@@ -207,8 +247,9 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 
 		if err != nil || !token.Valid {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"error":   "جلسة غير صالحة أو منتهية",
+				"success":       false,
+				"error":         "جلسة غير صالحة أو منتهية",
+				"auth_required": true,
 			})
 		}
 
@@ -221,6 +262,14 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 		}
 
 		subdomain, _ := claims["subdomain"].(string)
+		if subdomain == "" {
+			if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+				subdomain = sub
+			} else {
+				subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+			}
+		}
+
 		if subdomain == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
@@ -240,6 +289,139 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 		c.Locals("tenant_db", db)
 		return c.Next()
 	}
+}
+
+func (h *APIHandler) handleCloudLicenseStatus(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+
+	return c.JSON(fiber.Map{
+		"valid":            true,
+		"router_connected": true,
+		"cloud_mode":       true,
+		"subdomain":        subdomain,
+		"message":          "SASMAN Cloud Edition (RadSec RFC 6614)",
+		"serial":           "CLOUD-" + subdomain,
+		"expires":          "Active (Cloud Subscription)",
+		"status":           "Active",
+	})
+}
+
+func (h *APIHandler) handleCloudAuthMe(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+
+	return c.JSON(fiber.Map{
+		"username":  "admin",
+		"role":      "superadmin",
+		"subdomain": subdomain,
+		"name":      "Admin (" + subdomain + ")",
+	})
+}
+
+func (h *APIHandler) handleCloudAuthLogout(c *fiber.Ctx) error {
+	c.ClearCookie("sasman_admin_session", "sasman_cloud_token")
+	return c.JSON(fiber.Map{"success": true})
+}
+
+func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "بيانات الدخول غير صالحة",
+		})
+	}
+
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+
+	if subdomain == "" {
+		subdomain = c.Query("sub")
+	}
+
+	if subdomain == "" && strings.Contains(req.Username, "@") {
+		parts := strings.Split(req.Username, "@")
+		req.Username = parts[0]
+		subdomain = parts[1]
+	}
+
+	if subdomain == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "تعذر تحديد النطاق الفرعي",
+		})
+	}
+
+	db, err := h.mgr.pool.Get(subdomain)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"error":   "المستأجر غير موجود",
+		})
+	}
+
+	var hash, role string
+	err = db.QueryRow("SELECT password, role FROM radius_admins WHERE username = ?", req.Username).Scan(&hash, &role)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"error":   "اسم المستخدم أو كلمة المرور غير صحيحة",
+		})
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"error":   "كلمة المرور غير صحيحة",
+		})
+	}
+
+	claims := jwt.MapClaims{
+		"subdomain": subdomain,
+		"username":  req.Username,
+		"role":      role,
+		"exp":       time.Now().Add(7 * 24 * time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, _ := token.SignedString(h.mgr.jwtSecret)
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "sasman_admin_session",
+		Value:    tokenString,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HTTPOnly: false,
+		SameSite: "Lax",
+	})
+	c.Cookie(&fiber.Cookie{
+		Name:     "sasman_cloud_token",
+		Value:    tokenString,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HTTPOnly: true,
+		SameSite: "Lax",
+	})
+
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"token":    tokenString,
+		"username": req.Username,
+		"role":     role,
+	})
 }
 
 func (h *APIHandler) handleGetStats(c *fiber.Ctx) error {

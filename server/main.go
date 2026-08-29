@@ -494,10 +494,55 @@ func main() {
 		host := c.Get("Host")
 		subdomain := tunnel.ExtractSubdomainForHost(host, centralDomain)
 		if subdomain != "" {
-			return svc.ForwardRequestToAgent(c, subdomain)
+			// 1. Container mode (Local MikroTik agent connected via tunnel)
+			if svc.GetAgentBySubdomain(subdomain) != nil {
+				return svc.ForwardRequestToAgent(c, subdomain)
+			}
+
+			// 2. Cloud Tenant mode
+			c.Locals("subdomain", subdomain)
+
+			// Redirect root or /admin to /radius
+			if c.Path() == "/" || c.Path() == "/admin" {
+				return c.Redirect("/radius")
+			}
 		}
 		return c.Next()
 	})
+
+	// Mount full SASMAN RADIUS UI for Cloud Tenants
+	radiusDir := "web_radius"
+	if _, err := os.Stat(radiusDir); os.IsNotExist(err) {
+		radiusDir = "agent/web_radius"
+	}
+	if _, err := os.Stat(radiusDir); err == nil {
+		app.Static("/radius/js", filepath.Join(radiusDir, "js"))
+		app.Static("/radius/css", filepath.Join(radiusDir, "css"))
+		app.Static("/radius/fonts", filepath.Join(radiusDir, "fonts"))
+		app.Static("/radius/vendor", filepath.Join(radiusDir, "vendor"))
+		app.Static("/radius/unnamed.png", filepath.Join(radiusDir, "unnamed.png"))
+		app.Static("/radius/logo.png", filepath.Join(radiusDir, "logo.png"))
+		app.Static("/radius/favicon.ico", filepath.Join(radiusDir, "favicon.ico"))
+
+		app.Get("/radius", func(c *fiber.Ctx) error {
+			return c.SendFile(filepath.Join(radiusDir, "index.html"))
+		})
+		app.Get("/radius/", func(c *fiber.Ctx) error {
+			return c.SendFile(filepath.Join(radiusDir, "index.html"))
+		})
+		app.Get("/radius/login.html", func(c *fiber.Ctx) error {
+			return c.SendFile(filepath.Join(radiusDir, "login.html"))
+		})
+		app.Get("/radius/portal.html", func(c *fiber.Ctx) error {
+			return c.SendFile(filepath.Join(radiusDir, "portal.html"))
+		})
+		app.Get("/radius/*", func(c *fiber.Ctx) error {
+			if strings.HasPrefix(c.Path(), "/radius/api/") {
+				return c.Next()
+			}
+			return c.SendFile(filepath.Join(radiusDir, "index.html"))
+		})
+	}
 
 	adminUser := os.Getenv("SASMAN_ADMIN_USER")
 	if adminUser == "" {
