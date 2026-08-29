@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"mikrotik-manager/pkg/core"
+	"mikrotik-manager/agent/pkg/core"
 	"github.com/go-routeros/routeros/v3"
 )
 

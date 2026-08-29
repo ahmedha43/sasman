@@ -6,7 +6,7 @@ import (
 	"net"
 	"strings"
 
-	"mikrotik-manager/pkg/core"
+	"mikrotik-manager/agent/pkg/core"
 
 	"github.com/go-routeros/routeros/v3"
 )
