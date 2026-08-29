@@ -157,7 +157,18 @@ func sendCoADisconnect(username string, info SessionInfo) error {
 	if info.NASIP == "" {
 		return fmt.Errorf("no NAS IP")
 	}
+
 	secret, err := lookupNASSecret(info.NASIP)
+	if err != nil {
+		secret = "radsec" // Fallback secret for RadSec TLS
+	}
+
+	// 1. Check if NAS is connected via RadSec (Reverse Disconnect over mTLS)
+	if agent := GetRadSecAgentByNAS(info.NASIP); agent != nil {
+		radiusLogger.Printf("[coa] 🔄 Using Reverse Disconnect via RadSec agent [%s] for NAS [%s]", agent.CommonName, info.NASIP)
+		return SendReverseDisconnect(agent, username, info, secret)
+	}
+
 	if err != nil {
 		return err
 	}

@@ -24,7 +24,7 @@ import (
 	"mikrotik-manager/pkg/tunnel"
 )
 
-var radiusLogger *log.Logger
+var radiusLogger = log.Default()
 
 const MikroTikVendorID uint32 = 14988
 
@@ -123,6 +123,9 @@ func StartRadiusServer() {
 			log.Fatalf("[radius] Acct server stopped: %v", err)
 		}
 	}()
+
+	// Start RadSec Server (TLS/mTLS on port 2083)
+	StartRadSecServer()
 }
 
 // UpdateNASSecrets reloads NAS secrets from the database

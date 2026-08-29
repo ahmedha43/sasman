@@ -7,19 +7,27 @@ async function loadNAS() {
         const tbody = document.getElementById('nas-tbody');
 
         if (nasList.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">لا توجد أجهزة NAS متصلة...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">لا توجد أجهزة NAS متصلة...</td></tr>';
         } else {
             tbody.innerHTML = nasList.map(n => `
                 <tr>
-                    <td><strong>${n.ip}</strong></td>
-                    <td>${n.profile_nas_ip || '<span style="color:var(--text-muted);">غير مضبوط</span>'}</td>
-                    <td>${n.name || '-'}</td>
-                    <td><span style="font-family:monospace; background:var(--bg-app); color:var(--text-main); padding:2px 6px; border-radius:4px;">${n.secret}</span></td>
+                    <td><strong>${escapeHtml(n.ip)}</strong></td>
+                    <td>${n.profile_nas_ip ? escapeHtml(n.profile_nas_ip) : '<span style="color:var(--text-muted);">غير مضبوط</span>'}</td>
+                    <td>${escapeHtml(n.name || '-')}</td>
+                    <td><span style="font-family:monospace; background:var(--bg-app); color:var(--text-main); padding:2px 6px; border-radius:4px;">${escapeHtml(n.secret)}</span></td>
+                    <td>${getRadSecBadge(n)}</td>
                     ${(currentAdmin && currentAdmin.role === 'superadmin') ? `<td><span class="badge badge-secondary">${escapeHtml(n.admin_name || 'System')}</span></td>` : ''}
                     <td>
                         ${(currentAdmin && currentAdmin.role === 'superadmin') ? `
-                            <button class="btn" style="padding:6px 12px; width:auto; background:var(--warning); border-color:var(--warning);" onclick="prepareEditNAS('${n.id}', '${n.ip}', '${n.name}', '${n.secret}', '${n.profile_nas_ip}', ${n.admin_id}, '${n.admin_name}')">تعديل</button>
-                            <button class="btn btn-danger" style="padding:6px 12px; width:auto;" onclick="deleteNAS('${n.ip}')">حذف</button>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                <button class="btn" style="padding:4px 8px; font-size:12px; background:var(--warning); border-color:var(--warning);" onclick="prepareEditNAS('${n.id}', '${escapeHtml(n.ip)}', '${escapeHtml(n.name)}', '${escapeHtml(n.secret)}', '${escapeHtml(n.profile_nas_ip)}', ${n.admin_id}, '${escapeHtml(n.admin_name)}')">تعديل</button>
+                                <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteNAS('${escapeHtml(n.ip)}')">حذف</button>
+                                <button class="btn" style="padding:4px 8px; font-size:12px; background:var(--primary); color:#fff;" onclick="generateNASCert('${n.id}', '${escapeHtml(n.name || n.ip)}')"><i class="fa-solid fa-key"></i> شهادة</button>
+                                ${n.common_name ? `
+                                    <button class="btn btn-success" style="padding:4px 8px; font-size:12px;" onclick="downloadNASCertBundle('${n.id}')"><i class="fa-solid fa-download"></i> الحزمة</button>
+                                    <button class="btn" style="padding:4px 8px; font-size:12px; background:#e53e3e; color:#fff;" onclick="revokeNASCert('${n.id}', '${escapeHtml(n.name || n.ip)}')"><i class="fa-solid fa-ban"></i> إبطال</button>
+                                ` : ''}
+                            </div>
                         ` : '<span style="color:var(--text-muted); font-size:12px;">غير مصرح</span>'}
                     </td>
                 </tr>
@@ -30,11 +38,56 @@ async function loadNAS() {
         if (nasSelect) {
             const profileTargets = nasList.filter(n => n.profile_nas_ip);
             nasSelect.innerHTML = '<option value="ALL">جميع الراوترات المتصلة</option>' +
-                (profileTargets.length ? profileTargets.map(n => `<option value="${n.profile_nas_ip}">${n.name || n.ip} (${n.profile_nas_ip})</option>`).join('') : '');
+                (profileTargets.length ? profileTargets.map(n => `<option value="${n.profile_nas_ip}">${escapeHtml(n.name || n.ip)} (${n.profile_nas_ip})</option>`).join('') : '');
         }
 
     } catch (e) {
         console.error(e);
+    }
+}
+
+function getRadSecBadge(n) {
+    if (n.radsec_status === 'online') {
+        return '<span class="badge" style="background:#2f855a; color:#fff; padding:4px 8px; border-radius:6px;"><i class="fa-solid fa-shield-halved"></i> متصل RadSec 🟢</span>';
+    } else if (n.radsec_status === 'configured') {
+        return '<span class="badge" style="background:#4a5568; color:#e2e8f0; padding:4px 8px; border-radius:6px;"><i class="fa-solid fa-key"></i> شهادة صادرة ⚪</span>';
+    }
+    return '<span class="badge" style="background:rgba(66, 153, 225, 0.2); color:#63b3ed; padding:4px 8px; border-radius:6px;">UDP مباشر 🔵</span>';
+}
+
+async function generateNASCert(id, name) {
+    if (!confirm(`هل تريد توليد شهادة RadSec mTLS مشفرة للراوتر "${name}"؟`)) return;
+    try {
+        const res = await apiFetch(`/radius/api/nas/${id}/generate-cert`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            alert(data.message || 'تم توليد الشهادة بنجاح');
+            loadNAS();
+        } else {
+            alert(data.error || 'فشل توليد الشهادة');
+        }
+    } catch (e) {
+        alert('خطأ في الاتصال: ' + e);
+    }
+}
+
+function downloadNASCertBundle(id) {
+    window.open(`/radius/api/nas/${id}/cert-bundle`, '_blank');
+}
+
+async function revokeNASCert(id, name) {
+    if (!confirm(`تحذير أمني: هل أنت متأكد من إبطال شهادة RadSec للراوتر "${name}"؟ سيتم فصل اتصال الوكيل فوراً ومنعه من الاتصال.`)) return;
+    try {
+        const res = await apiFetch(`/radius/api/nas/${id}/revoke-cert`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            alert(data.message || 'تم إبطال الشهادة بنجاح');
+            loadNAS();
+        } else {
+            alert(data.error || 'فشل إبطال الشهادة');
+        }
+    } catch (e) {
+        alert('خطأ في الاتصال: ' + e);
     }
 }
 
@@ -151,7 +204,18 @@ async function deleteNAS(ip) {
 }
 
 function openNASModal() {
-    cancelEditNAS();
+    document.getElementById('nas-ip').value = '';
+    document.getElementById('nas-name').value = '';
+    document.getElementById('nas-secret').value = '';
+    document.getElementById('nas-profile-ip').value = '';
+    currentEditNASId = null;
+    const btn = document.getElementById('nas-submit-btn');
+    if (btn) {
+        btn.innerText = 'إضافة الراوتر';
+        btn.onclick = createNAS;
+        btn.style.background = '';
+        btn.style.borderColor = '';
+    }
     document.getElementById('nas-modal-title').innerText = 'ربط راوتر مايكروتك جديد (NAS)';
     document.getElementById('nas-modal').classList.add('active');
 }
@@ -161,29 +225,18 @@ function closeNASModal() {
 }
 
 async function quickSetupNAS() {
-    if (!confirm('سيتم إضافة راديوس جديد بعنوان 172.17.0.1 وكلمة مرور 123456 وجعله متاحاً لجميع الوكلاء (Global). وسيتم إرسال هذا الإعداد مباشرة للمايكروتك. هل تود المتابعة؟')) return;
-    
-    // Check if router is connected before proceeding (basic check, backend will enforce it too)
-    const btn = document.querySelector('button[onclick="quickSetupNAS()"]');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الإعداد...';
-    }
+    if (!confirm("هل أنت متأكد من تنفيذ الإعداد السريع التلقائي لراديوس المايكروتك (172.17.0.1)؟")) return;
     
     try {
         const res = await apiFetch('/radius/api/nas/quick-setup', { method: 'POST' });
-        const result = await res.json();
-        alert(result.message || result.error);
-        if (res.ok) {
+        const data = await res.json();
+        if (data.error) {
+            alert("خطأ: " + data.error);
+        } else {
+            alert(data.message || "تم الإعداد بنجاح!");
             loadNAS();
         }
-    } catch (e) {
-        alert('حدث خطأ أثناء الاتصال بالخادم.');
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '⚡ إعداد راديوس سريع (نظام ومايكروتك)';
-        }
+    } catch(e) {
+        alert("حدث خطأ أثناء الاتصال بالخادم: " + e);
     }
 }
-

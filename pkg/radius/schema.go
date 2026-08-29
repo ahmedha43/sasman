@@ -249,6 +249,25 @@ func EnsureSchema() {
 		`CREATE INDEX IF NOT EXISTS idx_audit_created_at ON radius_audit_logs (created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_action_type ON radius_audit_logs (action_type)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_admin_id ON radius_audit_logs (admin_id)`,
+
+		// RadSec & PKI Certificates Table
+		`CREATE TABLE IF NOT EXISTS nas_certificates (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			nas_id INTEGER,
+			nas_name TEXT NOT NULL,
+			common_name TEXT NOT NULL UNIQUE,
+			serial_number TEXT NOT NULL,
+			cert_pem TEXT NOT NULL,
+			key_pem TEXT NOT NULL,
+			ca_pem TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			expires_at DATETIME NOT NULL,
+			revoked INTEGER NOT NULL DEFAULT 0,
+			revoked_at DATETIME DEFAULT NULL,
+			FOREIGN KEY (nas_id) REFERENCES nas(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_nas_certs_common_name ON nas_certificates(common_name)`,
+		`CREATE INDEX IF NOT EXISTS idx_nas_certs_nas_id ON nas_certificates(nas_id)`,
 	}
 
 	for _, stmt := range tables {

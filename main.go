@@ -693,12 +693,16 @@ func main() {
 	radiusSecure.Delete("/audit-logs", radius.ClearAuditLogsHandler)
 	radiusSecure.Get("/audit-logs/export", radius.ExportAuditLogsCSVHandler)
 
-	// NAS
+	// NAS & RadSec PKI Management
 	radiusSecure.Get("/nas", radius.GetNAS)
 	radiusSecure.Post("/nas", radius.CreateNAS)
 	radiusSecure.Post("/nas/quick-setup", radius.QuickSetupNAS)
 	radiusSecure.Put("/nas/:id", radius.UpdateNAS)
 	radiusSecure.Delete("/nas/:ip", radius.DeleteNAS)
+	radiusSecure.Post("/nas/:id/generate-cert", radius.GenerateNASCertificate)
+	radiusSecure.Get("/nas/:id/cert-bundle", radius.DownloadNASCertBundle)
+	radiusSecure.Post("/nas/:id/revoke-cert", radius.RevokeNASCertificate)
+	radiusSecure.Get("/nas/radsec-status", radius.GetRadSecStatus)
 
 	// Vouchers (Management)
 	radiusSecure.Get("/vouchers", radius.GetVouchers)
