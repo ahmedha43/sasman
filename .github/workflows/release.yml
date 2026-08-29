@@ -42,17 +42,17 @@ jobs:
           mkdir -p dist
 
           echo "==> Building Linux ARM64 (CCR2004, RB5009, L009)..."
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/sasman-agent-arm64 main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/sasman-agent-arm64 ./agent
           tar -czvf dist/sasman-agent-linux-arm64.tar.gz -C dist sasman-agent-arm64
           rm -f dist/sasman-agent-arm64
 
           echo "==> Building Linux AMD64 (x86_64, CHR, PC Server)..."
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/sasman-agent-amd64 main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/sasman-agent-amd64 ./agent
           tar -czvf dist/sasman-agent-linux-amd64.tar.gz -C dist sasman-agent-amd64
           rm -f dist/sasman-agent-amd64
 
           echo "==> Building Linux ARMv7 (RB4011, hAP ax2, hAP ax3)..."
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w" -o dist/sasman-agent-armv7 main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w" -o dist/sasman-agent-armv7 ./agent
           tar -czvf dist/sasman-agent-linux-armv7.tar.gz -C dist sasman-agent-armv7
           rm -f dist/sasman-agent-armv7
 

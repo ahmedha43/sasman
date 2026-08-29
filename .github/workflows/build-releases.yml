@@ -51,7 +51,7 @@ jobs:
         run: |
           mkdir -p output
           echo "Building for ${{ matrix.platform }}..."
-          docker buildx build --platform ${{ matrix.platform }} -t sasman:${{ matrix.arch }} --load .
+          docker buildx build --platform ${{ matrix.platform }} -f agent/Dockerfile -t sasman:${{ matrix.arch }} --load .
           
           # Save container TAR for MikroTik
           docker save sasman:${{ matrix.arch }} -o output/${{ matrix.tar }}
@@ -112,6 +112,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./agent/Dockerfile
           platforms: linux/arm/v7,linux/arm64,linux/amd64
           push: true
           tags: |
