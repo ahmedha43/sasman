@@ -3,6 +3,8 @@ package cloudtenant
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -103,6 +105,7 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Post("/users", h.handleCreateUser)
 	protectedRadius.Put("/users/:username", h.handleCreateUser)
 	protectedRadius.Delete("/users/:username", h.handleDeleteUser)
+	protectedRadius.Post("/users/:username/renew", h.handleRenewUser)
 
 	protectedRadius.Get("/profiles", h.handleListProfiles)
 	protectedRadius.Post("/profiles", h.handleCreateProfile)
@@ -129,9 +132,10 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Get("/auth/backup/telegram", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"enabled": false})
 	})
-	protectedRadius.Get("/logs", func(c *fiber.Ctx) error {
-		return c.JSON([]interface{}{})
-	})
+	radiusAPI.Get("/logs", h.handleGetTenantLogs)
+	radiusAPI.Delete("/logs", h.handleClearTenantLogs)
+	protectedRadius.Get("/logs", h.handleGetTenantLogs)
+	protectedRadius.Delete("/logs", h.handleClearTenantLogs)
 
 	protectedRadius.Get("/sessions", h.handleListActiveSessions)
 	protectedRadius.Post("/sessions/disconnect", h.handleDisconnectSession)
@@ -759,6 +763,45 @@ func (h *APIHandler) handleDeleteUser(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"success": true, "message": "تم حذف المشترك"})
 }
 
+func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	username := c.Params("username")
+
+	var req struct {
+		Profile string `json:"profile"`
+	}
+	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Profile) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى اختيار الباقة"})
+	}
+	profile := strings.TrimSpace(req.Profile)
+
+	validityDays := 30
+	_ = db.QueryRow("SELECT validity_days FROM radius_profile_meta WHERE groupname = ?", profile).Scan(&validityDays)
+	if validityDays <= 0 {
+		validityDays = 30
+	}
+
+	now := time.Now().Unix()
+	var currentExp int64
+	_ = db.QueryRow("SELECT expiration_unix FROM radius_user_meta WHERE username = ?", username).Scan(&currentExp)
+
+	baseTime := now
+	if currentExp > now {
+		baseTime = currentExp
+	}
+	newExp := baseTime + int64(validityDays*86400)
+
+	_, _ = db.Exec("UPDATE radius_user_meta SET expiration_unix = ?, enabled = 1 WHERE username = ?", newExp, username)
+	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
+	_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, profile)
+
+	return c.JSON(fiber.Map{
+		"success":             true,
+		"message":             "تم تجديد اشتراك المشترك بنجاح",
+		"new_expiration_unix": newExp,
+	})
+}
+
 func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
 
@@ -1106,4 +1149,44 @@ func (h *APIHandler) handleNASProvisionCode(c *fiber.Ctx) error {
 		"script_url":     fmt.Sprintf("https://%s/pki/install/%s.rsc", h.mgr.domain, subdomain),
 	})
 }
+
+func (h *APIHandler) handleGetTenantLogs(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		subdomain = "default"
+	}
+
+	logFile := filepath.Join(h.mgr.pool.GetTenantDir(subdomain), "radius.log")
+	data, err := os.ReadFile(logFile)
+	if err != nil || len(data) == 0 {
+		return c.SendString(fmt.Sprintf("[%s] === سجل حركات ومصادقة المشتركين والمايكروتك للوكيل (%s) ===\n(بانتظار وصول طلبات مصادقة جديدة)", time.Now().Format("2006-01-02 15:04:05"), subdomain))
+	}
+
+	if len(data) > 65536 {
+		data = data[len(data)-65536:]
+	}
+	return c.SendString(string(data))
+}
+
+func (h *APIHandler) handleClearTenantLogs(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		return c.JSON(fiber.Map{"success": false, "error": "subdomain missing"})
+	}
+
+	logFile := filepath.Join(h.mgr.pool.GetTenantDir(subdomain), "radius.log")
+	_ = os.WriteFile(logFile, []byte(""), 0644)
+	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير السجل"})
+}
+
 

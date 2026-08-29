@@ -371,6 +371,25 @@ func main() {
 			allow, rateLimit, dbPass, reason, err := cloudTenantMgr.VerifyCloudUser(subdomain, req.Username, req.Password)
 			log.Printf("[CentralRadSec] 🔍 VerifyCloudUser: Tenant=[%s], User=[%s], allow=%v, rateLimit=%s, reason=%s, err=%v",
 				subdomain, req.Username, allow, rateLimit, reason, err)
+
+			// Record in tenant's Debug Monitor radius.log
+			go func() {
+				if subdomain != "" {
+					tenantLogPath := filepath.Join(cloudTenantPool.GetTenantDir(subdomain), "radius.log")
+					resStr := "Access-Accept ✅"
+					if !allow {
+						resStr = fmt.Sprintf("Access-Reject ❌ (%s)", reason)
+					}
+					line := fmt.Sprintf("[%s] RADIUS %s for user [%s] from NAS [%s] (MAC: %s)\n",
+						time.Now().Format("2006-01-02 15:04:05"), resStr, req.Username, req.NasIP, req.UserMAC)
+					f, err := os.OpenFile(tenantLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+					if err == nil {
+						_, _ = f.WriteString(line)
+						_ = f.Close()
+					}
+				}
+			}()
+
 			if err == nil && allow {
 				return tunnel.GlobalAuthResponsePayload{
 					RequestID:      req.RequestID,
