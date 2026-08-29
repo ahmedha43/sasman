@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"mikrotik-manager/pkg/supervisor"
+	"mikrotik-manager/agent/pkg/supervisor"
 )
 
 func main() {
