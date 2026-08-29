@@ -15,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"mikrotik-manager/pkg/broadcast"
+	"mikrotik-manager/pkg/pki"
 	"mikrotik-manager/pkg/relay"
 	"mikrotik-manager/pkg/tunnel"
 	"mikrotik-manager/server/internal/api"
@@ -569,6 +570,181 @@ func main() {
 	app.Get("/install.sh", func(c *fiber.Ctx) error { return installScriptHandler(c, "disk1") })
 	app.Get("/install", func(c *fiber.Ctx) error { return installScriptHandler(c, "disk1") })
 	app.Get("/installer.rsc", func(c *fiber.Ctx) error { return installScriptHandler(c, "disk1") })
+
+	// ─── PKI RadSec MikroTik Auto-Provisioning ──────────────────────────────────
+	ensureAgentCertificate := func(subdomain string) (certPEM, keyPEM, caPEM string, err error) {
+		subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+		if subdomain == "" {
+			return "", "", "", fmt.Errorf("invalid subdomain")
+		}
+
+		pkiAgentDir := filepath.Join("data", "pki", "agents", subdomain)
+		if _, e := os.Stat("/app/data"); e == nil {
+			pkiAgentDir = filepath.Join("/app/data", "pki", "agents", subdomain)
+		}
+
+		certPath := filepath.Join(pkiAgentDir, "agent.crt")
+		keyPath := filepath.Join(pkiAgentDir, "agent.key")
+		caPath := filepath.Join("data", "pki", "ca.crt")
+		if _, e := os.Stat("/app/data/pki/ca.crt"); e == nil {
+			caPath = "/app/data/pki/ca.crt"
+		}
+
+		caBytes, _ := os.ReadFile(caPath)
+		if len(caBytes) == 0 {
+			caBytes = pki.GetCACertPEM()
+		}
+
+		if _, err := os.Stat(certPath); err == nil {
+			if _, err := os.Stat(keyPath); err == nil {
+				cB, _ := os.ReadFile(certPath)
+				kB, _ := os.ReadFile(keyPath)
+				if len(cB) > 0 && len(kB) > 0 {
+					return string(cB), string(kB), string(caBytes), nil
+				}
+			}
+		}
+
+		// Generate new certificate signed by Root CA
+		_ = os.MkdirAll(pkiAgentDir, 0755)
+		commonName := fmt.Sprintf("agent-%s-SASMAN", subdomain)
+		bundle, err := pki.GenerateClientCertificate(commonName, 365*5)
+		if err != nil {
+			return "", "", "", fmt.Errorf("failed to generate certificate: %w", err)
+		}
+
+		_ = os.WriteFile(certPath, []byte(bundle.CertPEM), 0644)
+		_ = os.WriteFile(keyPath, []byte(bundle.KeyPEM), 0600)
+
+		return bundle.CertPEM, bundle.KeyPEM, string(caBytes), nil
+	}
+
+	app.Get("/pki/cert/:subdomain/ca.crt", func(c *fiber.Ctx) error {
+		subdomain := c.Params("subdomain")
+		_, _, caPEM, err := ensureAgentCertificate(subdomain)
+		if err != nil || caPEM == "" {
+			return c.Status(500).SendString("CA Certificate not available")
+		}
+		c.Set("Content-Type", "application/x-x509-ca-cert")
+		return c.SendString(caPEM)
+	})
+
+	app.Get("/pki/cert/:subdomain/agent.crt", func(c *fiber.Ctx) error {
+		subdomain := c.Params("subdomain")
+		certPEM, _, _, err := ensureAgentCertificate(subdomain)
+		if err != nil || certPEM == "" {
+			return c.Status(500).SendString("Agent Certificate not available")
+		}
+		c.Set("Content-Type", "application/x-x509-user-cert")
+		return c.SendString(certPEM)
+	})
+
+	app.Get("/pki/cert/:subdomain/agent.key", func(c *fiber.Ctx) error {
+		subdomain := c.Params("subdomain")
+		_, keyPEM, _, err := ensureAgentCertificate(subdomain)
+		if err != nil || keyPEM == "" {
+			return c.Status(500).SendString("Agent Key not available")
+		}
+		c.Set("Content-Type", "application/pkcs8")
+		return c.SendString(keyPEM)
+	})
+
+	radsecScriptHandler := func(c *fiber.Ctx) error {
+		rawSub := c.Params("subdomain")
+		subdomain := strings.TrimSuffix(rawSub, ".rsc")
+		subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+		if subdomain == "" {
+			subdomain = "default"
+		}
+
+		// Ensure certificate bundle exists
+		_, _, _, _ = ensureAgentCertificate(subdomain)
+
+		domain := centralDomain
+		if domain == "" {
+			domain = "sas-man.net"
+		}
+
+		script := fmt.Sprintf(`# =========================================================
+#  SASMAN RadSec (RFC 6614 mTLS) Auto-Provisioning Script
+#  Agent Subdomain: %[1]s
+#  Central Server: 167.86.73.203:2083
+# =========================================================
+
+:put "=================================================="
+:put "  [1/4] Downloading SASMAN PKI Certificates..."
+:put "=================================================="
+
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/ca.crt" dst-path="ca.crt" mode=https
+:delay 2s
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.crt" dst-path="agent.crt" mode=https
+:delay 2s
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.key" dst-path="agent.key" mode=https
+:delay 2s
+
+:put "=================================================="
+:put "  [2/4] Importing Certificates into RouterOS..."
+:put "=================================================="
+
+/certificate import file-name="ca.crt" passphrase=""
+:delay 1s
+/certificate import file-name="agent.crt" passphrase=""
+:delay 1s
+/certificate import file-name="agent.key" passphrase=""
+:delay 1s
+
+:put "=================================================="
+:put "  [3/4] Configuring High-Speed RadSec Client..."
+:put "=================================================="
+
+:local certName "agent.crt_0"
+:local caName "ca.crt_0"
+
+:foreach c in=[/certificate find where common-name~"agent-.*"] do={
+    :set certName [/certificate get $c name]
+}
+:foreach c in=[/certificate find where common-name~"SASMAN.*"] do={
+    :set caName [/certificate get $c name]
+}
+
+# Remove existing central server RADIUS entries to avoid duplicates
+/radius remove [find address="167.86.73.203"]
+
+# Add RadSec client connected to Central Server IP with mTLS certificates
+/radius add address=167.86.73.203 protocol=radsec certificate=$certName service=ppp,login,hotspot,wireless secret=radsec authentication-port=2083 accounting-port=2083 timeout=3s require-message-auth=yes-for-request-resp comment="SASMAN Central RadSec (%[1]s)"
+
+# Enable Disconnect Messages & CoA
+/radius incoming set accept=yes port=3799
+
+# Enable RADIUS in Services
+/user aaa set use-radius=yes default-group=read
+/ppp aaa set use-radius=yes accounting=yes interim-update=1m
+/ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
+
+:put "=================================================="
+:put "  [4/4] Cleaning Up Temporary Files..."
+:put "=================================================="
+
+/file remove [find name="ca.crt"]
+/file remove [find name="agent.crt"]
+/file remove [find name="agent.key"]
+/file remove [find name="radsec.rsc"]
+
+:put "=================================================="
+:put "  [SUCCESS] SASMAN RadSec Provisioned Successfully!"
+:put "  Agent: %[1]s"
+:put "  Server: 167.86.73.203:2083 (RFC 6614 mTLS)"
+:put "=================================================="
+`, subdomain, domain)
+
+		c.Set("Content-Type", "text/plain; charset=utf-8")
+		return c.SendString(script)
+	}
+
+	app.Get("/pki/install/:subdomain", radsecScriptHandler)
+	app.Get("/pki/install/:subdomain.rsc", radsecScriptHandler)
+	app.Get("/pki/radsec/:subdomain", radsecScriptHandler)
+	app.Get("/pki/radsec/:subdomain.rsc", radsecScriptHandler)
 
 	// MikroTik RouterOS v7.21+ App Store Catalog
 	appStoreHandler := func(c *fiber.Ctx) error {

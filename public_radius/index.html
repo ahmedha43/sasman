@@ -518,8 +518,9 @@
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px;">
                             <h3 style="margin:0; border:none; padding:0;"><i class="fa-solid fa-server"></i> الراوترات المربوطة حالياً</h3>
                             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                <button class="btn" style="width:auto; padding:10px 18px; background:var(--primary); color:white; border:none;" onclick="callWhenReady('/radius/js/nas.js?v=10', 'openNASGuideModal')"><i class="fa-solid fa-book-open"></i> 📖 دليل التوثيق والإعداد (UDP / RadSec)</button>
-                                <button class="btn superadmin-only" style="width:auto; padding:10px 20px; background:var(--success); color:white; border:none; display:none;" onclick="callWhenReady('/radius/js/nas.js?v=10', 'quickSetupNAS')">⚡ إعداد راديوس سريع (نظام ومايكروتك)</button>
+                                <button class="btn" style="width:auto; padding:10px 18px; background:linear-gradient(135deg, #10b981, #059669); color:white; border:none; font-weight:bold; box-shadow:0 4px 12px rgba(16,185,129,0.3);" onclick="callWhenReady('/radius/js/nas.js?v=12', 'openAutoRadSecModal')"><i class="fa-solid fa-bolt"></i> ⚡ كود ربط المايكروتك التلقائي (RadSec mTLS)</button>
+                                <button class="btn" style="width:auto; padding:10px 18px; background:var(--primary); color:white; border:none;" onclick="callWhenReady('/radius/js/nas.js?v=12', 'openNASGuideModal')"><i class="fa-solid fa-book-open"></i> 📖 دليل التوثيق والإعداد (UDP / RadSec)</button>
+                                <button class="btn superadmin-only" style="width:auto; padding:10px 20px; background:var(--success); color:white; border:none; display:none;" onclick="callWhenReady('/radius/js/nas.js?v=12', 'quickSetupNAS')">⚡ إعداد راديوس سريع (نظام ومايكروتك)</button>
                                 <button class="btn btn-primary" style="width:auto; padding:10px 20px;" onclick="openNASModal()">➕ ربط راوتر جديد (NAS)</button>
                             </div>
                         </div>
@@ -1927,6 +1928,51 @@
 
             <div class="action-row" style="margin-top:20px;">
                 <button class="btn btn-primary" style="width:auto; padding:10px 25px;" onclick="closeNASGuideModal()">فهمت ذلك، إغلاق الدليل</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 9.2 Auto-Provisioning RadSec MikroTik Modal -->
+    <div id="nas-auto-modal" class="modal-backdrop">
+        <div class="modal-card" style="width: min(100%, 750px); max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 style="margin:0; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-bolt" style="color:var(--success);"></i>
+                    كود ربط المايكروتك التلقائي (RadSec mTLS)
+                </h3>
+                <button class="modal-close" onclick="closeAutoRadSecModal()">×</button>
+            </div>
+            
+            <div style="background:rgba(16, 185, 129, 0.1); border-right:4px solid var(--success); padding:14px 18px; border-radius:8px; margin-bottom:18px;">
+                <h4 style="margin:0 0 6px 0; color:var(--success);"><i class="fa-solid fa-magic"></i> التثبيت الفوري بضغطة زر واحدة</h4>
+                <p style="margin:0; font-size:13px; line-height:1.6; color:var(--text-main);">
+                    يقوم هذا السطر بتنزيل شهادة الوكيل الخاصة بك (<code id="auto-subdomain-badge" style="color:var(--primary); font-weight:bold;">...</code>) وشهادة الجذر CA وتثبيتها داخل الراوتر، ثم ضبط عميل الـ RadSec المشفر وتفعيل الراديوس على السيرفر المركزي (<code style="color:var(--primary); font-weight:bold;">167.86.73.203:2083</code>) تلقائياً بالكامل دون الحاجة لرفع الملفات يدوياً.
+                </p>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-weight:bold; margin-bottom:8px; font-size:13px;">💻 انسخ السطر التالي والصقه مباشرة في Terminal بالمايكروتك:</label>
+                <div style="position:relative;">
+                    <textarea id="auto-provision-cmd" readonly style="width:100%; height:90px; font-family:monospace; font-size:13px; direction:ltr; text-align:left; background:var(--bg-app); border:1px solid var(--border); border-radius:8px; padding:12px; resize:none;"></textarea>
+                    <button class="btn btn-success" style="position:absolute; bottom:10px; right:10px; padding:6px 14px; font-size:12px; font-weight:bold; box-shadow:var(--shadow-sm);" onclick="copyAutoProvisionCode()">
+                        <i class="fa-solid fa-copy"></i> نسخ الأمر
+                    </button>
+                </div>
+            </div>
+
+            <div style="background:var(--bg-card); border:1px solid var(--border); padding:14px 18px; border-radius:8px; margin-bottom:20px;">
+                <h4 style="margin:0 0 10px 0; font-size:14px;"><i class="fa-solid fa-list-check"></i> خطوات التشغيل في المايكروتك:</h4>
+                <ol style="margin:0; padding-right:20px; font-size:13px; line-height:1.8; color:var(--text-muted);">
+                    <li>افتح تطبيق <strong>Winbox</strong> أو اتصل بالراوتر عبر <strong>SSH / WebFig</strong>.</li>
+                    <li>افتح شاشة الأوامر <strong>Terminal</strong> في المايكروتك.</li>
+                    <li>الصق السطر المنسوخ بالأعلى واضغط <strong>Enter</strong>.</li>
+                    <li>سيقوم المايكروتك بتحميل الشهادات وضبط الراديوس وتظهر لك رسالة النجاح الخضراء: <br><code style="color:var(--success); font-family:monospace; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px;">[SUCCESS] SASMAN RadSec Provisioned Successfully!</code></li>
+                </ol>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn btn-primary" style="width:auto; padding:10px 24px;" onclick="copyAutoProvisionCode()"><i class="fa-solid fa-copy"></i> نسخ الأمر الآن</button>
+                <button class="btn" style="width:auto; padding:10px 20px;" onclick="closeAutoRadSecModal()">إغلاق</button>
             </div>
         </div>
     </div>

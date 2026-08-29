@@ -285,3 +285,42 @@ function copyCodeText(elementId) {
         alert('تعذر النسخ التلقائي: ' + err);
     });
 }
+
+async function openAutoRadSecModal() {
+    const modal = document.getElementById('nas-auto-modal');
+    if (!modal) return;
+    modal.classList.add('active');
+
+    try {
+        const res = await apiFetch('/radius/api/nas/provision-code');
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('auto-provision-cmd').value = data.command;
+            const badge = document.getElementById('auto-subdomain-badge');
+            if (badge) badge.innerText = data.subdomain;
+        } else {
+            const sub = (currentAdmin && currentAdmin.username) ? currentAdmin.username : 'default';
+            const cmd = `/tool fetch url="https://sas-man.net/pki/install/${sub}.rsc" dst-path=radsec.rsc; :delay 2s; /import radsec.rsc`;
+            document.getElementById('auto-provision-cmd').value = cmd;
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function closeAutoRadSecModal() {
+    const modal = document.getElementById('nas-auto-modal');
+    if (modal) modal.classList.remove('active');
+}
+
+function copyAutoProvisionCode() {
+    const cmdArea = document.getElementById('auto-provision-cmd');
+    if (!cmdArea) return;
+    cmdArea.select();
+    navigator.clipboard.writeText(cmdArea.value).then(() => {
+        alert('✅ تم نسخ كود التثبيت التلقائي إلى الحافظة بنجاح!\nالصقه الآن في Terminal المايكروتك.');
+    }).catch(() => {
+        document.execCommand('copy');
+        alert('✅ تم نسخ كود التثبيت التلقائي بنجاح!');
+    });
+}

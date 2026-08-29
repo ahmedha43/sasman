@@ -10,6 +10,7 @@ import (
 
 	"mikrotik-manager/pkg/core"
 	"mikrotik-manager/pkg/pki"
+	"mikrotik-manager/pkg/shared"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -408,5 +409,27 @@ func GetRadSecStatus(c *fiber.Ctx) error {
 		"success": true,
 		"count":   len(agents),
 		"agents":  agents,
+	})
+}
+
+// GetNASProvisionCode returns the one-click copyable RouterOS command to provision RadSec for this agent
+func GetNASProvisionCode(c *fiber.Ctx) error {
+	subdomain := shared.RouterConfigState.TunnelSubdomain
+	if subdomain == "" {
+		subdomain = "default"
+	}
+	centralDomain := shared.RouterConfigState.CentralDomain
+	if centralDomain == "" {
+		centralDomain = "sas-man.net"
+	}
+
+	command := fmt.Sprintf(`/tool fetch url="https://%s/pki/install/%s.rsc" dst-path=radsec.rsc; :delay 2s; /import radsec.rsc`, centralDomain, subdomain)
+
+	return c.JSON(fiber.Map{
+		"success":        true,
+		"subdomain":      subdomain,
+		"central_domain": centralDomain,
+		"command":        command,
+		"script_url":     fmt.Sprintf("https://%s/pki/install/%s.rsc", centralDomain, subdomain),
 	})
 }
