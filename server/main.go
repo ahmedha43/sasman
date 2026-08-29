@@ -363,6 +363,21 @@ func main() {
 			}
 			return svc.OnGlobalAuthRequest(subdomain, req)
 		},
+		func(subdomain string, req tunnel.GlobalAcctPayload) {
+			if subdomain == "" {
+				agents := svc.ListAgents()
+				if len(agents) > 0 {
+					if sub, ok := agents[0]["subdomain"].(string); ok {
+						subdomain = sub
+					}
+				}
+			}
+			svc.OnGlobalAcctUpdate(subdomain, req)
+			if subdomain != "" {
+				acctBytes, _ := json.Marshal(req)
+				_, _, _ = svc.SendAgentHTTPRequest(subdomain, "POST", "/radius/api/internal/sync-acct", acctBytes, nil)
+			}
+		},
 		func(cn string, nasIP string) string {
 			for _, part := range strings.Split(cn, "-") {
 				part = strings.TrimSpace(part)

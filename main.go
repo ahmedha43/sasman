@@ -663,6 +663,16 @@ func main() {
 		})
 	})
 
+	// Internal accounting sync endpoint from Central RadSec Server
+	radiusAPI.Post("/internal/sync-acct", func(c *fiber.Ctx) error {
+		var payload radius.InternalAcctPayload
+		if err := c.BodyParser(&payload); err != nil || payload.Username == "" {
+			return c.Status(400).JSON(fiber.Map{"success": false})
+		}
+		radius.RecordAccountingPayload(payload)
+		return c.JSON(fiber.Map{"success": true})
+	})
+
 	// Licensed area (auth + license gate)
 	radiusSecure := radiusAPI.Group("", radius.RequireAdmin, radius.RequireLicense)
 

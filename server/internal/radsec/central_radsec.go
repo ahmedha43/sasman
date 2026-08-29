@@ -25,6 +25,7 @@ type CentralRadSecServer struct {
 	agentsByNAS map[string]*CentralAgentConn
 	agentsByCN  map[string]*CentralAgentConn
 	authHandler func(subdomain string, req tunnel.GlobalAuthRequestPayload) tunnel.GlobalAuthResponsePayload
+	acctHandler func(subdomain string, req tunnel.GlobalAcctPayload)
 	getAgentSub func(cn string, nasIP string) string
 	listener    net.Listener
 	isShutdown  bool
@@ -41,12 +42,14 @@ type CentralAgentConn struct {
 
 func NewCentralRadSecServer(
 	authHandler func(subdomain string, req tunnel.GlobalAuthRequestPayload) tunnel.GlobalAuthResponsePayload,
+	acctHandler func(subdomain string, req tunnel.GlobalAcctPayload),
 	getAgentSub func(cn string, nasIP string) string,
 ) *CentralRadSecServer {
 	return &CentralRadSecServer{
 		agentsByNAS: make(map[string]*CentralAgentConn),
 		agentsByCN:  make(map[string]*CentralAgentConn),
 		authHandler: authHandler,
+		acctHandler: acctHandler,
 		getAgentSub: getAgentSub,
 	}
 }
@@ -311,6 +314,86 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 }
 
 func (s *CentralRadSecServer) handleAccountingRequest(agent *CentralAgentConn, p *packet.Packet) {
+	username := ""
+	statusType := "Interim-Update"
+	sessionID := ""
+	userIP := ""
+	userMAC := ""
+	var inOctets, outOctets, inGiga, outGiga uint32
+	var sessionTime uint32
+
+	for _, attr := range p.Attributes {
+		switch attr.Type {
+		case types.AttrUserName:
+			username = string(attr.Value)
+		case types.AttrAcctStatusType:
+			if len(attr.Value) == 4 {
+				code := binary.BigEndian.Uint32(attr.Value)
+				switch code {
+				case 1:
+					statusType = "Start"
+				case 2:
+					statusType = "Stop"
+				case 3:
+					statusType = "Interim-Update"
+				}
+			}
+		case types.AttrAcctSessionID:
+			sessionID = string(attr.Value)
+		case types.AttrFramedIPAddress:
+			userIP = net.IP(attr.Value).String()
+		case types.AttrCallingStationID:
+			userMAC = string(attr.Value)
+		case types.AttrAcctInputOctets:
+			if len(attr.Value) == 4 {
+				inOctets = binary.BigEndian.Uint32(attr.Value)
+			}
+		case types.AttrAcctOutputOctets:
+			if len(attr.Value) == 4 {
+				outOctets = binary.BigEndian.Uint32(attr.Value)
+			}
+		case 52: // Acct-Input-Gigawords
+			if len(attr.Value) == 4 {
+				inGiga = binary.BigEndian.Uint32(attr.Value)
+			}
+		case 53: // Acct-Output-Gigawords
+			if len(attr.Value) == 4 {
+				outGiga = binary.BigEndian.Uint32(attr.Value)
+			}
+		case types.AttrAcctSessionTime:
+			if len(attr.Value) == 4 {
+				sessionTime = binary.BigEndian.Uint32(attr.Value)
+			}
+		}
+	}
+
+	bytesIn := int64(inOctets) + (int64(inGiga) << 32)
+	bytesOut := int64(outOctets) + (int64(outGiga) << 32)
+
+	nasIP := agent.NASIP
+	if nasIP == "" {
+		nasIP = agent.RemoteAddr
+	}
+
+	targetSubdomain := ""
+	if s.getAgentSub != nil {
+		targetSubdomain = s.getAgentSub(agent.CommonName, nasIP)
+	}
+
+	if s.acctHandler != nil && username != "" {
+		s.acctHandler(targetSubdomain, tunnel.GlobalAcctPayload{
+			SessionID:      sessionID,
+			Username:       username,
+			StatusType:     statusType,
+			UserMAC:        userMAC,
+			UserIP:         userIP,
+			NasIP:          nasIP,
+			BytesIn:        bytesIn,
+			BytesOut:       bytesOut,
+			SessionTimeSec: int(sessionTime),
+		})
+	}
+
 	reply := &packet.Packet{
 		Code:          types.AccountingResponse,
 		Identifier:    p.Identifier,

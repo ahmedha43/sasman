@@ -965,6 +965,37 @@ func recordSQLiteAccounting(username string, status uint32, sid, ip, cli, nasIP 
 	}
 }
 
+type InternalAcctPayload struct {
+	Username       string `json:"username"`
+	StatusType     string `json:"status_type"` // Start, Stop, Interim-Update
+	SessionID      string `json:"session_id"`
+	UserIP         string `json:"user_ip"`
+	UserMAC        string `json:"user_mac"`
+	NasIP          string `json:"nas_ip"`
+	BytesIn        int64  `json:"bytes_in"`
+	BytesOut       int64  `json:"bytes_out"`
+	SessionTimeSec int64  `json:"session_time_sec"`
+	TerminateCause uint32 `json:"terminate_cause"`
+}
+
+func RecordAccountingPayload(p InternalAcctPayload) {
+	var statusCode uint32
+	switch p.StatusType {
+	case "Start":
+		statusCode = 1
+	case "Stop":
+		statusCode = 2
+	case "Interim-Update":
+		statusCode = 3
+	default:
+		statusCode = 3
+	}
+
+	recordSQLiteAccounting(p.Username, statusCode, p.SessionID, p.UserIP, p.UserMAC, p.NasIP, uint64(p.BytesIn), uint64(p.BytesOut), p.SessionTimeSec, p.TerminateCause)
+	updateLMDBAccounting(p.Username, statusCode, p.SessionID, p.UserIP, p.UserMAC, uint64(p.BytesIn), uint64(p.BytesOut), p.SessionTimeSec)
+	InvalidateSessionCache()
+}
+
 func getLMDBUserData(username string) (string, error) {
 	return fetchUserFromLMDB(username)
 }
