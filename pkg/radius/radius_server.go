@@ -1008,12 +1008,21 @@ func VerifyLocalUser(username, password string) (bool, string, string, string, e
 	username = strings.TrimSpace(username)
 	password = strings.TrimRight(strings.TrimSpace(password), "\x00")
 	data, err := getLMDBUserData(username)
+	if (err != nil || strings.TrimSpace(data) == "") && strings.Contains(username, "@") {
+		parts := strings.Split(username, "@")
+		data, err = getLMDBUserData(parts[0])
+	}
+
 	if err != nil || strings.TrimSpace(data) == "" {
 		if DB == nil {
 			return false, "", "", "User not found", fmt.Errorf("user not found")
 		}
 		var dbPass string
 		err = DB.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&dbPass)
+		if err != nil && strings.Contains(username, "@") {
+			parts := strings.Split(username, "@")
+			err = DB.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", parts[0]).Scan(&dbPass)
+		}
 		if err != nil {
 			return false, "", "", "المستخدم غير مسجل لدى هذا الوكيل", fmt.Errorf("user not found")
 		}

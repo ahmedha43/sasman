@@ -214,49 +214,26 @@ func main() {
 			}
 		}
 
-		// 1. Check if it's a Cross-Agent Roaming User (e.g. user@ahmed.sas-man.net or user@ahmed or ahmed\user or ahmed/user)
-		targetSubdomain := ""
-		actualUsername := uname
-		hasRealm := false
-
-		if idx := strings.Index(uname, "@"); idx != -1 {
-			actualUsername = uname[:idx]
-			targetSubdomain = uname[idx+1:]
-			hasRealm = true
-		} else if idx := strings.Index(uname, "\\"); idx != -1 {
-			targetSubdomain = uname[:idx]
-			actualUsername = uname[idx+1:]
-			hasRealm = true
-		} else if idx := strings.Index(uname, "/"); idx != -1 {
-			targetSubdomain = uname[:idx]
-			actualUsername = uname[idx+1:]
-			hasRealm = true
-		}
-
-		if !hasRealm && visitedSubdomain != "" {
-			targetSubdomain = visitedSubdomain
-		}
-
-		if targetSubdomain != "" {
-			if hasRealm {
-				sub := tunnel.ExtractSubdomainForHost(targetSubdomain, centralDomain)
-				if sub != "" {
-					targetSubdomain = sub
-				} else {
-					targetSubdomain = strings.Split(targetSubdomain, ".")[0]
-				}
+		// 1. Identify the agent exclusively from the certificate (visitedSubdomain) or active online agent
+		agentToQuery := visitedSubdomain
+		if agentToQuery == "" {
+			online := svc.ListOnlineAgents()
+			if len(online) > 0 {
+				agentToQuery = online[0]
 			}
-			targetSubdomain = strings.ToLower(strings.TrimSpace(targetSubdomain))
+		}
 
+		if agentToQuery != "" {
 			verifyReq := map[string]string{
-				"username": actualUsername,
+				"username": uname,
 				"password": req.Password,
 			}
 			verifyBytes, _ := json.Marshal(verifyReq)
 
-			status, respBytes, err := svc.SendAgentHTTPRequest(targetSubdomain, "POST", "/radius/api/internal/verify-user", verifyBytes, nil)
-			log.Printf("[radsec-central] 🔍 Querying agent [%s] for user [%s]: status=%d, err=%v, resp=%s", targetSubdomain, actualUsername, status, err, string(respBytes))
-			if err == nil {
+			httpResp, respBytes, err := svc.SendAgentHTTPRequest(agentToQuery, "POST", "/radius/api/internal/verify-user", verifyBytes, nil)
+			log.Printf("[radsec-central] 🔍 Querying certificate agent [%s] for user [%s]: err=%v, resp=%s", agentToQuery, uname, err, string(respBytes))
+
+			if err == nil && httpResp != nil && httpResp.Status == 200 {
 				var verifyResp struct {
 					Allow     bool   `json:"allow"`
 					Reason    string `json:"reason"`
@@ -279,7 +256,7 @@ func main() {
 						RateLimit:      rateLimit,
 						SessionTimeout: 86400,
 						AccountType:    "roaming_user",
-						ReplyMessage:   fmt.Sprintf("مرحباً بك عبر شبكة SASMAN الموحدة (وكيل: %s)", targetSubdomain),
+						ReplyMessage:   fmt.Sprintf("مرحباً بك عبر شبكة SASMAN الموحدة (وكيل: %s)", agentToQuery),
 						Password:       pass,
 					}
 				}
@@ -393,18 +370,14 @@ func main() {
 					}
 				}
 			}
-			agents := svc.ListAgents()
-			for _, a := range agents {
-				if sub, ok := a["subdomain"].(string); ok && sub != "" {
-					if strings.Contains(strings.ToLower(cn), strings.ToLower(sub)) {
-						return sub
-					}
-				}
-			}
-			if len(agents) > 0 {
-				if sub, ok := agents[0]["subdomain"].(string); ok {
+			online := svc.ListOnlineAgents()
+			for _, sub := range online {
+				if strings.Contains(strings.ToLower(cn), strings.ToLower(sub)) {
 					return sub
 				}
+			}
+			if len(online) > 0 {
+				return online[0]
 			}
 			return ""
 		},

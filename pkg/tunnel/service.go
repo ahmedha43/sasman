@@ -494,6 +494,21 @@ func (s *Service) GetAgentBySubdomain(subdomain string) *AgentSession {
 	return nil
 }
 
+func (s *Service) ListOnlineAgents() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var result []string
+	seen := make(map[string]bool)
+	for _, session := range s.sessions {
+		if session.Connected && session.Conn != nil && session.Subdomain != "" && !seen[session.Subdomain] {
+			result = append(result, session.Subdomain)
+			seen[session.Subdomain] = true
+		}
+	}
+	return result
+}
+
 func (s *Service) RemoveAgent(subdomain string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
