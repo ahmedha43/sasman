@@ -2,14 +2,16 @@ name: Build & Publish Releases to Public Distribution Repo
 
 on:
   push:
+    branches:
+      - 'main'
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
       version:
         description: 'Release Version Tag (e.g. v1.0.0)'
-        required: true
-        default: 'v1.0.0'
+        required: false
+        default: ''
 
 jobs:
   build-and-publish:
@@ -31,10 +33,12 @@ jobs:
       - name: Determine Version Tag
         id: vars
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
             echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
-          else
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          else
+            echo "VERSION=v5.1.${{ github.run_number }}" >> $GITHUB_ENV
           fi
 
       - name: Cross-Compile Agent Binaries (3 Architectures)
