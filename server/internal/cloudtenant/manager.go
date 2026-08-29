@@ -166,7 +166,6 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 	customerID := fmt.Sprintf("cust_%s", sub)
 	licenseID := fmt.Sprintf("lic_%s", sub)
 	now := time.Now()
-	expiresAt := now.Add(30 * 24 * time.Hour)
 
 	if m.repo != nil {
 		_ = m.repo.SaveCustomer(storage.Customer{
@@ -185,9 +184,9 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 			CustomerID: customerID,
 			LicenseKey: generateRandomToken(24),
 			PlanName:   "cloud_pro",
-			Status:     "active",
+			Status:     "unlicensed",
 			IssuedAt:   now,
-			ExpiresAt:  &expiresAt,
+			ExpiresAt:  &now,
 			Metadata:   `{"type":"cloud_tenant"}`,
 			CreatedAt:  now,
 			UpdatedAt:  now,
@@ -197,14 +196,6 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 		_ = m.repo.UpdateSubdomainOwner(sub, req.OwnerName, req.Phone, sub)
 	}
 
-	// 5. Spawn Dedicated Cloud Agent Instance (Runs full SASMAN Agent for this tenant)
-	tokenStr := generateRandomToken(16)
-	go func() {
-		if err := m.SpawnTenantAgent(sub, tokenStr); err != nil {
-			log.Printf("[cloudtenant] Warning spawning agent instance for [%s]: %v", sub, err)
-		}
-	}()
-
 	tenant := &CloudTenant{
 		ID:           customerID,
 		Subdomain:    sub,
@@ -212,7 +203,7 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 		PasswordHash: string(hashedPassword),
 		OwnerName:    req.OwnerName,
 		Phone:        req.Phone,
-		Status:       "active",
+		Status:       "unlicensed",
 		Plan:         "cloud_pro",
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -372,6 +363,14 @@ func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, s
 	tenantDB, err := m.pool.Get(subdomain)
 	if err != nil {
 		return false, "", "", "قاعدة بيانات المستأجر غير متاحة", err
+	}
+
+	// 0. Check Tenant License Status in Central Repo
+	if m.repo != nil {
+		lic, err := m.repo.GetAgentLicenseInfo(subdomain)
+		if err == nil && lic != nil && (lic.Status == "unlicensed" || lic.Status == "suspended" || lic.IsExpired) {
+			return false, "", "", "اشتراك السحابة غير مفعّل أو منتهي الصلاحية، يرجى مراجعة إدارة SASMAN", fmt.Errorf("tenant unlicensed")
+		}
 	}
 
 	// 1. Strip realm if provided

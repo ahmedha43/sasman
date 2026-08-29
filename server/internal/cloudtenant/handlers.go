@@ -299,15 +299,39 @@ func (h *APIHandler) handleCloudLicenseStatus(c *fiber.Ctx) error {
 		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
 	}
 
+	valid := false
+	status := "unlicensed"
+	msg := "الحساب السحابي غير مرخص، يرجى التواصل مع الإدارة لتفعيل الاشتراك"
+	expStr := "Unlicensed"
+	daysRemaining := 0
+
+	if h.mgr.repo != nil && subdomain != "" {
+		lic, err := h.mgr.repo.GetAgentLicenseInfo(subdomain)
+		if err == nil && lic != nil {
+			status = lic.Status
+			expStr = lic.ExpiresAtStr
+			daysRemaining = lic.DaysRemaining
+			if lic.Status == "active" && !lic.IsExpired {
+				valid = true
+				msg = "SASMAN Cloud Edition (RadSec RFC 6614)"
+			} else if lic.Status == "suspended" {
+				msg = "تم تجميد حساب الوكيل مؤقتاً"
+			} else if lic.IsExpired {
+				msg = "انتهت فترة اشتراك الوكيل، يرجى التجديد"
+			}
+		}
+	}
+
 	return c.JSON(fiber.Map{
-		"valid":            true,
+		"valid":            valid,
 		"router_connected": true,
 		"cloud_mode":       true,
 		"subdomain":        subdomain,
-		"message":          "SASMAN Cloud Edition (RadSec RFC 6614)",
+		"message":          msg,
 		"serial":           "CLOUD-" + subdomain,
-		"expires":          "Active (Cloud Subscription)",
-		"status":           "Active",
+		"expires":          expStr,
+		"status":           status,
+		"days_remaining":   daysRemaining,
 	})
 }
 
