@@ -324,3 +324,19 @@ function copyAutoProvisionCode() {
         alert('✅ تم نسخ كود التثبيت التلقائي بنجاح!');
     });
 }
+
+// Attach all NAS functions directly to window object for instant availability
+window.openAutoRadSecModal = openAutoRadSecModal;
+window.closeAutoRadSecModal = closeAutoRadSecModal;
+window.copyAutoProvisionCode = copyAutoProvisionCode;
+window.openNASGuideModal = openNASGuideModal;
+window.closeNASGuideModal = closeNASGuideModal;
+window.switchGuideTab = switchGuideTab;
+window.copyCodeText = copyCodeText;
+window.loadNAS = loadNAS;
+window.openNASModal = openNASModal;
+window.closeNASModal = closeNASModal;
+window.quickSetupNAS = quickSetupNAS;
+window.generateNASCert = generateNASCert;
+window.downloadNASCertBundle = downloadNASCertBundle;
+window.revokeNASCert = revokeNASCert;
