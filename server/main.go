@@ -214,24 +214,36 @@ func main() {
 			}
 		}
 
-		// 1. Identify the agent exclusively from the certificate (visitedSubdomain) or active online agent
-		agentToQuery := visitedSubdomain
-		if agentToQuery == "" {
-			online := svc.ListOnlineAgents()
-			if len(online) > 0 {
-				agentToQuery = online[0]
+		// 1. Identify candidate agents: visitedSubdomain, ahmed100, and other online agents
+		var candidateAgents []string
+		if visitedSubdomain != "" {
+			candidateAgents = append(candidateAgents, visitedSubdomain)
+		}
+		if svc.GetAgentBySubdomain("ahmed100") != nil && visitedSubdomain != "ahmed100" {
+			candidateAgents = append(candidateAgents, "ahmed100")
+		}
+		for _, sub := range svc.ListOnlineAgents() {
+			found := false
+			for _, c := range candidateAgents {
+				if c == sub {
+					found = true
+					break
+				}
+			}
+			if !found {
+				candidateAgents = append(candidateAgents, sub)
 			}
 		}
 
-		if agentToQuery != "" {
-			verifyReq := map[string]string{
-				"username": uname,
-				"password": req.Password,
-			}
-			verifyBytes, _ := json.Marshal(verifyReq)
+		verifyReq := map[string]string{
+			"username": uname,
+			"password": req.Password,
+		}
+		verifyBytes, _ := json.Marshal(verifyReq)
 
-			httpResp, respBytes, err := svc.SendAgentHTTPRequest(agentToQuery, "POST", "/radius/api/internal/verify-user", verifyBytes, nil)
-			log.Printf("[radsec-central] 🔍 Querying certificate agent [%s] for user [%s]: err=%v, resp=%s", agentToQuery, uname, err, string(respBytes))
+		for _, ag := range candidateAgents {
+			httpResp, respBytes, err := svc.SendAgentHTTPRequest(ag, "POST", "/radius/api/internal/verify-user", verifyBytes, nil)
+			log.Printf("[radsec-central] 🔍 Querying agent [%s] for user [%s]: err=%v, resp=%s", ag, uname, err, string(respBytes))
 
 			if err == nil && httpResp != nil && httpResp.Status == 200 {
 				var verifyResp struct {
@@ -256,7 +268,7 @@ func main() {
 						RateLimit:      rateLimit,
 						SessionTimeout: 86400,
 						AccountType:    "roaming_user",
-						ReplyMessage:   fmt.Sprintf("مرحباً بك عبر شبكة SASMAN الموحدة (وكيل: %s)", agentToQuery),
+						ReplyMessage:   fmt.Sprintf("مرحباً بك عبر شبكة SASMAN الموحدة (وكيل: %s)", ag),
 						Password:       pass,
 					}
 				}
