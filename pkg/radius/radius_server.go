@@ -49,6 +49,19 @@ func LogRadiusActivity(format string, v ...any) {
 	}
 }
 
+// FormatBytesHuman converts raw byte counts to clean human-readable strings (e.g. 1.5 MB, 320 KB)
+func FormatBytesHuman(b int64) string {
+	if b < 1024 {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(1024), 0
+	for n := b / 1024; n >= 1024; n /= 1024 {
+		div *= 1024
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
 // StartRadiusServer initializes and starts the Go RADIUS server using github.com/wxccs/radius/v2
 func StartRadiusServer() {
 	// Initialize Logger

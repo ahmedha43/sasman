@@ -645,21 +645,16 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"allow": false, "reason": "Invalid body"})
 		}
 
-		radius.LogRadiusActivity("============================== [🛡️ RadSec TLS CLOUD AUTH] ==============================")
-		radius.LogRadiusActivity("  🔹 User: %s | Mode: Remote RadSec mTLS", req.Username)
-
 		ok, rateLimit, dbPass, reason, err := radius.VerifyLocalUser(req.Username, req.Password)
 		if err != nil || !ok {
-			radius.LogRadiusActivity("  ❌ رفض الاتصال (RadSec TLS): يوزر [%s] | السبب: %s", req.Username, reason)
-			radius.LogRadiusActivity("-----------------------------------------------------------------------------------------")
+			radius.LogRadiusActivity("[RadSec] ❌ رفض مصادقة [%s] | السبب: %s", req.Username, reason)
 			return c.JSON(fiber.Map{
 				"allow":  false,
 				"reason": reason,
 			})
 		}
 
-		radius.LogRadiusActivity("  ✅ مصادقة ناجحة (RadSec TLS): تم قبول اتصال [%s] بنجاح | السرعة: %s", req.Username, rateLimit)
-		radius.LogRadiusActivity("=========================================================================================")
+		radius.LogRadiusActivity("[RadSec] ✅ قبول مصادقة [%s] | السرعة: %s", req.Username, rateLimit)
 
 		return c.JSON(fiber.Map{
 			"allow":      true,
@@ -676,7 +671,11 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"success": false})
 		}
 		radius.RecordAccountingPayload(payload)
-		radius.LogRadiusActivity("[radius] 📊 محاسبة سحابية (RadSec TLS): يوزر [%s] | الحالة: %s | مدة الجلسة: %d ثانية | استهلاك: %d B In, %d B Out", payload.Username, payload.StatusType, payload.SessionTimeSec, payload.BytesIn, payload.BytesOut)
+		if payload.StatusType == "Stop" || payload.StatusType == "Interim-Update" {
+			radius.LogRadiusActivity("[RadSec] 📊 محاسبة [%s] | %s | مدة: %ds | استهلاك: In=%s, Out=%s",
+				payload.Username, payload.StatusType, payload.SessionTimeSec,
+				radius.FormatBytesHuman(payload.BytesIn), radius.FormatBytesHuman(payload.BytesOut))
+		}
 		return c.JSON(fiber.Map{"success": true})
 	})
 
