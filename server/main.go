@@ -452,6 +452,27 @@ func main() {
 		BodyLimit: 256 * 1024 * 1024, // 256MB Max payload limit for large OTA releases and container images
 	})
 
+	// Subdomain Gateway & Routing Middleware (MUST be registered first)
+	app.Use(func(c *fiber.Ctx) error {
+		host := c.Get("Host")
+		subdomain := tunnel.ExtractSubdomainForHost(host, centralDomain)
+		if subdomain != "" {
+			// 1. Container mode (Local MikroTik agent connected via tunnel)
+			if svc.GetAgentBySubdomain(subdomain) != nil {
+				return svc.ForwardRequestToAgent(c, subdomain)
+			}
+
+			// 2. Cloud Tenant mode
+			c.Locals("subdomain", subdomain)
+
+			// Redirect root or /admin to /radius
+			if c.Path() == "/" || c.Path() == "/admin" {
+				return c.Redirect("/radius")
+			}
+		}
+		return c.Next()
+	})
+
 	relayAPI.RegisterRoutes(app)
 	otaAPI.RegisterRoutes(app)
 	aiAPI.RegisterRoutes(app)
@@ -484,30 +505,6 @@ func main() {
 		}
 		c.Set("Content-Type", "text/html; charset=utf-8")
 		return c.Send(content)
-	})
-
-	if centralDomain == "" {
-		centralDomain = "sas-man.net"
-	}
-
-	app.Use(func(c *fiber.Ctx) error {
-		host := c.Get("Host")
-		subdomain := tunnel.ExtractSubdomainForHost(host, centralDomain)
-		if subdomain != "" {
-			// 1. Container mode (Local MikroTik agent connected via tunnel)
-			if svc.GetAgentBySubdomain(subdomain) != nil {
-				return svc.ForwardRequestToAgent(c, subdomain)
-			}
-
-			// 2. Cloud Tenant mode
-			c.Locals("subdomain", subdomain)
-
-			// Redirect root or /admin to /radius
-			if c.Path() == "/" || c.Path() == "/admin" {
-				return c.Redirect("/radius")
-			}
-		}
-		return c.Next()
 	})
 
 	// Mount full SASMAN RADIUS UI for Cloud Tenants

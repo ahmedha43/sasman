@@ -155,10 +155,10 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 		return nil, fmt.Errorf("فشل تهيئة قاعدة بيانات المستأجر: %w", err)
 	}
 
-	// Insert initial administrator
+	// Insert or update initial administrator
 	adminPassHash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	_, _ = tenantDB.Exec(`
-		INSERT INTO radius_admins (username, password, role, name, phone, is_active)
+		INSERT OR REPLACE INTO radius_admins (username, password, role, name, phone, is_active)
 		VALUES (?, ?, 'superadmin', ?, ?, 1)
 	`, "admin", string(adminPassHash), req.OwnerName, req.Phone)
 

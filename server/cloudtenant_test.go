@@ -1,12 +1,125 @@
 package main
 
 import (
+	"fmt"
+	"io"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"mikrotik-manager/server/internal/cloudtenant"
+
+	"github.com/gofiber/fiber/v2"
 )
+
+func TestCloudTenantHTTPAPIs(t *testing.T) {
+	app := fiber.New()
+	baseDir := filepath.Join(os.TempDir(), fmt.Sprintf("test_tenant_http_%d", time.Now().UnixNano()))
+	defer os.RemoveAll(baseDir)
+
+	pool := cloudtenant.NewTenantDBPool(baseDir)
+	defer pool.CloseAll()
+
+	mgr := cloudtenant.NewManager(nil, pool, "sas-man.net", []byte("TEST_SECRET"))
+	apiH := cloudtenant.NewAPIHandler(mgr)
+	apiH.RegisterRoutes(app)
+
+	// Register tenant
+	_, err := mgr.RegisterTenant(cloudtenant.RegisterRequest{
+		Subdomain: "sasradius",
+		Email:     "admin@sasradius.net",
+		Password:  "admin123",
+		OwnerName: "SAS Radius",
+		Phone:     "07700000000",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	// Login to get token
+	_, token, err := mgr.AuthenticateTenant("sasradius", "admin123")
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+
+	// Test GET /radius/api/users with Host: sasradius.sas-man.net and Bearer token
+	req := httptest.NewRequest("GET", "/radius/api/users", nil)
+	req.Host = "sasradius.sas-man.net"
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := app.Test(req, 5000)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("GET /radius/api/users status: %d, err: %v", resp.StatusCode, err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "[]" {
+		t.Fatalf("Expected empty array [], got: %s", string(body))
+	}
+
+	// Test GET /radius/api/profiles
+	req = httptest.NewRequest("GET", "/radius/api/profiles", nil)
+	req.Host = "sasradius.sas-man.net"
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err = app.Test(req, 5000)
+	body, _ = io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("GET /radius/api/profiles status: %d, body: %s", resp.StatusCode, string(body))
+	}
+	if !strings.Contains(string(body), "10M") {
+		t.Fatalf("Expected default profile 10M, got: %s", string(body))
+	}
+
+	// Test POST /radius/api/users (Create User)
+	createUserJSON := `{"user":"th","pass":"1234","profile":"10M","days":30,"full_name":"Ahmed Test"}`
+	req = httptest.NewRequest("POST", "/radius/api/users", strings.NewReader(createUserJSON))
+	req.Host = "sasradius.sas-man.net"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err = app.Test(req, 5000)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("POST /radius/api/users status: %d", resp.StatusCode)
+	}
+
+	// Verify User in GET /radius/api/users
+	req = httptest.NewRequest("GET", "/radius/api/users", nil)
+	req.Host = "sasradius.sas-man.net"
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err = app.Test(req, 5000)
+	body, _ = io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), `"user":"th"`) {
+		t.Fatalf("Expected user 'th' in list, got: %s", string(body))
+	}
+
+	// Test GET /radius/api/nas
+	req = httptest.NewRequest("GET", "/radius/api/nas", nil)
+	req.Host = "sasradius.sas-man.net"
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err = app.Test(req, 5000)
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /radius/api/nas status: %d", resp.StatusCode)
+	}
+
+	// Test GET /radius/api/auth/admins
+	req = httptest.NewRequest("GET", "/radius/api/auth/admins", nil)
+	req.Host = "sasradius.sas-man.net"
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err = app.Test(req, 5000)
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /radius/api/auth/admins status: %d", resp.StatusCode)
+	}
+
+	// Test GET /radius/api/broadcasts/active
+	req = httptest.NewRequest("GET", "/radius/api/broadcasts/active", nil)
+	req.Host = "sasradius.sas-man.net"
+	resp, err = app.Test(req, 5000)
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /radius/api/broadcasts/active status: %d", resp.StatusCode)
+	}
+
+	t.Logf("✅ All Cloud Tenant HTTP APIs tested successfully and returned proper Arrays/JSON!")
+}
 
 func TestCloudTenantLifecycle(t *testing.T) {
 	testBaseDir := filepath.Join(os.TempDir(), "sasman_test_tenants")

@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func EnsureTenantSchema(db *sql.DB) error {
@@ -204,6 +206,17 @@ func EnsureTenantSchema(db *sql.DB) error {
 	if count == 0 {
 		_, _ = db.Exec("INSERT INTO radgroupreply (groupname, attribute, op, value) VALUES ('10M', 'Mikrotik-Rate-Limit', ':=', '10M/10M')")
 		_, _ = db.Exec("INSERT OR IGNORE INTO radius_profile_meta (groupname, validity_days, price) VALUES ('10M', 30, 25000)")
+	}
+
+	// Seed default admin if none exists
+	var adminCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM radius_admins WHERE username = 'admin'").Scan(&adminCount)
+	if adminCount == 0 {
+		hash, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+		_, _ = db.Exec(`
+			INSERT INTO radius_admins (username, password, role, name, is_active)
+			VALUES ('admin', ?, 'superadmin', 'مدير النظام', 1)
+		`, string(hash))
 	}
 
 	return nil

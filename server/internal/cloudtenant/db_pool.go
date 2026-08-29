@@ -63,9 +63,11 @@ func (p *TenantDBPool) Get(subdomain string) (*sql.DB, error) {
 	p.mu.RLock()
 	c, exists := p.conns[subdomain]
 	if exists && c.db != nil {
-		c.lastUsed = time.Now()
-		p.mu.RUnlock()
-		return c.db, nil
+		if err := c.db.Ping(); err == nil {
+			c.lastUsed = time.Now()
+			p.mu.RUnlock()
+			return c.db, nil
+		}
 	}
 	p.mu.RUnlock()
 
@@ -74,8 +76,12 @@ func (p *TenantDBPool) Get(subdomain string) (*sql.DB, error) {
 
 	// Double-check after acquiring write lock
 	if c, exists := p.conns[subdomain]; exists && c.db != nil {
-		c.lastUsed = time.Now()
-		return c.db, nil
+		if err := c.db.Ping(); err == nil {
+			c.lastUsed = time.Now()
+			return c.db, nil
+		}
+		_ = c.db.Close()
+		delete(p.conns, subdomain)
 	}
 
 	dbPath := p.GetTenantDBPath(subdomain)
