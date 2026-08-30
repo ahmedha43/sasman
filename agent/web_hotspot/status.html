@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SASMAN Global HotSpot | حالة الاتصال</title>
+    <title>SASMAN Global HotSpot | حالة الاتصال والاشتراك</title>
     <meta http-equiv="refresh" content="$(refresh-timeout-secs)">
     <meta http-equiv="pragma" content="no-cache">
     <meta http-equiv="expires" content="-1">
@@ -11,15 +11,23 @@
         :root {
             --primary: #0284c7;
             --primary-hover: #0369a1;
-            --bg-dark: #090d16;
-            --card-bg: rgba(15, 23, 42, 0.88);
-            --card-border: rgba(255, 255, 255, 0.1);
+            --primary-glow: rgba(2, 132, 199, 0.4);
+            --accent: #38bdf8;
+            --bg-dark: #060913;
+            --card-bg: rgba(15, 23, 42, 0.9);
+            --card-border: rgba(255, 255, 255, 0.12);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
-            --radius-lg: 20px;
-            --radius-md: 12px;
+            --text-dim: #64748b;
             --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.3);
             --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --radius-xl: 24px;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         * {
@@ -27,30 +35,57 @@
             margin: 0;
             padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
             background-color: var(--bg-dark);
             background-image: 
-                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(2, 132, 199, 0.15) 0px, transparent 50%);
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.18) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(2, 132, 199, 0.18) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(15, 23, 42, 0.5) 0px, transparent 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px 16px;
+            padding: 24px 16px;
             color: var(--text-main);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .status-container {
+            width: 100%;
+            max-width: 450px;
+            position: relative;
+            z-index: 1;
         }
 
         .status-card {
-            width: 100%;
-            max-width: 440px;
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-xl);
             padding: 30px 24px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(16px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 35px var(--success-glow);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            animation: cardAppear 0.4s ease-out;
+        }
+
+        @keyframes cardAppear {
+            from { opacity: 0; transform: translateY(16px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
         .status-header {
@@ -61,36 +96,100 @@
         .status-badge {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 7px;
             background: rgba(16, 185, 129, 0.15);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #6ee7b7;
             font-size: 13px;
             font-weight: 700;
-            padding: 5px 16px;
+            padding: 6px 16px;
             border-radius: 999px;
             margin-bottom: 12px;
         }
 
-        .status-title {
-            font-size: 22px;
-            font-weight: 800;
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #22c55e;
+            animation: pulse 2s infinite;
         }
 
-        .info-grid {
-            background: rgba(30, 41, 59, 0.5);
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        .user-greeting {
+            font-size: 22px;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .user-greeting strong {
+            color: var(--accent);
+            direction: ltr;
+            display: inline-block;
+        }
+
+        .user-sub {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Stats Grid */
+        .stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.6);
             border: 1px solid var(--card-border);
-            border-radius: var(--radius-md);
-            padding: 14px 16px;
+            border-radius: var(--radius-lg);
+            padding: 14px;
+            text-align: center;
+        }
+
+        .stat-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .stat-title {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .stat-val {
+            font-size: 15px;
+            font-weight: 800;
+            color: #fff;
+            direction: ltr;
+        }
+
+        /* Detailed info list */
+        .info-grid {
+            background: rgba(10, 16, 30, 0.8);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 12px 16px;
             margin-bottom: 20px;
         }
 
         .info-row {
             display: flex;
             justify-content: space-between;
-            padding: 8px 0;
+            align-items: center;
+            padding: 9px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-            font-size: 13.5px;
+            font-size: 13px;
         }
 
         .info-row:last-child {
@@ -100,6 +199,9 @@
         .info-label {
             color: var(--text-muted);
             font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .info-value {
@@ -108,9 +210,46 @@
             direction: ltr;
         }
 
-        .logout-btn {
+        .badge-val {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        /* Action Buttons */
+        .action-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .refresh-btn {
             width: 100%;
             padding: 12px;
+            background: rgba(2, 132, 199, 0.15);
+            border: 1px solid rgba(2, 132, 199, 0.35);
+            border-radius: var(--radius-md);
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .refresh-btn:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 13px;
             background: rgba(239, 68, 68, 0.15);
             border: 1px solid rgba(239, 68, 68, 0.4);
             border-radius: var(--radius-md);
@@ -118,56 +257,108 @@
             font-size: 14.5px;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
         .logout-btn:hover {
             background: var(--danger);
             color: #fff;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+        }
+
+        .footer-note {
+            text-align: center;
+            margin-top: 18px;
+            font-size: 11.5px;
+            color: var(--text-dim);
         }
     </style>
 </head>
 <body>
 
-    <div class="status-card">
-        <div class="status-header">
-            <div class="status-badge">● متصل بالإنترنت بنجاح</div>
-            <h1 class="status-title">مرحباً $(username)</h1>
-        </div>
+    <div class="status-container">
+        <div class="status-card">
+            <!-- Header -->
+            <div class="status-header">
+                <div class="status-badge">
+                    <span class="pulse-dot"></span>
+                    <span>متصل بالإنترنت بنجاح</span>
+                </div>
+                <h1 class="user-greeting">مرحباً <strong>$(username)</strong></h1>
+                <p class="user-sub">جلستك نشطة الآن عبر شبكة SASMAN HotSpot</p>
+            </div>
 
-        <div class="info-grid">
-            <div class="info-row">
-                <span class="info-label">عنوان الـ IP:</span>
-                <span class="info-value">$(ip)</span>
+            <!-- Stats Highlight Cards -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-title">الوقت المتصل</div>
+                    <div class="stat-val">$(uptime)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⏳</div>
+                    <div class="stat-title">الوقت المتبقي</div>
+                    <div class="stat-val">$(if session-time-left)$(session-time-left)$(else)غير محدود$(endif)</div>
+                </div>
             </div>
-            <div class="info-row">
-                <span class="info-label">عنوان الـ MAC:</span>
-                <span class="info-value">$(mac)</span>
+
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon">📥</div>
+                    <div class="stat-title">البيانات المستلمة (Download)</div>
+                    <div class="stat-val" style="color: #38bdf8;">$(bytes-in-nice)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📤</div>
+                    <div class="stat-title">البيانات المرسلة (Upload)</div>
+                    <div class="stat-val" style="color: #a78bfa;">$(bytes-out-nice)</div>
+                </div>
             </div>
-            <div class="info-row">
-                <span class="info-label">الوقت المتصل:</span>
-                <span class="info-value">$(uptime)</span>
+
+            <!-- Detailed Network Information -->
+            <div class="info-grid">
+                <div class="info-row">
+                    <span class="info-label">🌐 عنوان الـ IP الخاص بك:</span>
+                    <span class="info-value badge-val">$(ip)</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📱 عنوان الـ MAC لجهازك:</span>
+                    <span class="info-value badge-val">$(mac)</span>
+                </div>
+                $(if remain-bytes-total-nice)
+                <div class="info-row">
+                    <span class="info-label">📊 الرصيد / الحصة المتبقية:</span>
+                    <span class="info-value" style="color: #34d399;">$(remain-bytes-total-nice)</span>
+                </div>
+                $(endif)
+                <div class="info-row">
+                    <span class="info-label">⚡ حالة الاتصال:</span>
+                    <span class="info-value" style="color:#22c55e;">🟢 ممتاز (Active)</span>
+                </div>
             </div>
-            $(if session-time-left)
-            <div class="info-row">
-                <span class="info-label">الوقت المتبقي:</span>
-                <span class="info-value">$(session-time-left)</span>
+
+            <!-- Actions -->
+            <div class="action-btns">
+                <button type="button" class="refresh-btn" onclick="window.location.reload()">
+                    🔄 تحديث بيانات الاتصال
+                </button>
+
+                <form action="$(link-logout)" name="logout" method="post" onsubmit="return confirm('هل تريد قطع الاتصال وتسجيل الخروج؟')">
+                    <input type="hidden" name="erase-cookie" value="true" />
+                    <button type="submit" class="logout-btn">
+                        <span>تسجيل الخروج (قطع الاتصال)</span> 🚪
+                    </button>
+                </form>
             </div>
-            $(endif)
-            <div class="info-row">
-                <span class="info-label">البيانات المستلمة:</span>
-                <span class="info-value">$(bytes-in-nice)</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">البيانات المرسلة:</span>
-                <span class="info-value">$(bytes-out-nice)</span>
+
+            <div class="footer-note">
+                مدعوم بواسطة منظومة <strong>SASMAN Global HotSpot</strong>
             </div>
         </div>
-
-        <form action="$(link-logout)" name="logout" method="post">
-            <input type="hidden" name="erase-cookie" value="true" />
-            <button type="submit" class="logout-btn">تسجيل الخروج (قطع الاتصال) 🚪</button>
-        </form>
     </div>
 
 </body>

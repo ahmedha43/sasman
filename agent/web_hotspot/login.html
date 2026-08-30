@@ -3,27 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SASMAN Global HotSpot | تسجيل الدخول</title>
+    <title>SASMAN Global HotSpot | بوابة تسجيل الدخول</title>
     <meta http-equiv="pragma" content="no-cache">
     <meta http-equiv="expires" content="-1">
     <style>
         :root {
             --primary: #0284c7;
             --primary-hover: #0369a1;
-            --primary-glow: rgba(2, 132, 199, 0.35);
-            --bg-dark: #090d16;
-            --card-bg: rgba(15, 23, 42, 0.85);
-            --card-border: rgba(255, 255, 255, 0.1);
+            --primary-glow: rgba(2, 132, 199, 0.4);
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.25);
+            --bg-dark: #060913;
+            --card-bg: rgba(15, 23, 42, 0.88);
+            --card-border: rgba(255, 255, 255, 0.12);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
-            --input-bg: rgba(30, 41, 59, 0.7);
+            --text-dim: #64748b;
+            --input-bg: rgba(30, 41, 59, 0.75);
             --input-border: rgba(255, 255, 255, 0.15);
             --input-focus: #38bdf8;
             --error-bg: rgba(239, 68, 68, 0.15);
             --error-border: #ef4444;
-            --radius-lg: 20px;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --radius-xl: 24px;
+            --radius-lg: 16px;
             --radius-md: 12px;
-            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --radius-sm: 8px;
+            --transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         * {
@@ -37,53 +44,87 @@
         body {
             background-color: var(--bg-dark);
             background-image: 
-                radial-gradient(at 0% 0%, rgba(2, 132, 199, 0.18) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%);
+                radial-gradient(at 0% 0%, rgba(2, 132, 199, 0.22) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(15, 23, 42, 0.5) 0px, transparent 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px 16px;
+            padding: 24px 16px;
             color: var(--text-main);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Subtle background grid */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 450px;
+            position: relative;
+            z-index: 1;
         }
 
         .auth-card {
-            width: 100%;
-            max-width: 440px;
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-xl);
             padding: 32px 26px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(2, 132, 199, 0.15);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            animation: fadeIn 0.4s ease-out;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 35px rgba(2, 132, 199, 0.18);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            animation: cardAppear 0.4s ease-out;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
+        @keyframes cardAppear {
+            from { opacity: 0; transform: translateY(16px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
+        /* Header & Brand */
         .brand-header {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 22px;
         }
 
-        .brand-badge {
+        .network-badge {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            background: rgba(2, 132, 199, 0.15);
+            gap: 7px;
+            background: rgba(2, 132, 199, 0.12);
             border: 1px solid rgba(56, 189, 248, 0.3);
-            color: #38bdf8;
+            color: var(--accent);
             font-size: 12px;
             font-weight: 700;
-            padding: 4px 14px;
+            padding: 5px 14px;
             border-radius: 999px;
             margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #22c55e;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
         }
 
         .brand-title {
@@ -99,12 +140,12 @@
             color: var(--text-muted);
         }
 
-        /* Tabs */
+        /* Tabs Nav */
         .tabs-nav {
             display: flex;
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(10, 16, 30, 0.85);
             border: 1px solid var(--card-border);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-lg);
             padding: 4px;
             margin-bottom: 22px;
             gap: 4px;
@@ -112,10 +153,10 @@
 
         .tab-btn {
             flex: 1;
-            padding: 10px 12px;
+            padding: 10px 10px;
             background: transparent;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             color: var(--text-muted);
             font-size: 13px;
             font-weight: 600;
@@ -127,37 +168,45 @@
             gap: 6px;
         }
 
+        .tab-btn:hover {
+            color: #fff;
+        }
+
         .tab-btn.active {
             background: var(--primary);
             color: #fff;
-            box-shadow: 0 4px 12px var(--primary-glow);
+            box-shadow: 0 4px 14px var(--primary-glow);
         }
 
-        /* Forms */
+        /* Form Controls */
         .form-group {
             margin-bottom: 16px;
         }
 
         .form-label {
-            display: block;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             font-size: 12.5px;
             font-weight: 600;
             color: #cbd5e1;
-            margin-bottom: 6px;
+            margin-bottom: 7px;
         }
 
         .input-wrapper {
             position: relative;
+            display: flex;
+            align-items: center;
         }
 
         .form-input {
             width: 100%;
-            padding: 12px 14px;
+            padding: 13px 14px;
             background: var(--input-bg);
             border: 1px solid var(--input-border);
             border-radius: var(--radius-md);
             color: #fff;
-            font-size: 14px;
+            font-size: 14.5px;
             outline: none;
             transition: var(--transition);
             direction: ltr;
@@ -165,11 +214,13 @@
         }
 
         .form-input.pin-input {
-            font-size: 18px;
-            font-weight: 700;
+            font-size: 19px;
+            font-weight: 800;
             letter-spacing: 2px;
             text-align: center;
             text-transform: uppercase;
+            padding-right: 48px;
+            padding-left: 48px;
         }
 
         .form-input:focus {
@@ -178,27 +229,52 @@
             background: rgba(30, 41, 59, 0.95);
         }
 
-        .form-hint {
-            font-size: 11px;
+        .input-icon-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
             color: var(--text-muted);
-            margin-top: 4px;
+            cursor: pointer;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: var(--transition);
+        }
+
+        .input-icon-btn:hover {
+            color: var(--accent);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .icon-left { left: 8px; }
+        .icon-right { right: 8px; }
+
+        .form-hint {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            margin-top: 5px;
             direction: rtl;
             text-align: right;
         }
 
+        /* Actions */
         .submit-btn {
             width: 100%;
-            padding: 13px;
-            background: var(--primary);
+            padding: 14px;
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
             border: none;
             border-radius: var(--radius-md);
             color: #fff;
-            font-size: 15px;
+            font-size: 15.5px;
             font-weight: 700;
             cursor: pointer;
             transition: var(--transition);
-            margin-top: 8px;
-            box-shadow: 0 4px 14px var(--primary-glow);
+            margin-top: 10px;
+            box-shadow: 0 6px 18px var(--primary-glow);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -206,34 +282,214 @@
         }
 
         .submit-btn:hover {
-            background: var(--primary-hover);
+            background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
             transform: translateY(-1px);
+            box-shadow: 0 8px 22px var(--primary-glow);
         }
 
         .submit-btn:active {
             transform: translateY(0);
         }
 
+        .trial-btn {
+            width: 100%;
+            padding: 11px;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            border-radius: var(--radius-md);
+            color: #6ee7b7;
+            font-size: 13.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .trial-btn:hover {
+            background: rgba(16, 185, 129, 0.22);
+            color: #fff;
+        }
+
+        /* Error Box */
         .error-box {
             background: var(--error-bg);
             border: 1px solid var(--error-border);
             color: #fca5a5;
-            padding: 10px 14px;
+            padding: 12px 16px;
             border-radius: var(--radius-md);
             font-size: 13px;
             margin-bottom: 18px;
             text-align: center;
             display: none;
+            animation: shake 0.35s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        /* Keypad / Quick Paste */
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .action-chip {
+            flex: 1;
+            padding: 8px 10px;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .action-chip:hover {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent);
+            border-color: rgba(56, 189, 248, 0.3);
+        }
+
+        /* QR Scanner Modal */
+        .scanner-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .scanner-modal.active {
+            display: flex;
+        }
+
+        .scanner-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+        }
+
+        .scanner-video-wrapper {
+            position: relative;
+            width: 100%;
+            height: 240px;
+            background: #000;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin: 14px 0;
+        }
+
+        .scanner-video-wrapper video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .scanner-guide {
+            position: absolute;
+            top: 20px; left: 20px; right: 20px; bottom: 20px;
+            border: 2px dashed var(--accent);
+            border-radius: 8px;
+            pointer-events: none;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Support & Footer */
+        .info-accordion {
+            margin-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 16px;
+        }
+
+        .accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            padding: 4px 0;
+        }
+
+        .accordion-header:hover {
+            color: var(--accent);
+        }
+
+        .accordion-body {
+            display: none;
+            padding-top: 12px;
+            font-size: 12.5px;
+            color: #94a3b8;
+            line-height: 1.6;
+        }
+
+        .accordion-body.open {
+            display: block;
+        }
+
+        .support-links {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .support-btn {
+            padding: 8px 10px;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            color: #cbd5e1;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: var(--transition);
+        }
+
+        .support-btn:hover {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: rgba(34, 197, 94, 0.4);
+            color: #86efac;
         }
 
         .footer-note {
             text-align: center;
-            margin-top: 22px;
+            margin-top: 20px;
             font-size: 11.5px;
-            color: #64748b;
+            color: var(--text-dim);
         }
     </style>
 </head>
+<body>
+
+    <!-- Hidden MD5 Login Form for MikroTik CHAP Mode -->
     $(if chap-id)
     <form name="sendin" action="$(link-login-only)" method="post" style="display:none">
         <input type="hidden" name="username" />
@@ -241,7 +497,6 @@
         <input type="hidden" name="dst" value="$(link-orig)" />
         <input type="hidden" name="popup" value="true" />
     </form>
-
     <script type="text/javascript" src="md5.js"></script>
     <script type="text/javascript">
         function doLogin() {
@@ -251,7 +506,7 @@
             if (currentTab === 'voucher') {
                 var code = document.getElementById('voucher-code').value.trim().toUpperCase();
                 if (!code) {
-                    showClientError('يرجى إدخال رقم الكرت أولاً');
+                    showClientError('يرجى إدخال رمز الكرت أولاً');
                     return false;
                 }
                 finalUser = code;
@@ -264,9 +519,15 @@
                     showClientError('يرجى إدخال اسم المستخدم أولاً');
                     return false;
                 }
-
                 finalUser = user;
                 finalPass = pass;
+            }
+
+            if (document.getElementById('remember-me') && document.getElementById('remember-me').checked) {
+                try {
+                    localStorage.setItem('sas_saved_user', finalUser);
+                    localStorage.setItem('sas_saved_tab', currentTab);
+                } catch(e){}
             }
 
             document.sendin.username.value = finalUser;
@@ -277,75 +538,191 @@
     </script>
     $(endif)
 
-    <div class="auth-card">
-        <div class="brand-header">
-            <div class="brand-badge">⚡ SASMAN HotSpot</div>
-            <h1 class="brand-title">تسجيل الدخول للإنترنت</h1>
-            <p class="brand-subtitle">بوابة الاتصال الموحدة للإنترنت</p>
-        </div>
+    <div class="auth-container">
+        <div class="auth-card">
+            <!-- Brand Header -->
+            <div class="brand-header">
+                <div class="network-badge">
+                    <span class="pulse-dot"></span>
+                    <span>شبكة SASMAN HotSpot فائقة السرعة</span>
+                </div>
+                <h1 class="brand-title">تسجيل الدخول للإنترنت</h1>
+                <p class="brand-subtitle">أدخل رمز الكرت أو حسابك للبدء بالتصفح الفوري</p>
+            </div>
 
-        <!-- MikroTik Error Injection -->
-        <div id="error-box" class="error-box">
-            $(if error) $(error) $(endif)
-        </div>
+            <!-- Error Banner -->
+            <div id="error-box" class="error-box">
+                $(if error) $(error) $(endif)
+            </div>
 
-        <!-- Mode Tabs -->
-        <div class="tabs-nav">
-            <button type="button" class="tab-btn active" id="tab-voucher-btn" onclick="switchTab('voucher')">
-                🎫 كرت إنترنت (Voucher)
-            </button>
-            <button type="button" class="tab-btn" id="tab-account-btn" onclick="switchTab('account')">
-                🏢 حساب المشترك (محلي / تجوال)
-            </button>
-        </div>
+            <!-- Tab Selection -->
+            <div class="tabs-nav">
+                <button type="button" class="tab-btn active" id="tab-voucher-btn" onclick="switchTab('voucher')">
+                    🎫 كرت إنترنت (Voucher)
+                </button>
+                <button type="button" class="tab-btn" id="tab-account-btn" onclick="switchTab('account')">
+                    👤 حساب المشترك / تجوال
+                </button>
+            </div>
 
-        <!-- Real MikroTik HotSpot Form -->
-        <form name="login" action="$(link-login-only)" method="post" $(if chap-id) onsubmit="return doLogin()" $(else) onsubmit="return handlePapSubmit()" $(endif)>
-            <input type="hidden" name="dst" value="$(link-orig)" />
-            <input type="hidden" name="popup" value="true" />
-            <input type="hidden" name="username" id="mt-username" />
-            <input type="hidden" name="password" id="mt-password" />
+            <!-- Main MikroTik HotSpot Form -->
+            <form name="login" action="$(link-login-only)" method="post" $(if chap-id) onsubmit="return doLogin()" $(else) onsubmit="return handlePapSubmit()" $(endif)>
+                <input type="hidden" name="dst" value="$(link-orig)" />
+                <input type="hidden" name="popup" value="true" />
+                <input type="hidden" name="username" id="mt-username" />
+                <input type="hidden" name="password" id="mt-password" />
 
-            <!-- Tab 1: Voucher PIN Entry -->
-            <div id="tab-voucher-pane">
-                <div class="form-group">
-                    <label class="form-label" for="voucher-code">رقم الكرت الموحد (PIN / Code):</label>
-                    <input type="text" id="voucher-code" class="form-input pin-input" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" autofocus>
-                    <div class="form-hint">أدخل رمز كرت SASMAN المكون من أرقام أو حروف.</div>
+                <!-- Tab 1: Voucher PIN -->
+                <div id="tab-voucher-pane">
+                    <div class="form-group">
+                        <label class="form-label" for="voucher-code">
+                            <span>رمز كرت الإنترنت (PIN / Code):</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <input type="text" id="voucher-code" class="form-input pin-input" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" autofocus>
+                            <button type="button" class="input-icon-btn icon-left" onclick="pasteClipboard()" title="لصق من الحافظة">
+                                📋
+                            </button>
+                            <button type="button" class="input-icon-btn icon-right" onclick="openQrScanner()" title="مسح QR بالـكاميرا">
+                                📷
+                            </button>
+                        </div>
+                        <div class="form-hint">أدخل رمز كرت الشبكة أو كروت التجوال الموحد SASMAN.</div>
+                    </div>
+
+                    <div class="quick-actions">
+                        <button type="button" class="action-chip" onclick="pasteClipboard()">
+                            📋 لصق الرمز
+                        </button>
+                        <button type="button" class="action-chip" onclick="openQrScanner()">
+                            📷 مسح كرت بالـ QR
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Subscriber & Roaming Account -->
+                <div id="tab-account-pane" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label" for="agent-user">اسم المستخدم (Username / Roaming):</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="agent-user" class="form-input" placeholder="اسم حسابك (مثال: user أو user@agent)" autocomplete="off" autocorrect="off" autocapitalize="none">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="agent-pass">كلمة المرور (Password):</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="agent-pass" class="form-input" placeholder="••••••••">
+                            <button type="button" class="input-icon-btn icon-left" onclick="togglePassVisibility()" title="إظهار / إخفاء">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:12.5px; color:#94a3b8;">
+                        <input type="checkbox" id="remember-me" checked style="accent-color: var(--primary); cursor:pointer;">
+                        <label for="remember-me" style="cursor:pointer;">تذكر بيانات الدخول على هذا الجهاز</label>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="submit-btn" id="login-submit-btn">
+                    <span>دخول للإنترنت</span> 🚀
+                </button>
+            </form>
+
+            <!-- Free Trial Option (If enabled in MikroTik) -->
+            $(if trial == 'yes')
+            <form name="login_trial" action="$(link-login-only)" method="post">
+                <input type="hidden" name="dst" value="$(link-orig)" />
+                <input type="hidden" name="popup" value="true" />
+                <input type="hidden" name="username" value="trial" />
+                <button type="submit" class="trial-btn">
+                    🎁 تجربة مجانية سريعة (Free Trial)
+                </button>
+            </form>
+            $(endif)
+
+            <!-- Points of Sale & Network Owner Support Accordion -->
+            <div class="info-accordion">
+                <div class="accordion-header" onclick="toggleAccordion()">
+                    <span>💬 نقاط بيع الكروت والدعم الفني</span>
+                    <span id="accordion-arrow">▼</span>
+                </div>
+                <div class="accordion-body" id="accordion-body">
+                    <p>لشراء كروت الإنترنت أو تجديد الاشتراك أو طلب المساعدة، تواصل مع إدارة الشبكة عبر الأزرار أدناه:</p>
+                    <div class="support-links">
+                        <a href="https://wa.me/9647700000000?text=طلب+كرت+إنترنت" target="_blank" class="support-btn">
+                            💬 واتساب الإدارة
+                        </a>
+                        <a href="tel:07700000000" class="support-btn">
+                            📞 اتصال بالدعم
+                        </a>
+                    </div>
                 </div>
             </div>
 
-            <!-- Tab 2: Local & Cross-Agent Roaming Account Entry -->
-            <div id="tab-account-pane" style="display: none;">
-                <div class="form-group">
-                    <label class="form-label" for="agent-user">اسم المستخدم (Username):</label>
-                    <input type="text" id="agent-user" class="form-input" placeholder="اسم حسابك" autocomplete="off" autocorrect="off" autocapitalize="none">
-                </div>
+            <!-- Footer Note -->
+            <div class="footer-note">
+                مدعوم بواسطة منظومة <strong>SASMAN Global HotSpot</strong> الموحدة
+            </div>
+        </div>
+    </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="agent-pass">كلمة المرور (Password):</label>
-                    <input type="password" id="agent-pass" class="form-input" placeholder="••••••••">
-                </div>
+    <!-- HTML5 QR Scanner Modal -->
+    <div class="scanner-modal" id="scanner-modal">
+        <div class="scanner-box">
+            <h3 style="font-size:16px; font-weight:700; color:#fff;">مسح كرت الإنترنت بكاميرا الهاتف</h3>
+            <p style="font-size:12px; color:#94a3b8; margin-top:4px;">وجّه الكاميرا نحو باركود / QR الكرت</p>
+            
+            <div class="scanner-video-wrapper">
+                <video id="qr-video" playsinline></video>
+                <div class="scanner-guide"></div>
             </div>
 
-            <button type="submit" class="submit-btn" id="login-submit-btn">
-                <span>دخول للإنترنت</span> 🚀
+            <button type="button" class="submit-btn" style="background:rgba(239,68,68,0.2); border:1px solid #ef4444; color:#fca5a5;" onclick="closeQrScanner()">
+                إلغاء الكاميرا ✕
             </button>
-        </form>
-
-        <div class="footer-note">
-            مدعوم بواسطة نظام <strong>SASMAN HotSpot</strong> الموحد
         </div>
     </div>
 
     <script type="text/javascript">
         let currentTab = 'voucher';
+        let qrStream = null;
 
-        // Check if MikroTik injected an error
+        // On Load: Check errors and restore saved credentials
         window.addEventListener('DOMContentLoaded', function() {
             var errEl = document.getElementById('error-box');
             if (errEl && errEl.innerText.trim() !== '' && errEl.innerText.trim() !== '$(if error) $(error) $(endif)') {
                 errEl.style.display = 'block';
+            }
+
+            try {
+                var savedUser = localStorage.getItem('sas_saved_user');
+                var savedTab = localStorage.getItem('sas_saved_tab');
+                if (savedUser) {
+                    if (savedTab === 'account') {
+                        switchTab('account');
+                        document.getElementById('agent-user').value = savedUser;
+                    } else {
+                        document.getElementById('voucher-code').value = savedUser;
+                    }
+                }
+            } catch(e){}
+
+            // Auto format voucher PIN (add dashes every 4 chars)
+            var pinInput = document.getElementById('voucher-code');
+            if (pinInput) {
+                pinInput.addEventListener('input', function(e) {
+                    var val = this.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                    if (val.length > 16) val = val.substring(0, 16);
+                    var formatted = '';
+                    for (var i = 0; i < val.length; i++) {
+                        if (i > 0 && i % 4 === 0) formatted += '-';
+                        formatted += val[i];
+                    }
+                    this.value = formatted;
+                });
             }
         });
 
@@ -378,7 +755,7 @@
             if (currentTab === 'voucher') {
                 var code = document.getElementById('voucher-code').value.trim().toUpperCase();
                 if (!code) {
-                    showClientError('يرجى إدخال رقم الكرت أولاً');
+                    showClientError('يرجى إدخال رمز الكرت أولاً');
                     return false;
                 }
                 mtUser.value = code;
@@ -395,7 +772,52 @@
                 mtUser.value = user;
                 mtPass.value = pass;
             }
+
+            if (document.getElementById('remember-me') && document.getElementById('remember-me').checked) {
+                try {
+                    localStorage.setItem('sas_saved_user', mtUser.value);
+                    localStorage.setItem('sas_saved_tab', currentTab);
+                } catch(e){}
+            }
             return true;
+        }
+
+        function togglePassVisibility() {
+            var passEl = document.getElementById('agent-pass');
+            if (passEl.type === 'password') {
+                passEl.type = 'text';
+            } else {
+                passEl.type = 'password';
+            }
+        }
+
+        async function pasteClipboard() {
+            try {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    var text = await navigator.clipboard.readText();
+                    if (text) {
+                        var cleaned = text.trim().toUpperCase();
+                        document.getElementById('voucher-code').value = cleaned;
+                        document.getElementById('voucher-code').dispatchEvent(new Event('input'));
+                    }
+                } else {
+                    document.getElementById('voucher-code').focus();
+                }
+            } catch(e) {
+                document.getElementById('voucher-code').focus();
+            }
+        }
+
+        function toggleAccordion() {
+            var body = document.getElementById('accordion-body');
+            var arrow = document.getElementById('accordion-arrow');
+            if (body.classList.contains('open')) {
+                body.classList.remove('open');
+                arrow.innerText = '▼';
+            } else {
+                body.classList.add('open');
+                arrow.innerText = '▲';
+            }
         }
 
         function showClientError(msg) {
@@ -405,6 +827,39 @@
                 errEl.style.display = 'block';
             } else {
                 alert(msg);
+            }
+        }
+
+        // Camera QR Scanner Support
+        async function openQrScanner() {
+            var modal = document.getElementById('scanner-modal');
+            var video = document.getElementById('qr-video');
+            modal.classList.add('active');
+
+            try {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    qrStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "environment" }
+                    });
+                    video.srcObject = qrStream;
+                    video.setAttribute("playsinline", true);
+                    video.play();
+                } else {
+                    alert('الكاميرا غير مدعومة على هذا المتصفح');
+                    closeQrScanner();
+                }
+            } catch(err) {
+                alert('يرجى منح إذن الوصول للكاميرا لمسح الكرت');
+                closeQrScanner();
+            }
+        }
+
+        function closeQrScanner() {
+            var modal = document.getElementById('scanner-modal');
+            modal.classList.remove('active');
+            if (qrStream) {
+                qrStream.getTracks().forEach(function(track) { track.stop(); });
+                qrStream = null;
             }
         }
     </script>
