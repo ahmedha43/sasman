@@ -368,17 +368,17 @@ func main() {
 			}
 
 			// 2. Cloud Tenant fallback: Authenticate directly against isolated tenant database
-			allow, rateLimit, dbPass, reason, err := cloudTenantMgr.VerifyCloudUser(subdomain, req.Username, req.Password)
-			log.Printf("[CentralRadSec] 🔍 VerifyCloudUser: Tenant=[%s], User=[%s], allow=%v, rateLimit=%s, reason=%s, err=%v",
-				subdomain, req.Username, allow, rateLimit, reason, err)
+			details := cloudTenantMgr.VerifyCloudUserDetails(subdomain, req.Username, req.Password)
+			log.Printf("[CentralRadSec] 🔍 VerifyCloudUserDetails: Tenant=[%s], User=[%s], allow=%v, rateLimit=%s, group=%s, reason=%s, err=%v",
+				subdomain, req.Username, details.Allow, details.RateLimit, details.MikrotikGroup, details.RejectReason, details.Err)
 
 			// Record in tenant's Debug Monitor radius.log
 			go func() {
 				if subdomain != "" {
 					tenantLogPath := filepath.Join(cloudTenantPool.GetTenantDir(subdomain), "radius.log")
 					resStr := "Access-Accept ✅"
-					if !allow {
-						resStr = fmt.Sprintf("Access-Reject ❌ (%s)", reason)
+					if !details.Allow {
+						resStr = fmt.Sprintf("Access-Reject ❌ (%s)", details.RejectReason)
 					}
 					line := fmt.Sprintf("[%s] RADIUS %s for user [%s] from NAS [%s] (MAC: %s)\n",
 						time.Now().Format("2006-01-02 15:04:05"), resStr, req.Username, req.NasIP, req.UserMAC)
@@ -390,19 +390,21 @@ func main() {
 				}
 			}()
 
-			if err == nil && allow {
+			if details.Err == nil && details.Allow {
 				return tunnel.GlobalAuthResponsePayload{
 					RequestID:      req.RequestID,
 					Allow:          true,
-					Password:       dbPass,
-					RateLimit:      rateLimit,
+					Password:       details.Password,
+					RateLimit:      details.RateLimit,
+					MikrotikGroup:  details.MikrotikGroup,
+					FramedPool:     details.FramedPool,
 					SessionTimeout: 86400,
 				}
 			}
 			return tunnel.GlobalAuthResponsePayload{
 				RequestID:    req.RequestID,
 				Allow:        false,
-				RejectReason: reason,
+				RejectReason: details.RejectReason,
 			}
 		},
 		func(subdomain string, req tunnel.GlobalAcctPayload) {

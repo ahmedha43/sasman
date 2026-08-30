@@ -205,6 +205,8 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 	var chapChallenge []byte
 	var msc2Resp []byte
 	var msc2Challenge []byte
+	var reqServiceType uint32
+	var reqFramedProtocol uint32
 
 	for _, attr := range p.Attributes {
 		switch attr.Type {
@@ -218,6 +220,14 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			chapChallenge = attr.Value
 		case types.AttrCallingStationID:
 			callingStation = string(attr.Value)
+		case types.AttrServiceType:
+			if len(attr.Value) == 4 {
+				reqServiceType = binary.BigEndian.Uint32(attr.Value)
+			}
+		case types.AttrFramedProtocol:
+			if len(attr.Value) == 4 {
+				reqFramedProtocol = binary.BigEndian.Uint32(attr.Value)
+			}
 		case types.AttrVendorSpecific:
 			if len(attr.Value) >= 6 {
 				vID := binary.BigEndian.Uint32(attr.Value[0:4])
@@ -348,6 +358,8 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 	}
 
 	if authResp.Allow {
+		isPPP := (reqFramedProtocol == 1 || reqServiceType == 2 || len(msc2Resp) > 0)
+
 		rateLimit := authResp.RateLimit
 		if rateLimit == "" {
 			rateLimit = "10M/10M"
@@ -363,30 +375,64 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			Value: vsaData,
 		})
 
-		// Mikrotik-Group: full (Vendor: 14988, Subtype: 3, Value: "full")
-		groupData := make([]byte, 6+len("full"))
-		binary.BigEndian.PutUint32(groupData[0:4], 14988)
-		groupData[4] = 3
-		groupData[5] = byte(2 + len("full"))
-		copy(groupData[6:], []byte("full"))
-		reply.Attributes = append(reply.Attributes, packet.Attribute{
-			Type:  types.AttrVendorSpecific,
-			Value: groupData,
-		})
+		// ONLY send Mikrotik-Group if explicitly configured and non-empty (NEVER hardcode "full"!)
+		if authResp.MikrotikGroup != "" {
+			groupData := make([]byte, 6+len(authResp.MikrotikGroup))
+			binary.BigEndian.PutUint32(groupData[0:4], 14988)
+			groupData[4] = 3
+			groupData[5] = byte(2 + len(authResp.MikrotikGroup))
+			copy(groupData[6:], []byte(authResp.MikrotikGroup))
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrVendorSpecific,
+				Value: groupData,
+			})
+		}
 
-		// Service-Type: Framed-User (2) & Framed-Protocol: PPP (1)
-		stBuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(stBuf, 2)
-		reply.Attributes = append(reply.Attributes, packet.Attribute{
-			Type:  types.AttrServiceType,
-			Value: stBuf,
-		})
+		// Framed-Pool (for PPP)
+		if authResp.FramedPool != "" && isPPP {
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  88, // Framed-Pool
+				Value: []byte(authResp.FramedPool),
+			})
+		}
 
-		fpBuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(fpBuf, 1)
+		// Service-Type and Framed-Protocol
+		if isPPP {
+			stBuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(stBuf, 2) // Framed-User
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrServiceType,
+				Value: stBuf,
+			})
+
+			fpBuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(fpBuf, 1) // PPP
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrFramedProtocol,
+				Value: fpBuf,
+			})
+		} else if reqServiceType != 0 {
+			stBuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(stBuf, reqServiceType)
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrServiceType,
+				Value: stBuf,
+			})
+		} else {
+			stBuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(stBuf, 1) // Login-User (Hotspot default)
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrServiceType,
+				Value: stBuf,
+			})
+		}
+
+		// Acct-Interim-Interval (300s = 5 minutes)
+		interimBuf := make([]byte, 4)
+		binary.BigEndian.PutUint32(interimBuf, 300)
 		reply.Attributes = append(reply.Attributes, packet.Attribute{
-			Type:  types.AttrFramedProtocol,
-			Value: fpBuf,
+			Type:  types.AttrAcctInterimInterval,
+			Value: interimBuf,
 		})
 
 		// Attach MS-CHAP2-Success & MPPE keys if applicable

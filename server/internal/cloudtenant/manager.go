@@ -417,14 +417,24 @@ func (m *Manager) AuthenticateTenant(loginID, password string) (*CloudTenant, st
 	return tenant, tokenString, nil
 }
 
-func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, string, string, string, error) {
+type CloudAuthDetails struct {
+	Allow         bool
+	RateLimit     string
+	MikrotikGroup string
+	FramedPool    string
+	Password      string
+	RejectReason  string
+	Err           error
+}
+
+func (m *Manager) VerifyCloudUserDetails(subdomain, username, password string) CloudAuthDetails {
 	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
 	username = strings.TrimSpace(username)
 	password = strings.TrimRight(strings.TrimSpace(password), "\x00")
 
 	tenantDB, err := m.pool.Get(subdomain)
 	if err != nil {
-		return false, "", "", "قاعدة بيانات المستأجر غير متاحة", err
+		return CloudAuthDetails{Allow: false, RejectReason: "قاعدة بيانات المستأجر غير متاحة", Err: err}
 	}
 
 	// 0. Check Tenant License Status in Central Repo
@@ -432,7 +442,11 @@ func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, s
 		lic, err := m.repo.GetAgentLicenseInfo(subdomain)
 		if err == nil && lic != nil && (lic.Status == "unlicensed" || lic.Status == "suspended" || lic.IsExpired) {
 			log.Printf("[cloudtenant] ⛔ Tenant [%s] license check: Status=%s, Expired=%t, rejecting user [%s]", subdomain, lic.Status, lic.IsExpired, username)
-			return false, "", "", fmt.Sprintf("اشتراك السحابة (%s) غير مفعّل أو منتهي الصلاحية، يرجى تفعيله من لوحة إدارة SASMAN", subdomain), fmt.Errorf("tenant unlicensed")
+			return CloudAuthDetails{
+				Allow:        false,
+				RejectReason: fmt.Sprintf("اشتراك السحابة (%s) غير مفعّل أو منتهي الصلاحية، يرجى تفعيله من لوحة إدارة SASMAN", subdomain),
+				Err:          fmt.Errorf("tenant unlicensed"),
+			}
 		}
 	}
 
@@ -444,6 +458,7 @@ func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, s
 
 	// 2. Query radcheck for password
 	var dbPass string
+	var groupName string
 	err = tenantDB.QueryRow("SELECT value FROM radcheck WHERE (username = ? OR username = ?) AND attribute = 'Cleartext-Password'", username, lookupUser).Scan(&dbPass)
 	if err != nil {
 		// Check voucher
@@ -451,17 +466,27 @@ func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, s
 		var profileName string
 		vErr := tenantDB.QueryRow("SELECT is_used, profile_name FROM radius_vouchers WHERE code = ? OR code = ?", username, lookupUser).Scan(&isUsed, &profileName)
 		if vErr == nil {
-			// Voucher exists
+			groupName = profileName
 			rateLimit := "10M/10M"
+			var mtGroup, pool string
 			_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", profileName).Scan(&rateLimit)
-			return true, rateLimit, username, "OK", nil
+			_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Group'", profileName).Scan(&mtGroup)
+			_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Framed-Pool'", profileName).Scan(&pool)
+			return CloudAuthDetails{
+				Allow:         true,
+				RateLimit:     rateLimit,
+				MikrotikGroup: mtGroup,
+				FramedPool:    pool,
+				Password:      username,
+				RejectReason:  "OK",
+			}
 		}
-		return false, "", "", "المستخدم غير مسجل", fmt.Errorf("user not found")
+		return CloudAuthDetails{Allow: false, RejectReason: "المستخدم غير مسجل لدى هذا الوكيل", Err: fmt.Errorf("user not found")}
 	}
 
 	dbPass = strings.TrimRight(strings.TrimSpace(dbPass), "\x00")
 	if password != "" && password != dbPass {
-		return false, "", "", "كلمة المرور غير صحيحة", nil
+		return CloudAuthDetails{Allow: false, RejectReason: "كلمة المرور غير صحيحة"}
 	}
 
 	// 3. Check expiration and active status in radius_user_meta
@@ -470,28 +495,38 @@ func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, s
 	metaErr := tenantDB.QueryRow("SELECT enabled, expiration_unix FROM radius_user_meta WHERE username = ? OR username = ?", username, lookupUser).Scan(&enabled, &expUnix)
 	if metaErr == nil {
 		if enabled == 0 {
-			return false, "", "", "الحساب معطل", nil
+			return CloudAuthDetails{Allow: false, RejectReason: "الحساب معطل"}
 		}
 		if expUnix.Valid && expUnix.Int64 > 0 && expUnix.Int64 < time.Now().Unix() {
-			return false, "", "", "انتهى اشتراك المستخدم", nil
+			return CloudAuthDetails{Allow: false, RejectReason: "انتهى اشتراك المستخدم"}
 		}
 	}
 
-	// 4. Query Rate Limit
-	rateLimit := "10M/10M"
-	var grpRate string
-	err = tenantDB.QueryRow(`
-		SELECT rgr.value 
-		FROM radusergroup rug
-		JOIN radgroupreply rgr ON rug.groupname = rgr.groupname
-		WHERE (rug.username = ? OR rug.username = ?) AND rgr.attribute = 'Mikrotik-Rate-Limit'
-		LIMIT 1
-	`, username, lookupUser).Scan(&grpRate)
-	if err == nil && grpRate != "" {
-		rateLimit = grpRate
+	// 4. Query Group, Rate Limit, Mikrotik-Group, Framed-Pool
+	_ = tenantDB.QueryRow("SELECT groupname FROM radusergroup WHERE username = ? OR username = ? ORDER BY priority ASC LIMIT 1", username, lookupUser).Scan(&groupName)
+	if groupName == "" {
+		groupName = "10M"
 	}
 
-	return true, rateLimit, dbPass, "OK", nil
+	rateLimit := "10M/10M"
+	var mtGroup, pool string
+	_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", groupName).Scan(&rateLimit)
+	_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Group'", groupName).Scan(&mtGroup)
+	_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Framed-Pool'", groupName).Scan(&pool)
+
+	return CloudAuthDetails{
+		Allow:         true,
+		RateLimit:     rateLimit,
+		MikrotikGroup: mtGroup,
+		FramedPool:    pool,
+		Password:      dbPass,
+		RejectReason:  "OK",
+	}
+}
+
+func (m *Manager) VerifyCloudUser(subdomain, username, password string) (bool, string, string, string, error) {
+	d := m.VerifyCloudUserDetails(subdomain, username, password)
+	return d.Allow, d.RateLimit, d.Password, d.RejectReason, d.Err
 }
 
 func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPayload) error {
