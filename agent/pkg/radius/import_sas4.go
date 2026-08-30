@@ -86,11 +86,37 @@ func ImportFromSAS4(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "URL, Username, and Password are required"})
 	}
 
-	baseURL := strings.TrimSuffix(req.URL, "/") + "/"
-	loginURL := baseURL + "admin/api/index.php/api/login"
-	userListURL := baseURL + "admin/api/index.php/api/index/user"
+	rawURL := strings.TrimSuffix(req.URL, "/")
+	cleanBase := rawURL
+	cleanBase = strings.TrimSuffix(cleanBase, "/admin")
+	cleanBase = strings.TrimSuffix(cleanBase, "/api")
+	cleanBase = strings.TrimSuffix(cleanBase, "/index.php")
+	cleanBase = strings.TrimSuffix(cleanBase, "/")
 
-	// 1. Authenticate
+	type sas4Endpoint struct {
+		loginURL    string
+		userListURL string
+		overviewURL string
+	}
+
+	endpoints := []sas4Endpoint{
+		{
+			loginURL:    cleanBase + "/admin/api/index.php/api/login",
+			userListURL: cleanBase + "/admin/api/index.php/api/index/user",
+			overviewURL: cleanBase + "/admin/api/index.php/api/user/overview/",
+		},
+		{
+			loginURL:    cleanBase + "/api/index.php/api/login",
+			userListURL: cleanBase + "/api/index.php/api/index/user",
+			overviewURL: cleanBase + "/api/index.php/api/user/overview/",
+		},
+		{
+			loginURL:    rawURL + "/api/login",
+			userListURL: rawURL + "/api/index/user",
+			overviewURL: rawURL + "/api/user/overview/",
+		},
+	}
+
 	loginPayloadObj := map[string]string{
 		"username": req.Username,
 		"password": req.Password,
@@ -102,9 +128,22 @@ func ImportFromSAS4(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Encryption error: " + err.Error()})
 	}
 
-	resp, err := postSAS4(loginURL, encryptedPayload, "")
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "SAS4 Login failed: " + err.Error()})
+	var resp map[string]interface{}
+	var lastErr error
+	var activeEp sas4Endpoint
+
+	for _, ep := range endpoints {
+		resp, err = postSAS4(ep.loginURL, encryptedPayload, "")
+		if err == nil {
+			activeEp = ep
+			lastErr = nil
+			break
+		}
+		lastErr = err
+	}
+
+	if lastErr != nil || resp == nil {
+		return c.Status(500).JSON(fiber.Map{"error": "SAS4 Login failed: " + lastErr.Error()})
 	}
 
 	token, ok := resp["token"].(string)
@@ -121,6 +160,9 @@ func ImportFromSAS4(c *fiber.Ctx) error {
 	}
 
 	fmt.Printf("[sas4-import] Login SUCCESS. Fetching user list...\n")
+
+	userListURL := activeEp.userListURL
+	overviewBaseURL := activeEp.overviewURL
 
 	// 2. Fetch Users
 	// EXCEL_HEADERS = ['id', 'username', 'firstname', 'lastname', 'phone', 'balance', 'expiration', 'static_ip', 'enabled', 'profile_name', 'ct_password', 'created_at']
@@ -172,7 +214,7 @@ func ImportFromSAS4(c *fiber.Ctx) error {
 					id = fmt.Sprintf("%v", j.u["id"])
 					id = strings.TrimSuffix(id, ".0")
 				}
-				detailURL := baseURL + "admin/api/index.php/api/user/overview/" + id
+				detailURL := overviewBaseURL + id
 				detail, err := getSAS4(detailURL, token)
 				if err == nil {
 					if data, ok := detail["data"].(map[string]interface{}); ok {
@@ -273,6 +315,10 @@ func postSAS4(url string, payload string, token string) (map[string]interface{},
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9,ar;q=0.8")
+
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -284,6 +330,14 @@ func postSAS4(url string, payload string, token string) (map[string]interface{},
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
+		respBody, _ := io.ReadAll(resp.Body)
+		errMsg := strings.TrimSpace(string(respBody))
+		if len(errMsg) > 200 {
+			errMsg = errMsg[:200]
+		}
+		if errMsg != "" {
+			return nil, fmt.Errorf("SAS4 POST returned status %d (%s)", resp.StatusCode, errMsg)
+		}
 		return nil, fmt.Errorf("SAS4 POST returned status %d", resp.StatusCode)
 	}
 
@@ -301,6 +355,10 @@ func getSAS4(url string, token string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9,ar;q=0.8")
+
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -312,6 +370,14 @@ func getSAS4(url string, token string) (map[string]interface{}, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
+		respBody, _ := io.ReadAll(resp.Body)
+		errMsg := strings.TrimSpace(string(respBody))
+		if len(errMsg) > 200 {
+			errMsg = errMsg[:200]
+		}
+		if errMsg != "" {
+			return nil, fmt.Errorf("SAS4 GET returned status %d (%s)", resp.StatusCode, errMsg)
+		}
 		return nil, fmt.Errorf("SAS4 GET returned status %d", resp.StatusCode)
 	}
 
