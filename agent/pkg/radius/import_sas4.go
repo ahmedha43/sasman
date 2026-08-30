@@ -164,30 +164,46 @@ func ImportFromSAS4(c *fiber.Ctx) error {
 	userListURL := activeEp.userListURL
 	overviewBaseURL := activeEp.overviewURL
 
-	// 2. Fetch Users
-	// EXCEL_HEADERS = ['id', 'username', 'firstname', 'lastname', 'phone', 'balance', 'expiration', 'static_ip', 'enabled', 'profile_name', 'ct_password', 'created_at']
+	// 2. Fetch All Users Across Pages
 	cols := []string{"id", "username", "firstname", "lastname", "phone", "balance", "expiration", "static_ip", "enabled", "profile_name", "ct_password", "created_at"}
-	fetchPayloadObj := map[string]interface{}{
-		"page":    1,
-		"count":   5000, // Large count to fetch most users
-		"columns": cols,
-	}
-	fetchJSON, _ := json.Marshal(fetchPayloadObj)
-	encryptedFetch, _ := encryptSaltedSAS4(string(fetchJSON), SAS_PASSPHRASE)
+	var usersData []interface{}
+	pageSize := 200
 
-	userResp, err := postSAS4(userListURL, encryptedFetch, token)
-	if err != nil {
-		fmt.Printf("[sas4-import] Fetch users FAILED: %v\n", err)
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch users: " + err.Error()})
+	for page := 1; page <= 50; page++ {
+		fetchPayloadObj := map[string]interface{}{
+			"page":    page,
+			"count":   pageSize,
+			"columns": cols,
+		}
+		fetchJSON, _ := json.Marshal(fetchPayloadObj)
+		encryptedFetch, _ := encryptSaltedSAS4(string(fetchJSON), SAS_PASSPHRASE)
+
+		userResp, err := postSAS4(userListURL, encryptedFetch, token)
+		if err != nil {
+			if page == 1 {
+				fmt.Printf("[sas4-import] Fetch users FAILED: %v\n", err)
+				return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch users: " + err.Error()})
+			}
+			break
+		}
+
+		pageUsers, ok := userResp["data"].([]interface{})
+		if !ok || len(pageUsers) == 0 {
+			break
+		}
+
+		usersData = append(usersData, pageUsers...)
+
+		if len(pageUsers) < pageSize {
+			break // Final page reached
+		}
 	}
 
-	usersData, ok := userResp["data"].([]interface{})
-	if !ok {
-		fmt.Printf("[sas4-import] Unexpected format: 'data' is not an array\n")
-		return c.Status(500).JSON(fiber.Map{"error": "Unexpected users response format"})
+	if len(usersData) == 0 {
+		return c.Status(404).JSON(fiber.Map{"error": "No subscribers found in SAS4 account"})
 	}
 
-	fmt.Printf("[sas4-import] Fetched %d potential users. Starting deep sync (fetching passwords)...\n", len(usersData))
+	fmt.Printf("[sas4-import] Fetched total %d users across pages. Starting deep sync (fetching passwords)...\n", len(usersData))
 
 	// 3. Process and Save (with concurrent detail fetching)
 	importCount := 0

@@ -156,24 +156,42 @@ func RunSAS4Migration(db *sql.DB, req SAS4MigrationRequest) (*SAS4MigrationResul
 	userListURL := activeEp.userListURL
 	overviewBaseURL := activeEp.overviewURL
 
-	// 2. Fetch Users
+	// 2. Fetch All Users Across Pages
 	cols := []string{"id", "username", "firstname", "lastname", "phone", "balance", "expiration", "static_ip", "enabled", "profile_name", "ct_password", "created_at"}
-	fetchPayloadObj := map[string]interface{}{
-		"page":    1,
-		"count":   10000,
-		"columns": cols,
-	}
-	fetchJSON, _ := json.Marshal(fetchPayloadObj)
-	encryptedFetch, _ := encryptSaltedSAS4(string(fetchJSON), SAS_PASSPHRASE)
+	var usersData []interface{}
+	pageSize := 200
 
-	userResp, err := postSAS4(userListURL, encryptedFetch, token)
-	if err != nil {
-		return nil, fmt.Errorf("فشل جلب قائمة المشتركين من SAS4: %v", err)
+	for page := 1; page <= 50; page++ {
+		fetchPayloadObj := map[string]interface{}{
+			"page":    page,
+			"count":   pageSize,
+			"columns": cols,
+		}
+		fetchJSON, _ := json.Marshal(fetchPayloadObj)
+		encryptedFetch, _ := encryptSaltedSAS4(string(fetchJSON), SAS_PASSPHRASE)
+
+		userResp, err := postSAS4(userListURL, encryptedFetch, token)
+		if err != nil {
+			if page == 1 {
+				return nil, fmt.Errorf("فشل جلب قائمة المشتركين من SAS4: %v", err)
+			}
+			break
+		}
+
+		pageUsers, ok := userResp["data"].([]interface{})
+		if !ok || len(pageUsers) == 0 {
+			break
+		}
+
+		usersData = append(usersData, pageUsers...)
+
+		if len(pageUsers) < pageSize {
+			break // Final page reached
+		}
 	}
 
-	usersData, ok := userResp["data"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("صيغة استجابة غير صالحة من SAS4")
+	if len(usersData) == 0 {
+		return nil, fmt.Errorf("لم يتم العثور على أي مشتركين في حساب SAS4")
 	}
 
 	importCount := 0
