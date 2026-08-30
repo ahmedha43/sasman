@@ -372,6 +372,66 @@ func main() {
 			log.Printf("[CentralRadSec] 🔍 VerifyCloudUserDetails: Tenant=[%s], User=[%s], allow=%v, rateLimit=%s, group=%s, reason=%s, err=%v",
 				subdomain, req.Username, details.Allow, details.RateLimit, details.MikrotikGroup, details.RejectReason, details.Err)
 
+			// 3. If not allowed in tenant DB, check Central Global HotSpot Vouchers
+			if !details.Allow && repo != nil {
+				uname := req.Username
+				if strings.Contains(uname, "@") {
+					uname = strings.Split(uname, "@")[0]
+				}
+				voucher, vErr := repo.ValidateAndRedeemGlobalVoucher(uname, req.UserMAC, subdomain)
+				if vErr == nil && voucher != nil {
+					remSecs := 86400
+					if voucher.ExpiresAt != nil {
+						remSecs = int(time.Until(*voucher.ExpiresAt).Seconds())
+						if remSecs <= 0 {
+							remSecs = 60
+						}
+					}
+					details.Allow = true
+					details.RateLimit = voucher.RateLimit
+					details.Password = req.Username
+					details.RejectReason = "OK"
+					details.Err = nil
+
+					// Record in tenant's Debug Monitor radius.log
+					go func() {
+						if subdomain != "" {
+							tenantLogPath := filepath.Join(cloudTenantPool.GetTenantDir(subdomain), "radius.log")
+							line := fmt.Sprintf("[%s] RADIUS Access-Accept ✅ for Global HotSpot Voucher [%s] from NAS [%s] (MAC: %s, Speed: %s)\n",
+								time.Now().Format("2006-01-02 15:04:05"), req.Username, req.NasIP, req.UserMAC, voucher.RateLimit)
+							f, err := os.OpenFile(tenantLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+							if err == nil {
+								_, _ = f.WriteString(line)
+								_ = f.Close()
+							}
+						}
+					}()
+
+					return tunnel.GlobalAuthResponsePayload{
+						RequestID:      req.RequestID,
+						Allow:          true,
+						Password:       req.Username,
+						RateLimit:      voucher.RateLimit,
+						SessionTimeout: remSecs,
+						AccountType:    "voucher",
+						ReplyMessage:   "تم تفعيل كرت SASMAN Global HotSpot بنجاح",
+					}
+				}
+			}
+
+			// 4. Roaming user check (user@other_tenant)
+			if !details.Allow && strings.Contains(req.Username, "@") {
+				parts := strings.Split(req.Username, "@")
+				homeSub := strings.ToLower(strings.TrimSpace(parts[1]))
+				if homeSub != "" && homeSub != subdomain {
+					homeDetails := cloudTenantMgr.VerifyCloudUserDetails(homeSub, parts[0], req.Password)
+					if homeDetails.Allow {
+						details = homeDetails
+						log.Printf("[CentralRadSec] 🌐 Roaming user [%s] authenticated from home tenant [%s]", req.Username, homeSub)
+					}
+				}
+			}
+
 			// Record in tenant's Debug Monitor radius.log
 			go func() {
 				if subdomain != "" {

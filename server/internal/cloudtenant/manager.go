@@ -464,8 +464,25 @@ func (m *Manager) VerifyCloudUserDetails(subdomain, username, password string) C
 		// Check voucher
 		var isUsed int
 		var profileName string
-		vErr := tenantDB.QueryRow("SELECT is_used, profile_name FROM radius_vouchers WHERE code = ? OR code = ?", username, lookupUser).Scan(&isUsed, &profileName)
+		var valDays int
+		vErr := tenantDB.QueryRow("SELECT COALESCE(is_used, 0), COALESCE(profile_name, '10M'), COALESCE(validity_days, 30) FROM radius_vouchers WHERE code = ? OR code = ?", username, lookupUser).Scan(&isUsed, &profileName, &valDays)
 		if vErr == nil {
+			if password != "" && password != username && password != lookupUser {
+				return CloudAuthDetails{Allow: false, RejectReason: "كلمة المرور غير صحيحة"}
+			}
+			if isUsed == 0 {
+				now := time.Now().Format("2006-01-02 15:04:05")
+				_, _ = tenantDB.Exec("UPDATE radius_vouchers SET is_used = 1, used_by = ?, used_at = ? WHERE code = ? OR code = ?", lookupUser, now, username, lookupUser)
+				if valDays <= 0 {
+					valDays = 30
+				}
+				expTime := time.Now().Unix() + int64(valDays*86400)
+				_, _ = tenantDB.Exec(`
+					INSERT INTO radius_user_meta (username, full_name, enabled, expiration_unix, created_at, updated_at)
+					VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+					ON CONFLICT(username) DO UPDATE SET expiration_unix=excluded.expiration_unix, enabled=1, updated_at=CURRENT_TIMESTAMP
+				`, lookupUser, "كارت "+profileName, expTime)
+			}
 			groupName = profileName
 			rateLimit := "10M/10M"
 			var mtGroup, pool string
