@@ -84,9 +84,9 @@ func RunSAS4Migration(db *sql.DB, req SAS4MigrationRequest) (*SAS4MigrationResul
 
 	rawURL := strings.TrimSuffix(req.URL, "/")
 	cleanBase := rawURL
-	cleanBase = strings.TrimSuffix(cleanBase, "/admin")
-	cleanBase = strings.TrimSuffix(cleanBase, "/api")
-	cleanBase = strings.TrimSuffix(cleanBase, "/index.php")
+	for _, s := range []string{"/admin/api/index.php/api/login", "/api/login", "/api/index/user", "/admin/api", "/api", "/index.php", "/admin"} {
+		cleanBase = strings.TrimSuffix(cleanBase, s)
+	}
 	cleanBase = strings.TrimSuffix(cleanBase, "/")
 
 	type sas4Endpoint struct {
