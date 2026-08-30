@@ -3020,6 +3020,15 @@ func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "لا توجد صفوف بيانات كافية"})
 	}
 
+	// Map header columns dynamically if header row exists
+	headerMap := make(map[string]int)
+	if len(rows) > 0 {
+		for idx, colName := range rows[0] {
+			cleanCol := strings.ToLower(strings.TrimSpace(colName))
+			headerMap[cleanCol] = idx
+		}
+	}
+
 	imported := 0
 	updated := 0
 
@@ -3027,32 +3036,59 @@ func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 		if i == 0 || len(row) < 1 {
 			continue
 		}
-		username := strings.TrimSpace(row[0])
+
+		getCol := func(key string, defaultIdx int) string {
+			if idx, ok := headerMap[key]; ok && idx < len(row) {
+				return strings.TrimSpace(row[idx])
+			}
+			if defaultIdx >= 0 && defaultIdx < len(row) {
+				return strings.TrimSpace(row[defaultIdx])
+			}
+			return ""
+		}
+
+		username := getCol("username", 0)
 		if username == "" {
 			continue
 		}
 
-		password := "1234"
-		if len(row) > 1 && strings.TrimSpace(row[1]) != "" {
-			password = strings.TrimSpace(row[1])
+		password := getCol("ct_password", 1)
+		if password == "" {
+			password = getCol("password", 1)
 		}
-		fullName := ""
-		if len(row) > 2 {
-			fullName = strings.TrimSpace(row[2])
+		if password == "" {
+			password = "1234"
 		}
-		phone := ""
-		if len(row) > 3 {
-			phone = strings.TrimSpace(row[3])
+
+		fullName := getCol("firstname", 2)
+		lastName := getCol("lastname", -1)
+		if lastName != "" {
+			fullName = strings.TrimSpace(fullName + " " + lastName)
 		}
-		profile := "10M"
-		if len(row) > 4 && strings.TrimSpace(row[4]) != "" {
-			profile = strings.TrimSpace(row[4])
+		if fullName == "" {
+			fullName = getCol("full_name", 2)
+		}
+
+		phone := getCol("phone", 3)
+		profile := getCol("profile_name", 4)
+		if profile == "" {
+			profile = getCol("profile", 4)
+		}
+		if profile == "" {
+			profile = "10M"
+		}
+
+		var balanceVal float64
+		if bStr := getCol("balance", -1); bStr != "" {
+			fmt.Sscanf(bStr, "%f", &balanceVal)
 		}
 
 		expUnix := time.Now().AddDate(0, 1, 0).Unix()
-		if len(row) > 5 && strings.TrimSpace(row[5]) != "" {
-			rawDate := strings.TrimSpace(row[5])
-			if t, pErr := time.Parse("2006-01-02 15:04", rawDate); pErr == nil {
+		rawDate := getCol("expiration", 5)
+		if rawDate != "" {
+			if t, pErr := time.Parse("2006-01-02 15:04:05", rawDate); pErr == nil {
+				expUnix = t.Unix()
+			} else if t, pErr := time.Parse("2006-01-02 15:04", rawDate); pErr == nil {
 				expUnix = t.Unix()
 			} else if t, pErr := time.Parse("2006-01-02", rawDate); pErr == nil {
 				expUnix = t.Unix()
@@ -3070,18 +3106,22 @@ func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 		}
 
 		_, _ = db.Exec(`
-			INSERT INTO radius_user_meta (username, full_name, phone, expiration_unix, enabled, updated_at)
-			VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+			INSERT INTO radius_user_meta (username, full_name, phone, balance, expiration_unix, enabled, updated_at)
+			VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
 			ON CONFLICT(username) DO UPDATE SET 
 				full_name = excluded.full_name,
 				phone = excluded.phone,
+				balance = excluded.balance,
 				expiration_unix = excluded.expiration_unix,
 				enabled = 1,
 				updated_at = CURRENT_TIMESTAMP
-		`, username, fullName, phone, expUnix)
+		`, username, fullName, phone, balanceVal, expUnix)
 
-		_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
-		_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, profile)
+		if profile != "" {
+			_ = ensureProfileExistsCloud(db, profile)
+			_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
+			_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, profile)
+		}
 	}
 
 	return c.JSON(fiber.Map{
