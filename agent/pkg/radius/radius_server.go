@@ -612,8 +612,40 @@ func handleAuthRequest(ctx context.Context, req *server.Request) (*packet.Packet
 	isExpiredOrDisabled := isDisabled || isExpired
 	expiredPool, expiredProfile := lookupExpiredRedirect(username, attributes)
 
+	// 5.5 Check Data Quota Limit
+	var quotaLimitMB, usedIn, usedOut int64
+	var quotaStatus string
+	if DB != nil {
+		_ = DB.QueryRow("SELECT COALESCE(quota_limit_mb, 0), COALESCE(used_octets_in, 0), COALESCE(used_octets_out, 0), COALESCE(quota_status, 'active') FROM radius_user_meta WHERE username = ?", username).Scan(&quotaLimitMB, &usedIn, &usedOut, &quotaStatus)
+
+		if quotaLimitMB == 0 {
+			var profileName string
+			_ = DB.QueryRow("SELECT groupname FROM radusergroup WHERE username = ? ORDER BY priority LIMIT 1", username).Scan(&profileName)
+			if profileName != "" {
+				_ = DB.QueryRow("SELECT COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname = ?", profileName).Scan(&quotaLimitMB)
+			}
+		}
+	}
+
+	var totalLimitLow, totalLimitGiga uint32
+	if quotaLimitMB > 0 {
+		totalQuotaBytes := quotaLimitMB * 1024 * 1024
+		usedTotal := usedIn + usedOut
+		remainingBytes := totalQuotaBytes - usedTotal
+		if remainingBytes <= 0 || quotaStatus == "depleted" {
+			isExpiredOrDisabled = true
+			radiusLogger.Printf("[radius] ⚠️ المشترك [%s] استهلك كامل باقة البيانات (Quota %d MB) | مستهلك: %d بايت", username, quotaLimitMB, usedTotal)
+			if expiredPool == "" && expiredProfile == "" {
+				return buildAccessReject(req, username, "quota limit exceeded", startAuthTime), nil
+			}
+		} else {
+			totalLimitLow = uint32(remainingBytes % (1 << 32))
+			totalLimitGiga = uint32(remainingBytes >> 32)
+		}
+	}
+
 	if isExpiredOrDisabled {
-		radiusLogger.Printf("[radius] ⚠️ المشترك [%s] منتهي/معطل | Expired-Pool=[%s] Expired-Profile=[%s]", username, expiredPool, expiredProfile)
+		radiusLogger.Printf("[radius] ⚠️ المشترك [%s] منتهي/معطل/نفدت الكوتة | Expired-Pool=[%s] Expired-Profile=[%s]", username, expiredPool, expiredProfile)
 		if expiredPool == "" && expiredProfile == "" {
 			reason := "user expired"
 			if isDisabled {
@@ -670,6 +702,14 @@ func handleAuthRequest(ctx context.Context, req *server.Request) (*packet.Packet
 
 	// Acct-Interim-Interval (5 minutes = 300s)
 	response.Attributes = append(response.Attributes, packet.NewInteger(types.AttrAcctInterimInterval, 300))
+
+	// Data Quota Limits (MikroTik Total Limits)
+	if !isExpiredOrDisabled && quotaLimitMB > 0 && (totalLimitLow > 0 || totalLimitGiga > 0) {
+		response.Attributes = append(response.Attributes, NewMikrotikInteger(17, totalLimitLow)) // Mikrotik-Total-Limit
+		if totalLimitGiga > 0 {
+			response.Attributes = append(response.Attributes, NewMikrotikInteger(18, totalLimitGiga)) // Mikrotik-Total-Limit-Gigawords
+		}
+	}
 
 	// Add Reply Attributes
 	if isExpiredOrDisabled {
@@ -968,6 +1008,36 @@ func recordSQLiteAccounting(username string, status uint32, sid, ip, cli, nasIP 
 				_, _ = DB.Exec(`UPDATE radacct SET acctstoptime = datetime('now', 'localtime'), acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, acctterminatecause = ?
 					WHERE username = ? AND acctstoptime IS NULL`,
 					secs, in, out, causeStr, username)
+			}
+		}
+	}
+
+	// Update user cumulative usage in radius_user_meta
+	if status == 2 || status == 3 {
+		_, _ = DB.Exec(`
+			UPDATE radius_user_meta 
+			SET used_octets_in = (SELECT COALESCE(SUM(acctinputoctets), 0) FROM radacct WHERE username = radius_user_meta.username),
+			    used_octets_out = (SELECT COALESCE(SUM(acctoutputoctets), 0) FROM radacct WHERE username = radius_user_meta.username),
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE username = ?
+		`, username)
+
+		var qLimitMB, uIn, uOut int64
+		_ = DB.QueryRow("SELECT COALESCE(quota_limit_mb, 0), COALESCE(used_octets_in, 0), COALESCE(used_octets_out, 0) FROM radius_user_meta WHERE username = ?", username).Scan(&qLimitMB, &uIn, &uOut)
+		if qLimitMB == 0 {
+			var pName string
+			_ = DB.QueryRow("SELECT groupname FROM radusergroup WHERE username = ? ORDER BY priority LIMIT 1", username).Scan(&pName)
+			if pName != "" {
+				_ = DB.QueryRow("SELECT COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname = ?", pName).Scan(&qLimitMB)
+			}
+		}
+		if qLimitMB > 0 {
+			totalQuota := qLimitMB * 1024 * 1024
+			if (uIn + uOut) >= totalQuota {
+				_, _ = DB.Exec("UPDATE radius_user_meta SET quota_status = 'depleted' WHERE username = ?", username)
+				if status == 3 { // Interim-Update during active session
+					go KickUserIfOnline(username)
+				}
 			}
 		}
 	}

@@ -115,6 +115,7 @@ func EnsureSchema() {
 			price REAL NOT NULL DEFAULT 0,
 			agent_price REAL NOT NULL DEFAULT 0,
 			admin_id INTEGER DEFAULT NULL,
+			quota_limit_mb INTEGER NOT NULL DEFAULT 0,
 			expired_pool TEXT DEFAULT '',
 			expired_profile TEXT DEFAULT '',
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -130,6 +131,10 @@ func EnsureSchema() {
 			balance REAL NOT NULL DEFAULT 0,
 			enabled INTEGER NOT NULL DEFAULT 1,
 			admin_id INTEGER DEFAULT NULL,
+			quota_limit_mb INTEGER NOT NULL DEFAULT 0,
+			used_octets_in INTEGER NOT NULL DEFAULT 0,
+			used_octets_out INTEGER NOT NULL DEFAULT 0,
+			quota_status TEXT NOT NULL DEFAULT 'active',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			last_reminder_at DATETIME DEFAULT NULL,
@@ -327,6 +332,12 @@ func EnsureSchema() {
 	DB.Exec("ALTER TABLE radius_admins ADD COLUMN permissions TEXT NOT NULL DEFAULT ''")
 	DB.Exec("ALTER TABLE radius_profile_meta ADD COLUMN expired_pool TEXT DEFAULT ''")
 	DB.Exec("ALTER TABLE radius_profile_meta ADD COLUMN expired_profile TEXT DEFAULT ''")
+	DB.Exec("ALTER TABLE radius_profile_meta ADD COLUMN quota_limit_mb INTEGER NOT NULL DEFAULT 0")
+
+	DB.Exec("ALTER TABLE radius_user_meta ADD COLUMN quota_limit_mb INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_user_meta ADD COLUMN used_octets_in INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_user_meta ADD COLUMN used_octets_out INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_user_meta ADD COLUMN quota_status TEXT NOT NULL DEFAULT 'active'")
 	
 	// Whatsapp config migrations for older database dumps
 	DB.Exec("ALTER TABLE radius_whatsapp_config ADD COLUMN admin_id INTEGER DEFAULT 1")

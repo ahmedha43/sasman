@@ -99,23 +99,44 @@ func GetUsers(c *fiber.Ctx) error {
 			session.Status = "expired_online"
 		}
 
-		fullName, phone, balance, createdAt, enabled := loadUserExtraInfo(username)
+		fullName, phone, balance, createdAt, enabled, quotaLimitMB, usedIn, usedOut, quotaStatus := loadUserExtraInfo(username)
+
+		effectiveQuotaMB := quotaLimitMB
+		if effectiveQuotaMB == 0 && profile != "" {
+			_ = DB.QueryRow("SELECT COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname=?", profile).Scan(&effectiveQuotaMB)
+		}
+
+		usedTotalBytes := usedIn + usedOut
+		var usedPercent float64
+		if effectiveQuotaMB > 0 {
+			totalQuotaBytes := effectiveQuotaMB * 1024 * 1024
+			usedPercent = (float64(usedTotalBytes) / float64(totalQuotaBytes)) * 100.0
+			if usedPercent > 100.0 {
+				usedPercent = 100.0
+			}
+		}
 
 		users = append(users, map[string]interface{}{
-			"user":            username,
-			"pass":            password,
-			"profile":         profile,
-			"expires_at":      formatUnixDateTime(expirationUnix),
-			"expires_at_unix": nullableIntToJSON(expirationUnix),
-			"expired":         expired,
-			"session":         session,
-			"full_name":       fullName,
-			"phone":           phone,
-			"balance":         balance,
-			"created_at":      createdAt,
-			"enabled":         enabled,
-			"admin_id":        uAdminID,
-			"admin_name":      adminName,
+			"user":               username,
+			"pass":               password,
+			"profile":            profile,
+			"expires_at":         formatUnixDateTime(expirationUnix),
+			"expires_at_unix":    nullableIntToJSON(expirationUnix),
+			"expired":            expired,
+			"session":            session,
+			"full_name":          fullName,
+			"phone":              phone,
+			"balance":            balance,
+			"created_at":         createdAt,
+			"enabled":            enabled,
+			"quota_limit_mb":     effectiveQuotaMB,
+			"used_octets_in":     usedIn,
+			"used_octets_out":    usedOut,
+			"used_bytes_total":   usedTotalBytes,
+			"used_percent":       usedPercent,
+			"quota_status":       quotaStatus,
+			"admin_id":           uAdminID,
+			"admin_name":         adminName,
 		})
 	}
 
@@ -396,13 +417,13 @@ func RenewUser(c *fiber.Ctx) error {
 	// Automatically kick if renewed so they reconnect and take the new package/expiration
 	go KickUserIfOnline(username)
 
-	_, _, balance, _, _ := loadUserExtraInfo(username)
+	_, _, balance, _, _, _, _, _, _ := loadUserExtraInfo(username)
 
 	if profilePrice > 0 && !req.Paid {
 		if err := addUserTransaction(username, "debt", profilePrice, fmt.Sprintf("تجديد باقة %s (%d يوم)", req.Profile, validityDays), adminID); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
-		_, _, balance, _, _ = loadUserExtraInfo(username)
+		_, _, balance, _, _, _, _, _, _ = loadUserExtraInfo(username)
 		go SendWhatsappNotification(username, "renew_debt", map[string]string{
 			"username":      username,
 			"profile":       req.Profile,
@@ -786,15 +807,44 @@ func loadProfileAgentPrice(profile string) (float64, error) {
 	return price, nil
 }
 
-func loadUserExtraInfo(username string) (string, string, float64, string, bool) {
+func loadUserExtraInfo(username string) (string, string, float64, string, bool, int64, int64, int64, string) {
 	var fullName, phone, createdAt string
 	var balance float64
 	var enabled int
+	var quotaLimitMB, usedIn, usedOut int64
+	var quotaStatus string
 	DB.QueryRow(
-		"SELECT COALESCE(full_name,''), COALESCE(phone,''), COALESCE(balance,0), COALESCE(created_at,''), COALESCE(enabled,1) FROM radius_user_meta WHERE username=?",
+		"SELECT COALESCE(full_name,''), COALESCE(phone,''), COALESCE(balance,0), COALESCE(created_at,''), COALESCE(enabled,1), COALESCE(quota_limit_mb,0), COALESCE(used_octets_in,0), COALESCE(used_octets_out,0), COALESCE(quota_status,'active') FROM radius_user_meta WHERE username=?",
 		username,
-	).Scan(&fullName, &phone, &balance, &createdAt, &enabled)
-	return fullName, phone, balance, createdAt, enabled == 1
+	).Scan(&fullName, &phone, &balance, &createdAt, &enabled, &quotaLimitMB, &usedIn, &usedOut, &quotaStatus)
+	return fullName, phone, balance, createdAt, enabled == 1, quotaLimitMB, usedIn, usedOut, quotaStatus
+}
+
+func ResetUserQuota(c *fiber.Ctx) error {
+	rawUser := c.Params("user")
+	username, _ := url.PathUnescape(rawUser)
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم المشترك مطلوب"})
+	}
+
+	_, err := DB.Exec(`
+		UPDATE radius_user_meta 
+		SET used_octets_in = 0, used_octets_out = 0, quota_status = 'active', updated_at = CURRENT_TIMESTAMP
+		WHERE username = ?
+	`, username)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Terminate stale sessions in radacct for fresh accounting
+	_, _ = DB.Exec(`UPDATE radacct SET acctstoptime = datetime('now', 'localtime'), acctterminatecause = 'Quota-Reset' WHERE username = ? AND acctstoptime IS NULL`, username)
+
+	go KickUserIfOnline(username)
+
+	LogActivityFromCtx(c, "تصفير الكوتة", username, fmt.Sprintf("تم إعادة تعيين وتصفير استهلاك كوتة البيانات للمشترك %s", username))
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير وإعادة شحن كوتة المشترك بنجاح"})
 }
 
 func calculateRenewedExpiration(current sql.NullInt64, validityDays int) sql.NullInt64 {

@@ -51,8 +51,9 @@ func GetProfiles(c *fiber.Ctx) error {
 
 		var validityDays int
 		var price, agentPrice float64
+		var quotaLimitMB int64
 		var expiredPool, expiredProfile string
-		_ = DB.QueryRow("SELECT validity_days, price, agent_price, COALESCE(expired_pool, ''), COALESCE(expired_profile, '') FROM radius_profile_meta WHERE groupname=?", name).Scan(&validityDays, &price, &agentPrice, &expiredPool, &expiredProfile)
+		_ = DB.QueryRow("SELECT validity_days, price, agent_price, COALESCE(expired_pool, ''), COALESCE(expired_profile, ''), COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname=?", name).Scan(&validityDays, &price, &agentPrice, &expiredPool, &expiredProfile, &quotaLimitMB)
 
 		var nasIp string
 		DB.QueryRow("SELECT value FROM radgroupcheck WHERE groupname=? AND attribute='NAS-IP-Address'", name).Scan(&nasIp)
@@ -77,6 +78,7 @@ func GetProfiles(c *fiber.Ctx) error {
 			"simultaneous":       simultaneous,
 			"price":              price,
 			"agent_price":        agentPrice,
+			"quota_limit_mb":     quotaLimitMB,
 			"expired_pool":       expiredPool,
 			"expired_profile":    expiredProfile,
 			"admin_id":           uAdminID,
@@ -103,6 +105,7 @@ func CreateProfile(c *fiber.Ctx) error {
 		ExpiredPool    string  `json:"expired_pool"`
 		ExpiredProfile string  `json:"expired_profile"`
 		AdminID        int64   `json:"admin_id"` // For superadmin
+		QuotaLimitMB   int64   `json:"quota_limit_mb"`
 	}
 
 	var req Request
@@ -172,8 +175,8 @@ func CreateProfile(c *fiber.Ctx) error {
 	}
 
 	if _, err := DB.Exec(
-		`INSERT INTO radius_profile_meta (groupname, validity_days, price, agent_price, expired_pool, expired_profile, admin_id, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		`INSERT INTO radius_profile_meta (groupname, validity_days, price, agent_price, expired_pool, expired_profile, admin_id, quota_limit_mb, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 		 ON CONFLICT(groupname) DO UPDATE SET
 		 	validity_days=excluded.validity_days,
 		 	price=excluded.price,
@@ -181,6 +184,7 @@ func CreateProfile(c *fiber.Ctx) error {
 		 	expired_pool=excluded.expired_pool,
 		 	expired_profile=excluded.expired_profile,
 		 	admin_id=excluded.admin_id,
+		 	quota_limit_mb=excluded.quota_limit_mb,
 		 	updated_at=CURRENT_TIMESTAMP`,
 		req.Name,
 		days,
@@ -189,6 +193,7 @@ func CreateProfile(c *fiber.Ctx) error {
 		req.ExpiredPool,
 		req.ExpiredProfile,
 		targetAdminID,
+		req.QuotaLimitMB,
 	); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}

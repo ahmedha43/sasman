@@ -418,13 +418,15 @@ func (m *Manager) AuthenticateTenant(loginID, password string) (*CloudTenant, st
 }
 
 type CloudAuthDetails struct {
-	Allow         bool
-	RateLimit     string
-	MikrotikGroup string
-	FramedPool    string
-	Password      string
-	RejectReason  string
-	Err           error
+	Allow               bool
+	RateLimit           string
+	MikrotikGroup       string
+	FramedPool          string
+	Password            string
+	TotalLimit          uint32
+	TotalLimitGigawords uint32
+	RejectReason        string
+	Err                 error
 }
 
 func (m *Manager) VerifyCloudUserDetails(subdomain, username, password string) CloudAuthDetails {
@@ -506,10 +508,12 @@ func (m *Manager) VerifyCloudUserDetails(subdomain, username, password string) C
 		return CloudAuthDetails{Allow: false, RejectReason: "كلمة المرور غير صحيحة"}
 	}
 
-	// 3. Check expiration and active status in radius_user_meta
+	// 3. Check expiration, active status, and quota in radius_user_meta
 	var enabled int
 	var expUnix sql.NullInt64
-	metaErr := tenantDB.QueryRow("SELECT enabled, expiration_unix FROM radius_user_meta WHERE username = ? OR username = ?", username, lookupUser).Scan(&enabled, &expUnix)
+	var quotaLimitMB, usedIn, usedOut int64
+	var quotaStatus string
+	metaErr := tenantDB.QueryRow("SELECT enabled, expiration_unix, COALESCE(quota_limit_mb, 0), COALESCE(used_octets_in, 0), COALESCE(used_octets_out, 0), COALESCE(quota_status, 'active') FROM radius_user_meta WHERE username = ? OR username = ?", username, lookupUser).Scan(&enabled, &expUnix, &quotaLimitMB, &usedIn, &usedOut, &quotaStatus)
 	if metaErr == nil {
 		if enabled == 0 {
 			return CloudAuthDetails{Allow: false, RejectReason: "الحساب معطل"}
@@ -525,6 +529,22 @@ func (m *Manager) VerifyCloudUserDetails(subdomain, username, password string) C
 		groupName = "10M"
 	}
 
+	if quotaLimitMB == 0 {
+		_ = tenantDB.QueryRow("SELECT COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname = ?", groupName).Scan(&quotaLimitMB)
+	}
+
+	var totalLimitLow, totalLimitGiga uint32
+	if quotaLimitMB > 0 {
+		totalQuotaBytes := quotaLimitMB * 1024 * 1024
+		usedTotal := usedIn + usedOut
+		remainingBytes := totalQuotaBytes - usedTotal
+		if remainingBytes <= 0 || quotaStatus == "depleted" {
+			return CloudAuthDetails{Allow: false, RejectReason: "تم استهلاك باقة البيانات بالكامل (Quota Depleted)"}
+		}
+		totalLimitLow = uint32(remainingBytes % (1 << 32))
+		totalLimitGiga = uint32(remainingBytes >> 32)
+	}
+
 	rateLimit := "10M/10M"
 	var mtGroup, pool string
 	_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", groupName).Scan(&rateLimit)
@@ -532,12 +552,14 @@ func (m *Manager) VerifyCloudUserDetails(subdomain, username, password string) C
 	_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Framed-Pool'", groupName).Scan(&pool)
 
 	return CloudAuthDetails{
-		Allow:         true,
-		RateLimit:     rateLimit,
-		MikrotikGroup: mtGroup,
-		FramedPool:    pool,
-		Password:      dbPass,
-		RejectReason:  "OK",
+		Allow:               true,
+		RateLimit:           rateLimit,
+		MikrotikGroup:       mtGroup,
+		FramedPool:          pool,
+		Password:            dbPass,
+		TotalLimit:          totalLimitLow,
+		TotalLimitGigawords: totalLimitGiga,
+		RejectReason:        "OK",
 	}
 }
 
@@ -592,6 +614,32 @@ func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPaylo
 						framedipaddress, callingstationid, acctinputoctets, acctoutputoctets, acctsessiontime
 					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				`, p.SessionID, p.Username, p.NasIP, now, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut, p.SessionTimeSec)
+			}
+		}
+	}
+
+	if p.StatusType == "Stop" || p.StatusType == "Interim-Update" {
+		_, _ = tenantDB.Exec(`
+			UPDATE radius_user_meta 
+			SET used_octets_in = (SELECT COALESCE(SUM(acctinputoctets), 0) FROM radacct WHERE username = radius_user_meta.username),
+			    used_octets_out = (SELECT COALESCE(SUM(acctoutputoctets), 0) FROM radacct WHERE username = radius_user_meta.username),
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE username = ?
+		`, p.Username)
+
+		var qLimitMB, uIn, uOut int64
+		_ = tenantDB.QueryRow("SELECT COALESCE(quota_limit_mb, 0), COALESCE(used_octets_in, 0), COALESCE(used_octets_out, 0) FROM radius_user_meta WHERE username = ?", p.Username).Scan(&qLimitMB, &uIn, &uOut)
+		if qLimitMB == 0 {
+			var pName string
+			_ = tenantDB.QueryRow("SELECT groupname FROM radusergroup WHERE username = ? ORDER BY priority LIMIT 1", p.Username).Scan(&pName)
+			if pName != "" {
+				_ = tenantDB.QueryRow("SELECT COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname = ?", pName).Scan(&qLimitMB)
+			}
+		}
+		if qLimitMB > 0 {
+			totalQuota := qLimitMB * 1024 * 1024
+			if (uIn + uOut) >= totalQuota {
+				_, _ = tenantDB.Exec("UPDATE radius_user_meta SET quota_status = 'depleted' WHERE username = ?", p.Username)
 			}
 		}
 	}

@@ -117,6 +117,7 @@ func EnsureTenantSchema(db *sql.DB) error {
 			mikrotik_group TEXT DEFAULT '',
 			nas_ip TEXT DEFAULT 'ALL',
 			simultaneous TEXT DEFAULT '1',
+			quota_limit_mb INTEGER NOT NULL DEFAULT 0,
 			expired_pool TEXT DEFAULT '',
 			expired_profile TEXT DEFAULT '',
 			admin_id INTEGER DEFAULT 1,
@@ -133,6 +134,10 @@ func EnsureTenantSchema(db *sql.DB) error {
 			balance REAL NOT NULL DEFAULT 0,
 			enabled INTEGER NOT NULL DEFAULT 1,
 			admin_id INTEGER DEFAULT NULL,
+			quota_limit_mb INTEGER NOT NULL DEFAULT 0,
+			used_octets_in INTEGER NOT NULL DEFAULT 0,
+			used_octets_out INTEGER NOT NULL DEFAULT 0,
+			quota_status TEXT NOT NULL DEFAULT 'active',
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			last_reminder_at TIMESTAMP NULL DEFAULT NULL,
@@ -302,6 +307,13 @@ func EnsureTenantSchema(db *sql.DB) error {
 	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN simultaneous TEXT DEFAULT '1'")
 	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN expired_pool TEXT DEFAULT ''")
 	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN expired_profile TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN quota_limit_mb INTEGER NOT NULL DEFAULT 0")
+
+	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN quota_limit_mb INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN used_octets_in INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN used_octets_out INTEGER NOT NULL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN quota_status TEXT NOT NULL DEFAULT 'active'")
+
 	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN local_relay INTEGER DEFAULT 0")
 	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")

@@ -396,6 +396,32 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 			})
 		}
 
+		// Mikrotik-Total-Limit (Vendor: 14988, Subtype: 17)
+		if authResp.TotalLimit > 0 {
+			tlData := make([]byte, 10)
+			binary.BigEndian.PutUint32(tlData[0:4], 14988)
+			tlData[4] = 17
+			tlData[5] = 6
+			binary.BigEndian.PutUint32(tlData[6:10], authResp.TotalLimit)
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrVendorSpecific,
+				Value: tlData,
+			})
+		}
+
+		// Mikrotik-Total-Limit-Gigawords (Vendor: 14988, Subtype: 18)
+		if authResp.TotalLimitGigawords > 0 {
+			gwData := make([]byte, 10)
+			binary.BigEndian.PutUint32(gwData[0:4], 14988)
+			gwData[4] = 18
+			gwData[5] = 6
+			binary.BigEndian.PutUint32(gwData[6:10], authResp.TotalLimitGigawords)
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrVendorSpecific,
+				Value: gwData,
+			})
+		}
+
 		// Service-Type and Framed-Protocol
 		if isPPP {
 			stBuf := make([]byte, 4)

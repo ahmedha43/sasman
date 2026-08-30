@@ -160,12 +160,14 @@ type GlobalAuthResponsePayload struct {
 	RateLimit      string `json:"rate_limit,omitempty"`
 	MikrotikGroup  string `json:"mikrotik_group,omitempty"`
 	FramedPool     string `json:"framed_pool,omitempty"`
-	SessionTimeout int    `json:"session_timeout,omitempty"`
-	IdleTimeout    int    `json:"idle_timeout,omitempty"`
-	ReplyMessage   string `json:"reply_message,omitempty"`
-	RejectReason   string `json:"reject_reason,omitempty"`
-	AccountType    string `json:"account_type,omitempty"` // 'voucher' | 'roaming_user'
-	Password       string `json:"password,omitempty"`
+	SessionTimeout      int    `json:"session_timeout,omitempty"`
+	IdleTimeout         int    `json:"idle_timeout,omitempty"`
+	TotalLimit          uint32 `json:"total_limit,omitempty"`
+	TotalLimitGigawords uint32 `json:"total_limit_gigawords,omitempty"`
+	ReplyMessage        string `json:"reply_message,omitempty"`
+	RejectReason        string `json:"reject_reason,omitempty"`
+	AccountType         string `json:"account_type,omitempty"` // 'voucher' | 'roaming_user'
+	Password            string `json:"password,omitempty"`
 }
 
 type GlobalAcctPayload struct {

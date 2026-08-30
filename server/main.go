@@ -452,13 +452,15 @@ func main() {
 
 			if details.Err == nil && details.Allow {
 				return tunnel.GlobalAuthResponsePayload{
-					RequestID:      req.RequestID,
-					Allow:          true,
-					Password:       details.Password,
-					RateLimit:      details.RateLimit,
-					MikrotikGroup:  details.MikrotikGroup,
-					FramedPool:     details.FramedPool,
-					SessionTimeout: 86400,
+					RequestID:           req.RequestID,
+					Allow:               true,
+					Password:            details.Password,
+					RateLimit:           details.RateLimit,
+					MikrotikGroup:       details.MikrotikGroup,
+					FramedPool:          details.FramedPool,
+					TotalLimit:          details.TotalLimit,
+					TotalLimitGigawords: details.TotalLimitGigawords,
+					SessionTimeout:      86400,
 				}
 			}
 			return tunnel.GlobalAuthResponsePayload{

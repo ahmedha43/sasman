@@ -135,6 +135,7 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Put("/users/:username", h.handleCreateUser)
 	protectedRadius.Delete("/users/:username", h.handleDeleteUser)
 	protectedRadius.Post("/users/:username/renew", h.handleRenewUser)
+	protectedRadius.Post("/users/:username/reset-quota", h.handleResetUserQuota)
 	protectedRadius.Get("/users/:username/details", h.handleGetUserDetails)
 	protectedRadius.Post("/users/:username/toggle-status", h.handleToggleUserStatus)
 	protectedRadius.Post("/users/:username/disconnect", h.handleDisconnectUser)
@@ -811,7 +812,9 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 	rows, err := db.Query(`
 		SELECT rc.username, rc.value, COALESCE(rum.full_name, ''), COALESCE(rum.phone, ''), 
 		       COALESCE(rum.expiration_unix, 0), COALESCE(rum.enabled, 1),
-		       COALESCE((SELECT groupname FROM radusergroup WHERE username = rc.username LIMIT 1), '10M')
+		       COALESCE((SELECT groupname FROM radusergroup WHERE username = rc.username LIMIT 1), '10M'),
+		       COALESCE(rum.quota_limit_mb, 0), COALESCE(rum.used_octets_in, 0), COALESCE(rum.used_octets_out, 0),
+		       COALESCE(rum.quota_status, 'active')
 		FROM radcheck rc
 		LEFT JOIN radius_user_meta rum ON rc.username = rum.username
 		WHERE rc.attribute = 'Cleartext-Password' OR rc.attribute = 'Disabled-Password'
@@ -837,21 +840,27 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 	}
 
 	type UserItem struct {
-		User          string      `json:"user"`
-		Username      string      `json:"username"`
-		Pass          string      `json:"pass"`
-		Password      string      `json:"password"`
-		FullName      string      `json:"full_name"`
-		Phone         string      `json:"phone"`
-		ExpiresAt     string      `json:"expires_at"`
-		ExpiresAtUnix int64       `json:"expires_at_unix"`
-		Expired       bool        `json:"expired"`
-		Enabled       bool        `json:"enabled"`
-		Profile       string      `json:"profile"`
-		Balance       float64     `json:"balance"`
-		AdminID       int64       `json:"admin_id"`
-		AdminName     string      `json:"admin_name"`
-		Session       SessionData `json:"session"`
+		User           string      `json:"user"`
+		Username       string      `json:"username"`
+		Pass           string      `json:"pass"`
+		Password       string      `json:"password"`
+		FullName       string      `json:"full_name"`
+		Phone          string      `json:"phone"`
+		ExpiresAt      string      `json:"expires_at"`
+		ExpiresAtUnix  int64       `json:"expires_at_unix"`
+		Expired        bool        `json:"expired"`
+		Enabled        bool        `json:"enabled"`
+		Profile        string      `json:"profile"`
+		Balance        float64     `json:"balance"`
+		QuotaLimitMB   int64       `json:"quota_limit_mb"`
+		UsedOctetsIn   int64       `json:"used_octets_in"`
+		UsedOctetsOut  int64       `json:"used_octets_out"`
+		UsedBytesTotal int64       `json:"used_bytes_total"`
+		UsedPercent    float64     `json:"used_percent"`
+		QuotaStatus    string      `json:"quota_status"`
+		AdminID        int64       `json:"admin_id"`
+		AdminName      string      `json:"admin_name"`
+		Session        SessionData `json:"session"`
 	}
 
 	now := time.Now().Unix()
@@ -859,13 +868,25 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 	for rows.Next() {
 		var u UserItem
 		var enabledInt int
-		if err := rows.Scan(&u.User, &u.Pass, &u.FullName, &u.Phone, &u.ExpiresAtUnix, &enabledInt, &u.Profile); err == nil {
+		if err := rows.Scan(&u.User, &u.Pass, &u.FullName, &u.Phone, &u.ExpiresAtUnix, &enabledInt, &u.Profile, &u.QuotaLimitMB, &u.UsedOctetsIn, &u.UsedOctetsOut, &u.QuotaStatus); err == nil {
 			u.Username = u.User
 			u.Password = u.Pass
 			u.Enabled = (enabledInt == 1)
 			u.AdminID = 1
 			u.AdminName = "System"
 			u.Balance = 0
+
+			if u.QuotaLimitMB == 0 && u.Profile != "" {
+				_ = db.QueryRow("SELECT COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname = ?", u.Profile).Scan(&u.QuotaLimitMB)
+			}
+			u.UsedBytesTotal = u.UsedOctetsIn + u.UsedOctetsOut
+			if u.QuotaLimitMB > 0 {
+				totalQuotaBytes := u.QuotaLimitMB * 1024 * 1024
+				u.UsedPercent = (float64(u.UsedBytesTotal) / float64(totalQuotaBytes)) * 100.0
+				if u.UsedPercent > 100.0 {
+					u.UsedPercent = 100.0
+				}
+			}
 
 			if u.ExpiresAtUnix > 0 {
 				u.ExpiresAt = time.Unix(u.ExpiresAtUnix, 0).Format("2006-01-02 15:04")
@@ -1113,17 +1134,42 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 	}
 	newExp := baseTime + int64(validityDays*86400)
 
-	_, _ = db.Exec("UPDATE radius_user_meta SET expiration_unix = ?, enabled = 1 WHERE username = ?", newExp, username)
+	_, _ = db.Exec("UPDATE radius_user_meta SET expiration_unix = ?, enabled = 1, used_octets_in = 0, used_octets_out = 0, quota_status = 'active', updated_at = CURRENT_TIMESTAMP WHERE username = ?", newExp, username)
 	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
 	_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, profile)
 
-	recordTenantAuditLog(db, 1, "المدير العام", "تجديد مشترك", username, fmt.Sprintf("تم تجديد الاشتراك مع باقة %s لمدة %d يوم", profile, validityDays), c.IP())
+	recordTenantAuditLog(db, 1, "المدير العام", "تجديد مشترك", username, fmt.Sprintf("تم تجديد الاشتراك مع باقة %s لمدة %d يوم (تصفير الكوتة)", profile, validityDays), c.IP())
 
 	return c.JSON(fiber.Map{
 		"success":             true,
-		"message":             "تم تجديد اشتراك المشترك بنجاح",
+		"message":             "تم تجديد اشتراك المشترك وتصفير الكوتة بنجاح",
 		"new_expiration_unix": newExp,
 	})
+}
+
+func (h *APIHandler) handleResetUserQuota(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	rawUser := c.Params("username")
+	username, _ := url.PathUnescape(rawUser)
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المشترك مطلوب"})
+	}
+
+	_, err := db.Exec(`
+		UPDATE radius_user_meta 
+		SET used_octets_in = 0, used_octets_out = 0, quota_status = 'active', updated_at = CURRENT_TIMESTAMP
+		WHERE username = ?
+	`, username)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	_, _ = db.Exec(`UPDATE radacct SET acctstoptime = CURRENT_TIMESTAMP, acctterminatecause = 'Quota-Reset' WHERE username = ? AND acctstoptime IS NULL`, username)
+
+	recordTenantAuditLog(db, 1, "المدير العام", "تصفير الكوتة", username, "تم تصفير وإعادة تعيين استهلاك كوتة البيانات", c.IP())
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير وإعادة شحن كوتة المشترك بنجاح"})
 }
 
 func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
@@ -1330,7 +1376,7 @@ func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
 		SELECT groupname, validity_days, price, COALESCE(agent_price, 0),
 		       COALESCE(pool, ''), COALESCE(mikrotik_group, ''), COALESCE(nas_ip, 'ALL'),
 		       COALESCE(simultaneous, '1'), COALESCE(expired_pool, ''), COALESCE(expired_profile, ''),
-		       COALESCE(admin_id, 1)
+		       COALESCE(quota_limit_mb, 0), COALESCE(admin_id, 1)
 		FROM radius_profile_meta
 		ORDER BY groupname ASC
 	`)
@@ -1351,6 +1397,7 @@ func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
 		MikrotikGroup  string  `json:"mikrotik_group"`
 		NasIP          string  `json:"nas_ip"`
 		Simultaneous   string  `json:"simultaneous"`
+		QuotaLimitMB   int64   `json:"quota_limit_mb"`
 		ExpiredPool    string  `json:"expired_pool"`
 		ExpiredProfile string  `json:"expired_profile"`
 		AdminID        int64   `json:"admin_id"`
@@ -1361,7 +1408,7 @@ func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
 	counter := int64(1)
 	for rows.Next() {
 		var p ProfileItem
-		if err := rows.Scan(&p.Name, &p.ValidityDays, &p.Price, &p.AgentPrice, &p.Pool, &p.MikrotikGroup, &p.NasIP, &p.Simultaneous, &p.ExpiredPool, &p.ExpiredProfile, &p.AdminID); err == nil {
+		if err := rows.Scan(&p.Name, &p.ValidityDays, &p.Price, &p.AgentPrice, &p.Pool, &p.MikrotikGroup, &p.NasIP, &p.Simultaneous, &p.ExpiredPool, &p.ExpiredProfile, &p.QuotaLimitMB, &p.AdminID); err == nil {
 			p.ID = counter
 			counter++
 			p.AdminName = "المدير العام"
@@ -1400,6 +1447,7 @@ func (h *APIHandler) handleCreateProfile(c *fiber.Ctx) error {
 		AgentPrice     float64     `json:"agent_price"`
 		NasIP          string      `json:"nas_ip"`
 		Simultaneous   string      `json:"simultaneous"`
+		QuotaLimitMB   int64       `json:"quota_limit_mb"`
 		ExpiredPool    string      `json:"expired_pool"`
 		ExpiredProfile string      `json:"expired_profile"`
 		AdminID        int64       `json:"admin_id"`
@@ -1472,8 +1520,8 @@ func (h *APIHandler) handleCreateProfile(c *fiber.Ctx) error {
 	}
 
 	_, err := db.Exec(`
-		INSERT INTO radius_profile_meta (groupname, validity_days, price, agent_price, pool, mikrotik_group, nas_ip, simultaneous, expired_pool, expired_profile, admin_id, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+		INSERT INTO radius_profile_meta (groupname, validity_days, price, agent_price, pool, mikrotik_group, nas_ip, simultaneous, quota_limit_mb, expired_pool, expired_profile, admin_id, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
 		ON CONFLICT(groupname) DO UPDATE SET
 			validity_days = excluded.validity_days,
 			price = excluded.price,
@@ -1482,10 +1530,11 @@ func (h *APIHandler) handleCreateProfile(c *fiber.Ctx) error {
 			mikrotik_group = excluded.mikrotik_group,
 			nas_ip = excluded.nas_ip,
 			simultaneous = excluded.simultaneous,
+			quota_limit_mb = excluded.quota_limit_mb,
 			expired_pool = excluded.expired_pool,
 			expired_profile = excluded.expired_profile,
 			updated_at = CURRENT_TIMESTAMP
-	`, name, validityDays, req.Price, req.AgentPrice, req.Pool, req.MikrotikGroup, nasIP, simultaneous, req.ExpiredPool, req.ExpiredProfile)
+	`, name, validityDays, req.Price, req.AgentPrice, req.Pool, req.MikrotikGroup, nasIP, simultaneous, req.QuotaLimitMB, req.ExpiredPool, req.ExpiredProfile)
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

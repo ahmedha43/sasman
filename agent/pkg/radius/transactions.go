@@ -131,7 +131,7 @@ func AddTransaction(c *fiber.Ctx) error {
 
 	LogActivityFromCtx(c, actName, username, fmt.Sprintf("%s بمبلغ %.2f للمشترك %s (ملاحظات: %s)", msg, req.Amount, username, req.Notes))
 
-	_, _, balance, _, _ := loadUserExtraInfo(username)
+	_, _, balance, _, _, _, _, _, _ := loadUserExtraInfo(username)
 	templateKey := "add_debt"
 	if req.Type == "payment" {
 		templateKey = "payment"
@@ -181,7 +181,7 @@ func GetUserDetails(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	fullName, phone, balance, createdAt, _ := loadUserExtraInfo(username)
+	fullName, phone, balance, createdAt, _, _, _, _, _ := loadUserExtraInfo(username)
 
 	session := GetSessionForUser(username)
 	expired := expirationUnix.Valid && expirationUnix.Int64 > 0 && currentBaghdadTime().Unix() >= expirationUnix.Int64
@@ -273,7 +273,7 @@ func GetUserBalance(c *fiber.Ctx) error {
 	rawUser := c.Params("user")
 	username, _ := url.PathUnescape(rawUser)
 
-	_, _, balance, _, _ := loadUserExtraInfo(username)
+	_, _, balance, _, _, _, _, _, _ := loadUserExtraInfo(username)
 	return c.JSON(fiber.Map{"balance": balance})
 }
 

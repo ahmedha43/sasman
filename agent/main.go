@@ -735,6 +735,7 @@ func main() {
 	radiusSecure.Get("/sessions", radius.ListActiveSessionsHandler)
 	radiusSecure.Post("/users", radius.CreateUser)
 	radiusSecure.Post("/users/:user/renew", radius.RenewUser)
+	radiusSecure.Post("/users/:user/reset-quota", radius.ResetUserQuota)
 	radiusSecure.Delete("/users/:user", radius.DeleteUser)
 	radiusSecure.Post("/users/:user/disconnect", radius.DisconnectUser)
 	radiusSecure.Post("/users/:user/toggle-status", radius.ToggleUserStatus)
