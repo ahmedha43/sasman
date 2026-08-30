@@ -816,7 +816,7 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 		LEFT JOIN radius_user_meta rum ON rc.username = rum.username
 		WHERE rc.attribute = 'Cleartext-Password' OR rc.attribute = 'Disabled-Password'
 		ORDER BY rc.id DESC
-		LIMIT 200
+		LIMIT 10000
 	`)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
@@ -2353,7 +2353,7 @@ func (h *APIHandler) handleListActiveSessions(c *fiber.Ctx) error {
 		FROM radacct
 		WHERE acctstoptime IS NULL
 		ORDER BY radacctid DESC
-		LIMIT 200
+		LIMIT 5000
 	`)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
@@ -3043,13 +3043,27 @@ func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleImportSAS4(c *fiber.Ctx) error {
-	file, err := c.FormFile("file")
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى اختيار ملف قاعدة بيانات SAS4"})
+	db := c.Locals("tenant_db").(*sql.DB)
+
+	var req SAS4MigrationRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "صيغة الطلب غير صالحة"})
 	}
+
+	if req.URL == "" || req.Username == "" || req.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى إدخال الرابط واسم المستخدم وكلمة المرور"})
+	}
+
+	res, err := RunSAS4Migration(db, req)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
 	return c.JSON(fiber.Map{
-		"success": true,
-		"message": fmt.Sprintf("تم استلام ملف SAS4 (%s) وجارٍ تجهيز المشتركين", file.Filename),
+		"success":        true,
+		"message":        res.Message,
+		"users_imported": res.UsersImported,
+		"profiles_seen":  res.ProfilesSeen,
 	})
 }
 
