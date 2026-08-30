@@ -586,7 +586,7 @@ func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPaylo
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, p.SessionID, p.Username, p.NasIP, now, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut)
 	case "Stop":
-		_, err = tenantDB.Exec(`
+		res, err := tenantDB.Exec(`
 			UPDATE radacct SET 
 				acctstoptime = ?,
 				acctsessiontime = ?,
@@ -595,6 +595,16 @@ func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPaylo
 				acctterminatecause = ?
 			WHERE acctsessionid = ? OR (username = ? AND acctstoptime IS NULL)
 		`, now, p.SessionTimeSec, p.BytesIn, p.BytesOut, p.TerminateCause, p.SessionID, p.Username)
+		if err == nil {
+			if rows, _ := res.RowsAffected(); rows == 0 {
+				_, _ = tenantDB.Exec(`
+					INSERT INTO radacct (
+						acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime, acctstoptime,
+						framedipaddress, callingstationid, acctinputoctets, acctoutputoctets, acctsessiontime, acctterminatecause
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`, p.SessionID, p.Username, p.NasIP, now, now, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut, p.SessionTimeSec, p.TerminateCause)
+			}
+		}
 	case "Interim-Update":
 		res, err := tenantDB.Exec(`
 			UPDATE radacct SET 

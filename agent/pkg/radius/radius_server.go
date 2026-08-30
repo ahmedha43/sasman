@@ -990,9 +990,14 @@ func recordSQLiteAccounting(username string, status uint32, sid, ip, cli, nasIP 
 			secs, in, out, ip, ip, sid)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n == 0 {
-				_, _ = DB.Exec(`UPDATE radacct SET acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, framedipaddress = CASE WHEN ? != '' THEN ? ELSE framedipaddress END
+				resUser, _ := DB.Exec(`UPDATE radacct SET acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, framedipaddress = CASE WHEN ? != '' THEN ? ELSE framedipaddress END
 					WHERE username = ? AND acctstoptime IS NULL`,
 					secs, in, out, ip, ip, username)
+				if nUser, _ := resUser.RowsAffected(); nUser == 0 {
+					_, _ = DB.Exec(`INSERT INTO radacct (username, acctsessionid, nasipaddress, callingstationid, framedipaddress, acctstarttime, acctupdatetime, acctsessiontime, acctinputoctets, acctoutputoctets)
+						VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'), ?, ?, ?)`,
+						username, sid, nasIP, cli, ip, secs, in, out)
+				}
 			}
 		}
 	case 2: // Stop
@@ -1005,9 +1010,14 @@ func recordSQLiteAccounting(username string, status uint32, sid, ip, cli, nasIP 
 			secs, in, out, causeStr, sid)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n == 0 {
-				_, _ = DB.Exec(`UPDATE radacct SET acctstoptime = datetime('now', 'localtime'), acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, acctterminatecause = ?
+				resUser, _ := DB.Exec(`UPDATE radacct SET acctstoptime = datetime('now', 'localtime'), acctupdatetime = datetime('now', 'localtime'), acctsessiontime = ?, acctinputoctets = ?, acctoutputoctets = ?, acctterminatecause = ?
 					WHERE username = ? AND acctstoptime IS NULL`,
 					secs, in, out, causeStr, username)
+				if nUser, _ := resUser.RowsAffected(); nUser == 0 {
+					_, _ = DB.Exec(`INSERT INTO radacct (username, acctsessionid, nasipaddress, callingstationid, framedipaddress, acctstarttime, acctupdatetime, acctstoptime, acctsessiontime, acctinputoctets, acctoutputoctets, acctterminatecause)
+						VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'), datetime('now', 'localtime'), ?, ?, ?, ?)`,
+						username, sid, nasIP, cli, ip, secs, in, out, causeStr)
+				}
 			}
 		}
 	}
@@ -1231,5 +1241,21 @@ func lookupExpiredRedirect(username string, attrs map[string]string) (expiredPoo
 		return redirect.ExpiredPool, redirect.ExpiredProfile
 	}
 	return "", ""
+}
+
+func HandleAuthRequestForTest(ctx context.Context, req *server.Request) (*packet.Packet, error) {
+	return handleAuthRequest(ctx, req)
+}
+
+func RecordSQLiteAccountingForTest(username string, status uint32, sid, ip, cli, nasIP string, in, out uint64, secs int64, termCause uint32) {
+	recordSQLiteAccounting(username, status, sid, ip, cli, nasIP, in, out, secs, termCause)
+}
+
+func NewServerRequestForTest(pkt *packet.Packet, secret []byte, remoteAddr net.Addr) *server.Request {
+	return &server.Request{
+		Packet:     pkt,
+		Secret:     secret,
+		RemoteAddr: remoteAddr,
+	}
 }
 
