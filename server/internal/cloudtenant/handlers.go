@@ -477,10 +477,46 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 			})
 		}
 
+		username, _ := claims["username"].(string)
+		if strings.Contains(username, "@") {
+			parts := strings.Split(username, "@")
+			username = parts[0]
+		}
+		role, _ := claims["role"].(string)
+		if role == "" {
+			role = "superadmin"
+		}
+
+		perms := make(map[string]bool)
+		if username != "" {
+			var permStr, dbRole string
+			if err := db.QueryRow("SELECT role, COALESCE(permissions, '{}') FROM radius_admins WHERE username = ?", username).Scan(&dbRole, &permStr); err == nil {
+				if dbRole != "" {
+					role = dbRole
+				}
+				_ = json.Unmarshal([]byte(permStr), &perms)
+			}
+		}
+
 		c.Locals("subdomain", subdomain)
 		c.Locals("tenant_db", db)
+		c.Locals("username", username)
+		c.Locals("role", role)
+		c.Locals("permissions", perms)
 		return c.Next()
 	}
+}
+
+func (h *APIHandler) hasPermission(c *fiber.Ctx, perm string) bool {
+	role, _ := c.Locals("role").(string)
+	if role == "superadmin" {
+		return true
+	}
+	perms, ok := c.Locals("permissions").(map[string]bool)
+	if !ok || perms == nil {
+		return false
+	}
+	return perms[perm]
 }
 
 func (h *APIHandler) handleCloudLicenseStatus(c *fiber.Ctx) error {
@@ -563,7 +599,14 @@ func (h *APIHandler) handleCloudAuthMe(c *fiber.Ctx) error {
 	}
 
 	claims, _ := token.Claims.(jwt.MapClaims)
+	if subdomain == "" {
+		subdomain, _ = claims["subdomain"].(string)
+	}
 	username, _ := claims["username"].(string)
+	if strings.Contains(username, "@") {
+		parts := strings.Split(username, "@")
+		username = parts[0]
+	}
 	if username == "" {
 		username = "admin"
 	}
@@ -572,11 +615,59 @@ func (h *APIHandler) handleCloudAuthMe(c *fiber.Ctx) error {
 		role = "superadmin"
 	}
 
+	// Fetch fresh data & permissions from tenant DB
+	db, err := h.mgr.pool.Get(subdomain)
+	if err == nil {
+		var id int64
+		var name, phone, permStr, dbRole string
+		var balance float64
+		err = db.QueryRow(`
+			SELECT id, COALESCE(name, ''), role, COALESCE(phone, ''), 
+			       COALESCE(balance, 0), COALESCE(permissions, '{}')
+			FROM radius_admins WHERE username = ?
+		`, username).Scan(&id, &name, &dbRole, &phone, &balance, &permStr)
+		if err == nil {
+			if dbRole != "" {
+				role = dbRole
+			}
+			if name == "" {
+				if role == "superadmin" {
+					name = "مدير النظام"
+				} else {
+					name = username
+				}
+			}
+
+			perms := make(map[string]bool)
+			_ = json.Unmarshal([]byte(permStr), &perms)
+
+			res := fiber.Map{
+				"id":          id,
+				"username":    username,
+				"name":        name,
+				"role":        role,
+				"phone":       phone,
+				"balance":     balance,
+				"permissions": perms,
+				"subdomain":   subdomain,
+			}
+			for k, v := range perms {
+				res[k] = v
+			}
+			return c.JSON(res)
+		}
+	}
+
+	displayName := "مدير النظام"
+	if role != "superadmin" {
+		displayName = username
+	}
 	return c.JSON(fiber.Map{
-		"username":  username,
-		"role":      role,
-		"subdomain": subdomain,
-		"name":      "Admin (" + subdomain + ")",
+		"username":    username,
+		"role":        role,
+		"subdomain":   subdomain,
+		"name":        displayName,
+		"permissions": fiber.Map{},
 	})
 }
 
@@ -604,14 +695,16 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
 	}
 
-	if subdomain == "" {
-		subdomain = c.Query("sub")
-	}
-
-	if subdomain == "" && strings.Contains(req.Username, "@") {
+	if strings.Contains(req.Username, "@") {
 		parts := strings.Split(req.Username, "@")
 		req.Username = parts[0]
-		subdomain = parts[1]
+		if subdomain == "" {
+			subdomain = parts[1]
+		}
+	}
+
+	if subdomain == "" {
+		subdomain = c.Query("sub")
 	}
 
 	if subdomain == "" {
@@ -878,6 +971,17 @@ func (h *APIHandler) handleCreateUser(c *fiber.Ctx) error {
 	}
 	_ = db.QueryRow("SELECT COALESCE(expiration_unix, 0), COALESCE(enabled, 1) FROM radius_user_meta WHERE username = ?", lookupUser).Scan(&existingExp, &existingEnabled)
 
+	// RBAC Permission Check
+	if existingExp > 0 || isRename {
+		if !h.hasPermission(c, "can_edit_users") {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تعديل بيانات المشتركين"})
+		}
+	} else {
+		if !h.hasPermission(c, "can_create_users") {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية إضافة مشتركين جدد"})
+		}
+	}
+
 	var expUnix int64
 	if req.ExpiresAtUnix > 0 {
 		expUnix = req.ExpiresAtUnix
@@ -958,6 +1062,9 @@ func (h *APIHandler) handleCreateUser(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleDeleteUser(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_delete_users") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية حذف المشتركين"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	rawUser := c.Params("username")
 	username, _ := url.PathUnescape(rawUser)
@@ -974,6 +1081,9 @@ func (h *APIHandler) handleDeleteUser(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_renew_users") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تجديد اشتراك المشتركين"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	rawUser := c.Params("username")
 	username, _ := url.PathUnescape(rawUser)
@@ -1117,6 +1227,9 @@ func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_toggle_users") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تعطيل أو تفعيل المشتركين"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	rawUser := c.Params("username")
 	username, _ := url.PathUnescape(rawUser)
@@ -1162,6 +1275,9 @@ func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleDisconnectUser(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_disconnect_users") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية فصل جلسة المشترك"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	subdomain, _ := c.Locals("subdomain").(string)
 	if subdomain == "" {
@@ -1264,6 +1380,9 @@ func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleCreateProfile(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_manage_profiles") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية إدارة وتعديل باقات السرعة"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 
 	var req struct {
@@ -1399,6 +1518,9 @@ func (h *APIHandler) handleCreateProfile(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleDeleteProfile(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_manage_profiles") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية حذف باقات السرعة"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	name := c.Params("name")
 	_, _ = db.Exec("DELETE FROM radius_profile_meta WHERE groupname = ?", name)
@@ -1465,6 +1587,9 @@ func (h *APIHandler) handleListVouchers(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleDeleteVoucher(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_delete_vouchers") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية حذف الكروت"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	id := c.Params("id")
 	_, _ = db.Exec("DELETE FROM radius_vouchers WHERE id = ?", id)
@@ -1579,6 +1704,10 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleRegisterAdmin(c *fiber.Ctx) error {
+	requesterRole, _ := c.Locals("role").(string)
+	if requesterRole != "superadmin" && !h.hasPermission(c, "can_manage_subagents") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية إضافة وكلاء فرعيين"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	var rawMap map[string]interface{}
 	if err := c.BodyParser(&rawMap); err != nil {
@@ -1632,6 +1761,10 @@ func (h *APIHandler) handleRegisterAdmin(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleUpdateAdminPermissions(c *fiber.Ctx) error {
+	requesterRole, _ := c.Locals("role").(string)
+	if requesterRole != "superadmin" && !h.hasPermission(c, "can_manage_subagents") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تعديل صلاحيات الوكلاء"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	id := c.Params("id")
 	if id == "" || id == "0" {
@@ -1976,6 +2109,9 @@ func generateCloudRandomCode(length int, codeType string) string {
 }
 
 func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_generate_vouchers") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية توليد كروت جديدة"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 
 	var req struct {
@@ -2237,6 +2373,9 @@ func recordTenantAuditLog(db *sql.DB, adminID int64, adminUser, actionType, targ
 }
 
 func (h *APIHandler) handleListAuditLogs(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_view_logs") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية استعراض سجل الرقابة والعمليات"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 
 	page, _ := strconv.Atoi(c.Query("page", "1"))
@@ -2479,6 +2618,9 @@ func (h *APIHandler) handleRestoreBackup(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleDeleteVoucherBatch(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_delete_vouchers") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية حذف وتفريغ الكروت"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	batchID := c.Params("batch_id")
 	if batchID == "" {
@@ -2490,6 +2632,9 @@ func (h *APIHandler) handleDeleteVoucherBatch(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleClearAllVouchers(c *fiber.Ctx) error {
+	if !h.hasPermission(c, "can_delete_vouchers") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تفريغ الكروت"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	_, _ = db.Exec("DELETE FROM radius_vouchers")
 	_, _ = db.Exec("DELETE FROM radius_voucher_batches")
