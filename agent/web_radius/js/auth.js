@@ -685,7 +685,7 @@ async function openAgentLogModal(id, username) {
             return;
         }
         const list = await res.json();
-        const filtered = Array.isArray(list) ? list.filter(tx => tx.admin_id == id || !tx.admin_id) : [];
+        const filtered = Array.isArray(list) ? list.filter(tx => tx.admin_id == id || tx.admin_username === username || !tx.admin_id) : [];
         
         if (!filtered.length) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد عمليات مسجلة لهذا الوكيل بعد</td></tr>';
@@ -693,7 +693,11 @@ async function openAgentLogModal(id, username) {
         }
         
         tbody.innerHTML = filtered.map(tx => {
-            const date = tx.created_at ? new Date(tx.created_at).toLocaleString('ar') : '';
+            let date = '';
+            if (tx.created_at) {
+                const parsedDate = new Date(tx.created_at.replace(' ', 'T'));
+                date = !isNaN(parsedDate.getTime()) ? parsedDate.toLocaleString('ar') : tx.created_at;
+            }
             const isRecharge = (tx.transaction_type === 'recharge' || tx.type === 'recharge');
             const tTypeName = isRecharge ? 'شحن رصيد ➕' : 'سحب رصيد ➖';
             const tTypeColor = isRecharge ? '#16a34a' : '#dc2626';

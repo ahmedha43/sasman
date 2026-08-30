@@ -618,10 +618,18 @@ func ListAdminTransactions(requesterID int64, requesterRole string) ([]AdminTran
 	var rows *sql.Rows
 	var err error
 
-	query := `SELECT t.id, t.admin_id, a.username, t.performed_by, p.username, t.transaction_type, t.amount, t.notes, t.created_at
+	query := `SELECT t.id, 
+	                 t.admin_id, 
+	                 COALESCE(a.username, ''), 
+	                 COALESCE(t.performed_by, 1), 
+	                 COALESCE(p.name, p.username, 'المدير العام'), 
+	                 COALESCE(t.transaction_type, 'recharge'), 
+	                 COALESCE(t.amount, 0), 
+	                 COALESCE(t.notes, ''), 
+	                 COALESCE(t.created_at, '')
 	          FROM radius_admin_transactions t
-	          JOIN radius_admins a ON t.admin_id = a.id
-	          JOIN radius_admins p ON t.performed_by = p.id`
+	          LEFT JOIN radius_admins a ON t.admin_id = a.id
+	          LEFT JOIN radius_admins p ON t.performed_by = p.id`
 
 	if requesterRole == "superadmin" {
 		rows, err = DB.Query(query + ` ORDER BY t.id DESC LIMIT 200`)
@@ -639,11 +647,10 @@ func ListAdminTransactions(requesterID int64, requesterRole string) ([]AdminTran
 	for rows.Next() {
 		var tx AdminTransaction
 		var createdAt string
-		if err := rows.Scan(&tx.ID, &tx.AdminID, &tx.AdminUsername, &tx.PerformedBy, &tx.PerformerName, &tx.TransactionType, &tx.Amount, &tx.Notes, &createdAt); err != nil {
-			return nil, err
+		if err := rows.Scan(&tx.ID, &tx.AdminID, &tx.AdminUsername, &tx.PerformedBy, &tx.PerformerName, &tx.TransactionType, &tx.Amount, &tx.Notes, &createdAt); err == nil {
+			tx.CreatedAt = parseDBTime(createdAt)
+			out = append(out, tx)
 		}
-		tx.CreatedAt = parseDBTime(createdAt)
-		out = append(out, tx)
 	}
 	return out, nil
 }

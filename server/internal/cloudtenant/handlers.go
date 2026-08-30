@@ -1822,75 +1822,198 @@ func (h *APIHandler) handleDeleteAdmin(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleRechargeAdmin(c *fiber.Ctx) error {
+	requesterRole, _ := c.Locals("role").(string)
+	if requesterRole != "superadmin" && !h.hasPermission(c, "can_manage_transactions") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية شحن أرصدة الوكلاء"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 
 	var req struct {
-		AdminID int64   `json:"admin_id"`
-		Amount  float64 `json:"amount"`
-		Notes   string  `json:"notes"`
+		AdminID interface{} `json:"admin_id"`
+		Amount  float64     `json:"amount"`
+		Notes   string      `json:"notes"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.Amount <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "المبلغ غير صالح"})
 	}
 
-	var adminName string
-	_ = db.QueryRow("SELECT username FROM radius_admins WHERE id = ?", req.AdminID).Scan(&adminName)
-	if adminName == "" {
-		adminName = fmt.Sprintf("وكيل #%d", req.AdminID)
+	var targetID int64
+	switch v := req.AdminID.(type) {
+	case float64:
+		targetID = int64(v)
+	case int:
+		targetID = int64(v)
+	case int64:
+		targetID = v
+	case string:
+		targetID, _ = strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if targetID == 0 {
+			_ = db.QueryRow("SELECT id FROM radius_admins WHERE username = ?", strings.TrimSpace(v)).Scan(&targetID)
+		}
 	}
 
-	_, err := db.Exec("UPDATE radius_admins SET balance = balance + ? WHERE id = ?", req.Amount, req.AdminID)
+	if targetID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى تحديد الوكيل المطلوب"})
+	}
+
+	var adminName, adminUser string
+	_ = db.QueryRow("SELECT COALESCE(name, username), username FROM radius_admins WHERE id = ?", targetID).Scan(&adminName, &adminUser)
+	if adminName == "" {
+		adminName = fmt.Sprintf("وكيل #%d", targetID)
+	}
+
+	performerName := "المدير العام"
+	if pName, ok := c.Locals("name").(string); ok && pName != "" {
+		performerName = pName
+	} else if pUser, ok := c.Locals("username").(string); ok && pUser != "" {
+		performerName = pUser
+	}
+
+	_, err := db.Exec("UPDATE radius_admins SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", req.Amount, targetID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	var newBal float64
-	_ = db.QueryRow("SELECT balance FROM radius_admins WHERE id = ?", req.AdminID).Scan(&newBal)
-	_, _ = db.Exec("INSERT INTO radius_admin_transactions (admin_id, type, transaction_type, performer_name, amount, balance_after, notes) VALUES (?, 'recharge', 'recharge', 'المدير العام', ?, ?, ?)", req.AdminID, req.Amount, newBal, req.Notes)
+	_ = db.QueryRow("SELECT balance FROM radius_admins WHERE id = ?", targetID).Scan(&newBal)
 
-	recordTenantAuditLog(db, 1, "المدير العام", "شحن رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
+	// Ensure table columns exist
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performed_by INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_id INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_name TEXT DEFAULT 'المدير العام'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN type TEXT DEFAULT 'recharge'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN transaction_type TEXT DEFAULT 'recharge'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN balance_after REAL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN notes TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 
-	return c.JSON(fiber.Map{"success": true, "message": "تم شحن الرصيد بنجاح"})
+	_, _ = db.Exec(`
+		INSERT INTO radius_admin_transactions (admin_id, performed_by, performer_name, type, transaction_type, amount, balance_after, notes, created_at)
+		VALUES (?, 1, ?, 'recharge', 'recharge', ?, ?, ?, CURRENT_TIMESTAMP)
+	`, targetID, performerName, req.Amount, newBal, req.Notes)
+
+	recordTenantAuditLog(db, 1, performerName, "شحن رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم شحن الرصيد بنجاح", "balance": newBal})
 }
 
 func (h *APIHandler) handleWithdrawAdmin(c *fiber.Ctx) error {
+	requesterRole, _ := c.Locals("role").(string)
+	if requesterRole != "superadmin" && !h.hasPermission(c, "can_manage_transactions") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية سحب رصيد الوكلاء"})
+	}
 	db := c.Locals("tenant_db").(*sql.DB)
 
 	var req struct {
-		AdminID int64   `json:"admin_id"`
-		Amount  float64 `json:"amount"`
-		Notes   string  `json:"notes"`
+		AdminID interface{} `json:"admin_id"`
+		Amount  float64     `json:"amount"`
+		Notes   string      `json:"notes"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.Amount <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "المبلغ غير صالح"})
 	}
 
-	var adminName string
-	_ = db.QueryRow("SELECT username FROM radius_admins WHERE id = ?", req.AdminID).Scan(&adminName)
-	if adminName == "" {
-		adminName = fmt.Sprintf("وكيل #%d", req.AdminID)
+	var targetID int64
+	switch v := req.AdminID.(type) {
+	case float64:
+		targetID = int64(v)
+	case int:
+		targetID = int64(v)
+	case int64:
+		targetID = v
+	case string:
+		targetID, _ = strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if targetID == 0 {
+			_ = db.QueryRow("SELECT id FROM radius_admins WHERE username = ?", strings.TrimSpace(v)).Scan(&targetID)
+		}
 	}
 
-	_, err := db.Exec("UPDATE radius_admins SET balance = balance - ? WHERE id = ?", req.Amount, req.AdminID)
+	if targetID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى تحديد الوكيل المطلوب"})
+	}
+
+	var adminName, adminUser string
+	var curBal float64
+	err := db.QueryRow("SELECT COALESCE(name, username), username, balance FROM radius_admins WHERE id = ?", targetID).Scan(&adminName, &adminUser, &curBal)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "الوكيل غير موجود"})
+	}
+	if curBal < req.Amount {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": fmt.Sprintf("رصيد الوكيل غير كافٍ للسحب. الرصيد الحالي: %.0f د.ع", curBal)})
+	}
+
+	performerName := "المدير العام"
+	if pName, ok := c.Locals("name").(string); ok && pName != "" {
+		performerName = pName
+	} else if pUser, ok := c.Locals("username").(string); ok && pUser != "" {
+		performerName = pUser
+	}
+
+	_, err = db.Exec("UPDATE radius_admins SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", req.Amount, targetID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	var newBal float64
-	_ = db.QueryRow("SELECT balance FROM radius_admins WHERE id = ?", req.AdminID).Scan(&newBal)
-	_, _ = db.Exec("INSERT INTO radius_admin_transactions (admin_id, type, transaction_type, performer_name, amount, balance_after, notes) VALUES (?, 'withdraw', 'withdraw', 'المدير العام', ?, ?, ?)", req.AdminID, req.Amount, newBal, req.Notes)
+	_ = db.QueryRow("SELECT balance FROM radius_admins WHERE id = ?", targetID).Scan(&newBal)
 
-	recordTenantAuditLog(db, 1, "المدير العام", "سحب رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
+	// Ensure table columns exist
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performed_by INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_id INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_name TEXT DEFAULT 'المدير العام'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN type TEXT DEFAULT 'withdraw'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN transaction_type TEXT DEFAULT 'withdraw'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN balance_after REAL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN notes TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 
-	return c.JSON(fiber.Map{"success": true, "message": "تم سحب الرصيد بنجاح"})
+	_, _ = db.Exec(`
+		INSERT INTO radius_admin_transactions (admin_id, performed_by, performer_name, type, transaction_type, amount, balance_after, notes, created_at)
+		VALUES (?, 1, ?, 'withdraw', 'withdraw', ?, ?, ?, CURRENT_TIMESTAMP)
+	`, targetID, performerName, req.Amount, newBal, req.Notes)
+
+	recordTenantAuditLog(db, 1, performerName, "سحب رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم سحب الرصيد بنجاح", "balance": newBal})
 }
 
 func (h *APIHandler) handleListAdminTransactions(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
+	adminIDParam := strings.TrimSpace(c.Query("admin_id"))
 
-	adminID := c.Query("admin_id")
+	// Ensure table & columns exist
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS radius_admin_transactions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			admin_id INTEGER NOT NULL,
+			performed_by INTEGER DEFAULT 1,
+			performer_id INTEGER DEFAULT 1,
+			performer_name TEXT DEFAULT 'المدير العام',
+			type TEXT NOT NULL DEFAULT 'recharge',
+			transaction_type TEXT NOT NULL DEFAULT 'recharge',
+			amount REAL NOT NULL,
+			balance_after REAL DEFAULT 0,
+			notes TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+	`)
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performed_by INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_id INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_name TEXT DEFAULT 'المدير العام'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN type TEXT DEFAULT 'recharge'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN transaction_type TEXT DEFAULT 'recharge'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN balance_after REAL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN notes TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 
-	// Backfill: If an admin has a positive balance but 0 transaction records, auto-insert an initial balance transaction
+	var targetID int64
+	if num, err := strconv.ParseInt(adminIDParam, 10, 64); err == nil {
+		targetID = num
+	} else if adminIDParam != "" {
+		_ = db.QueryRow("SELECT id FROM radius_admins WHERE username = ?", adminIDParam).Scan(&targetID)
+	}
+
+	// Backfill initial transactions for admins with balance if none exist
 	adminRows, aErr := db.Query("SELECT id, balance, created_at FROM radius_admins WHERE balance > 0")
 	if aErr == nil {
 		for adminRows.Next() {
@@ -1901,20 +2024,35 @@ func (h *APIHandler) handleListAdminTransactions(c *fiber.Ctx) error {
 				var count int
 				_ = db.QueryRow("SELECT COUNT(*) FROM radius_admin_transactions WHERE admin_id = ?", aID).Scan(&count)
 				if count == 0 {
-					_, _ = db.Exec("INSERT INTO radius_admin_transactions (admin_id, type, transaction_type, performer_name, amount, balance_after, notes, created_at) VALUES (?, 'recharge', 'recharge', 'المدير العام', ?, ?, 'رصيد سابق / شحن ابتدائي', ?)", aID, bal, bal, created)
+					_, _ = db.Exec("INSERT INTO radius_admin_transactions (admin_id, performed_by, performer_name, type, transaction_type, amount, balance_after, notes, created_at) VALUES (?, 1, 'المدير العام', 'recharge', 'recharge', ?, ?, 'رصيد سابق / شحن ابتدائي', ?)", aID, bal, bal, created)
 				}
 			}
 		}
 		adminRows.Close()
 	}
 
+	query := `
+		SELECT t.id, 
+		       t.admin_id, 
+		       COALESCE(t.transaction_type, t.type, 'recharge') AS tx_type,
+		       COALESCE(NULLIF(t.performer_name, ''), p.name, p.username, 'المدير العام') AS perf_name,
+		       COALESCE(t.amount, 0) AS amount, 
+		       COALESCE(t.balance_after, 0) AS balance_after, 
+		       COALESCE(t.notes, '') AS notes, 
+		       COALESCE(t.created_at, '') AS created_at
+		FROM radius_admin_transactions t
+		LEFT JOIN radius_admins p ON (t.performed_by = p.id OR t.performer_id = p.id)
+	`
 	var rows *sql.Rows
 	var err error
-	if adminID != "" {
-		rows, err = db.Query("SELECT id, admin_id, COALESCE(type, 'recharge'), COALESCE(transaction_type, type, 'recharge'), COALESCE(performer_name, 'المدير العام'), amount, balance_after, COALESCE(notes, ''), created_at FROM radius_admin_transactions WHERE admin_id = ? ORDER BY id DESC LIMIT 100", adminID)
+	if targetID > 0 {
+		query += " WHERE t.admin_id = ? ORDER BY t.id DESC LIMIT 200"
+		rows, err = db.Query(query, targetID)
 	} else {
-		rows, err = db.Query("SELECT id, admin_id, COALESCE(type, 'recharge'), COALESCE(transaction_type, type, 'recharge'), COALESCE(performer_name, 'المدير العام'), amount, balance_after, COALESCE(notes, ''), created_at FROM radius_admin_transactions ORDER BY id DESC LIMIT 100")
+		query += " ORDER BY t.id DESC LIMIT 200"
+		rows, err = db.Query(query)
 	}
+
 	if err != nil {
 		return c.JSON([]interface{}{})
 	}
@@ -1934,9 +2072,36 @@ func (h *APIHandler) handleListAdminTransactions(c *fiber.Ctx) error {
 
 	res := []TxLogItem{}
 	for rows.Next() {
-		var t TxLogItem
-		if err := rows.Scan(&t.ID, &t.AdminID, &t.Type, &t.TransactionType, &t.PerformerName, &t.Amount, &t.BalanceAfter, &t.Notes, &t.CreatedAt); err == nil {
-			res = append(res, t)
+		var (
+			id        int64
+			aID       int64
+			tType     sql.NullString
+			perfName  sql.NullString
+			amt       sql.NullFloat64
+			balAfter  sql.NullFloat64
+			notes     sql.NullString
+			createdAt sql.NullString
+		)
+		if err := rows.Scan(&id, &aID, &tType, &perfName, &amt, &balAfter, &notes, &createdAt); err == nil {
+			typeStr := "recharge"
+			if tType.Valid && tType.String != "" {
+				typeStr = tType.String
+			}
+			pNameStr := "المدير العام"
+			if perfName.Valid && perfName.String != "" {
+				pNameStr = perfName.String
+			}
+			res = append(res, TxLogItem{
+				ID:              id,
+				AdminID:         aID,
+				Type:            typeStr,
+				TransactionType: typeStr,
+				PerformerName:   pNameStr,
+				Amount:          amt.Float64,
+				BalanceAfter:    balAfter.Float64,
+				Notes:           notes.String,
+				CreatedAt:       createdAt.String,
+			})
 		}
 	}
 	return c.JSON(res)
