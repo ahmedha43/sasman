@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <title>SASMAN - تسجيل الدخول</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/radius/favicon.ico">
+
+    <link rel="stylesheet" href="/radius/fonts/google-fonts.css">
+    <link rel="stylesheet" href="/radius/vendor/fontawesome/all.min.css">
+
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --primary-hover: #0284c7;
+            --bg-start: #00a2e8;
+            --bg-end: #0f172a;
+            --text-dark: #1e293b;
+            --text-secondary: #64748b;
+            --white: #ffffff;
+            --danger: #ef4444;
+            --border-color: #cbd5e1;
+            --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Cairo', 'Open Sans', sans-serif;
+            background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 40%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            direction: rtl;
+        }
+
+        /* Tech network background constellation elements */
+        .bg-network-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .bg-network-overlay svg {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 460px;
+            padding: 20px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Logo above the card */
+        .logo-container {
+            margin-bottom: 24px;
+            text-align: center;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .logo-img {
+            max-width: 250px;
+            height: auto;
+            filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));
+        }
+
+        #fallback-logo {
+            display: none;
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--white);
+            border-radius: 12px;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            font-size: 36px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+
+        /* Glassmorphism main login card matching screenshot */
+        .login-card {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            border-radius: 6px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+            padding: 40px 32px;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition-smooth);
+        }
+
+        .card-title {
+            font-size: 1.85rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+            text-align: right;
+            font-family: 'Cairo', sans-serif;
+        }
+
+        .card-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+            text-align: right;
+            font-weight: 500;
+        }
+
+        /* Error/Alert Message */
+        .alert-error {
+            background-color: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #b91c1c;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            direction: rtl;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .alert-error i {
+            font-size: 1.1rem;
+        }
+
+        /* Form styling */
+        .form-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* Icon on the right side of input for RTL */
+        .input-icon-right {
+            position: absolute;
+            right: 16px;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .form-input {
+            width: 100%;
+            height: 48px;
+            padding: 10px 48px 10px 56px; /* 48px on right for icon, 56px on left for addon */
+            font-family: 'Cairo', sans-serif;
+            font-size: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-dark);
+            background-color: var(--white);
+            outline: none;
+            transition: var(--transition-smooth);
+            direction: ltr; /* Matches LTR input for email/username/passwords nicely */
+            text-align: right; /* RTL placeholder alignment */
+        }
+
+        /* Align text left when input is not empty, for English credentials, but keep placeholder right */
+        .form-input:focus,
+        .form-input:not(:placeholder-shown) {
+            text-align: left;
+            direction: ltr;
+        }
+
+        .form-input::placeholder {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            text-align: right;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+        }
+
+        /* Suffix grey three-dot box on the left side of input for RTL */
+        .input-addon-left {
+            position: absolute;
+            left: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e2e8f0;
+            color: var(--text-secondary);
+            border-radius: 4px;
+            width: 40px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 13px;
+            user-select: none;
+            transition: var(--transition-smooth);
+            z-index: 5;
+        }
+
+        .input-addon-left:hover {
+            background: #cbd5e1;
+            color: var(--text-dark);
+        }
+
+        /* Submit Button matching screenshot */
+        .btn-submit {
+            width: 100%;
+            height: 48px;
+            background-color: var(--primary);
+            border: none;
+            border-radius: 4px;
+            color: var(--white);
+            font-family: 'Cairo', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 28px;
+            box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.2), 0 2px 4px -1px rgba(14, 165, 233, 0.1);
+        }
+
+        .btn-submit:hover {
+            background-color: var(--primary-hover);
+            box-shadow: 0 10px 15px -3px rgba(14, 165, 233, 0.3), 0 4px 6px -2px rgba(14, 165, 233, 0.15);
+        }
+
+        .btn-submit:active {
+            transform: scale(0.98);
+        }
+
+        /* Center the fallback details at the bottom of the card */
+        .hint-box {
+            margin-top: 24px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border: 1px dashed var(--border-color);
+            font-weight: 500;
+        }
+
+        /* Modern, responsive system footer */
+        .system-footer {
+            text-align: center;
+            margin-top: 24px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .system-footer a {
+            color: var(--white);
+            text-decoration: none;
+            font-weight: 700;
+            transition: var(--transition-smooth);
+        }
+
+        .system-footer a:hover {
+            text-decoration: underline;
+            color: #e0f2fe;
+        }
+
+        /* Fade-in Animation */
+        @keyframes cardFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-card {
+            animation: cardFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Shake animation on error */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+
+        /* Responsive styling */
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 30px 20px;
+            }
+            .card-title {
+                font-size: 1.6rem;
+            }
+            .logo-img {
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Tech Network Constellation SVG overlay matching image -->
+    <div class="bg-network-overlay">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+            <!-- bottom-left tech constellation/mesh sphere -->
+            <path d="M 0 1080 L 0 700 Q 150 750 300 850 T 700 950 T 1100 1080 Z" fill="rgba(255,255,255,0.02)"/>
+            
+            <circle cx="120" cy="1000" r="5" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="250" cy="920" r="7" fill="rgba(255,255,255,0.15)"/>
+            <circle cx="380" cy="980" r="5" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="480" cy="870" r="7" fill="rgba(255,255,255,0.12)"/>
+            <circle cx="340" cy="810" r="5" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="180" cy="790" r="8" fill="rgba(255,255,255,0.15)"/>
+            <circle cx="290" cy="710" r="6" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="450" cy="730" r="8" fill="rgba(255,255,255,0.18)"/>
+            <circle cx="600" cy="790" r="5" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="550" cy="950" r="7" fill="rgba(255,255,255,0.12)"/>
+            <circle cx="700" cy="870" r="6" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="650" cy="710" r="8" fill="rgba(255,255,255,0.15)"/>
+            <circle cx="780" cy="760" r="6" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="880" cy="830" r="7" fill="rgba(255,255,255,0.12)"/>
+
+            <line x1="120" y1="1000" x2="250" y2="920" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="250" y1="920" x2="380" y2="980" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="380" y1="980" x2="550" y2="950" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="250" y1="920" x2="340" y2="810" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="340" y1="810" x2="480" y2="870" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="480" y1="870" x2="600" y2="790" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="600" y1="790" x2="550" y2="950" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="180" y1="790" x2="340" y2="810" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="180" y1="790" x2="290" y2="710" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="290" y1="710" x2="450" y2="730" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="450" y1="730" x2="340" y2="810" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="450" y1="730" x2="600" y2="790" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="450" y1="730" x2="650" y2="710" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="600" y1="790" x2="780" y2="760" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="650" y1="710" x2="780" y2="760" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="780" y1="760" x2="880" y2="830" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="550" y1="950" x2="700" y2="870" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="700" y1="870" x2="880" y2="830" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+
+            <!-- Tech icons & lines at the top-left -->
+            <!-- Server Stack -->
+            <g transform="translate(250, 160)">
+                <rect x="-25" y="-20" width="50" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="-15" cy="-14" r="2" fill="rgba(255,255,255,0.15)"/>
+                <circle cx="-8" cy="-14" r="2" fill="rgba(255,255,255,0.15)"/>
+                <line x1="12" y1="-14" x2="20" y2="-14" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                
+                <rect x="-25" y="-2" width="50" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="-15" cy="4" r="2" fill="rgba(255,255,255,0.15)"/>
+                <circle cx="-8" cy="4" r="2" fill="rgba(255,255,255,0.15)"/>
+                <line x1="12" y1="4" x2="20" y2="4" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                
+                <rect x="-25" y="16" width="50" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="-15" cy="22" r="2" fill="rgba(255,255,255,0.15)"/>
+                <circle cx="-8" cy="22" r="2" fill="rgba(255,255,255,0.15)"/>
+                <line x1="12" y1="22" x2="20" y2="22" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+            </g>
+            <!-- Cloud Outline -->
+            <g transform="translate(450, 140)">
+                <path d="M -20 10 A 12 12 0 0 1 -10 -12 A 18 18 0 0 1 20 -12 A 12 12 0 0 1 30 10 Z" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <line x1="0" y1="10" x2="0" y2="-5" stroke="rgba(255,255,255,0.05)" stroke-width="1.2"/>
+            </g>
+            <!-- WiFi Arcs -->
+            <g transform="translate(350, 260)">
+                <circle cx="0" cy="15" r="3" fill="rgba(255,255,255,0.2)"/>
+                <path d="M -8 7 A 12 12 0 0 1 8 7" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M -16 -1 A 22 22 0 0 1 16 -1" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M -24 -9 A 32 32 0 0 1 24 -9" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.5"/>
+            </g>
+
+            <!-- Tech icons & lines at the top-right -->
+            <!-- Satellite Dish -->
+            <g transform="translate(1050, 130)">
+                <path d="M -25 -10 A 30 30 0 0 0 25 -10" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <line x1="0" y1="18" x2="0" y2="5" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <line x1="-15" y1="25" x2="15" y2="25" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="0" cy="-15" r="2.5" fill="rgba(255,255,255,0.2)"/>
+            </g>
+            <!-- Lock -->
+            <g transform="translate(1250, 180)">
+                <rect x="-15" y="-5" width="30" height="25" rx="3" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M -9 -5 V -15 A 9 9 0 0 1 9 -15 V -5" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="0" cy="5" r="3" fill="rgba(255,255,255,0.15)"/>
+                <path d="M 0 8 V 14" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+            </g>
+            <!-- WWW Planet Globe -->
+            <g transform="translate(1450, 220)">
+                <circle cx="0" cy="0" r="45" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <ellipse cx="0" cy="0" rx="18" ry="45" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <ellipse cx="0" cy="0" rx="45" ry="18" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <text x="0" y="5" font-family="'Open Sans', sans-serif" font-size="12" font-weight="bold" fill="rgba(255,255,255,0.2)" text-anchor="middle">WWW</text>
+            </g>
+            <!-- Rocket -->
+            <g transform="translate(1620, 340) rotate(45)">
+                <path d="M 0 -25 C 8 -12 8 12 8 20 L -8 20 C -8 12 -8 -12 0 -25 Z" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M -8 12 L -16 20 L -8 20 Z" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M 8 12 L 16 20 L 8 20 Z" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="0" cy="0" r="3.5" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+            </g>
+
+            <!-- Digital Grid background lines -->
+            <circle cx="960" cy="540" r="450" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1" stroke-dasharray="5,5"/>
+            <circle cx="960" cy="540" r="650" fill="none" stroke="rgba(255,255,255,0.015)" stroke-width="1"/>
+        </svg>
+    </div>
+
+    <!-- Center Login wrapper -->
+    <div class="login-container">
+
+        <!-- Logo Container Centered Above Card -->
+        <div class="logo-container">
+            <img class="logo-img" src="/radius/unnamed.png"
+                onerror="this.style.display='none'; document.getElementById('fallback-logo').style.display='flex';"
+                alt="SAS RADIUS Logo">
+            <div id="fallback-logo">
+                <i class="fa-solid fa-server"></i>
+            </div>
+        </div>
+
+        <!-- Glassmorphism Card matching screenshot -->
+        <div class="login-card">
+
+            <h2 class="card-title">تسجيل الدخول</h2>
+            <p class="card-subtitle">الرجاء تسجيل الدخول إلى حسابك</p>
+
+            <!-- Error Alert Box -->
+            <div class="alert-error" id="errorAlert">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                <span id="errorMessage">اسم المستخدم أو كلمة المرور غير صحيحة!</span>
+            </div>
+
+            <!-- Form -->
+            <form id="loginForm" onsubmit="handleLogin(event)">
+
+                <!-- Username/Email Input -->
+                <div class="form-group">
+                    <div class="input-container">
+                        <i class="fa-solid fa-user input-icon-right"></i>
+                        <input class="form-input" type="text" id="username" placeholder="admin" required
+                            autocomplete="username">
+                        <div class="input-addon-left">
+                            <i class="fa-solid fa-ellipsis"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Password Input -->
+                <div class="form-group">
+                    <div class="input-container">
+                        <i class="fa-solid fa-lock input-icon-right"></i>
+                        <input class="form-input" type="password" id="password" placeholder="Password" required
+                            autocomplete="current-password">
+                        <div class="input-addon-left" onclick="togglePasswordVisibility()">
+                            <i class="fa-solid fa-ellipsis" id="passwordToggleIcon"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button class="btn-submit" type="submit">
+                    <span>تسجيل الدخول</span>
+                </button>
+
+            </form>
+
+            <div class="hint-box">
+                الحساب الافتراضي: <strong>admin / admin</strong>
+            </div>
+
+        </div>
+
+        <!-- System Footer -->
+        <div class="system-footer">
+            <p>جميع الحقوق محفوظة &copy; <a href="#">SASMAN RADIUS</a></p>
+            <p style="margin-top: 5px; font-size: 0.75rem; opacity: 0.85;">إدارة اشتراكات المايكروتك والشبكات الذكية</p>
+        </div>
+
+    </div>
+
+    <!-- Script Section -->
+    <script>
+        // Password Visibility Toggle
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.className = 'fa-solid fa-eye';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.className = 'fa-solid fa-ellipsis';
+            }
+        }
+
+        // Handle Active Login Logic
+        async function handleLogin(event) {
+            event.preventDefault();
+
+            const usernameInput = document.getElementById('username').value.trim();
+            const passwordInput = document.getElementById('password').value;
+            const errorAlert = document.getElementById('errorAlert');
+            const errorMessage = document.getElementById('errorMessage');
+            const btnSubmit = document.querySelector('.btn-submit');
+
+            errorAlert.style.display = 'none';
+            btnSubmit.innerHTML = '<span>جاري الدخول...</span><i class="fa-solid fa-spinner fa-spin"></i>';
+            btnSubmit.style.opacity = '0.8';
+            btnSubmit.disabled = true;
+
+            try {
+                const res = await fetch('/radius/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ username: usernameInput, password: passwordInput })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.error || 'فشل تسجيل الدخول. يرجى التحقق من اسم المستخدم وكلمة المرور.');
+                }
+
+                if (data.token) {
+                    localStorage.setItem('sasman_admin_token', data.token);
+                    localStorage.setItem('radius_token', data.token);
+                }
+
+                // Redirect to home page
+                window.location.href = '/radius/';
+            } catch (err) {
+                // Show Error Message
+                errorMessage.textContent = err.message || 'تعذر الاتصال بالخادم';
+                errorAlert.style.display = 'flex';
+                btnSubmit.innerHTML = '<span>تسجيل الدخول</span>';
+                btnSubmit.style.opacity = '1';
+                btnSubmit.disabled = false;
+
+                // Shake animation on card
+                const card = document.querySelector('.login-card');
+                card.style.animation = 'none';
+                card.offsetHeight; // Trigger reflow
+                card.style.animation = 'shake 0.4s ease-in-out';
+            }
+        }
+    </script>
+
+</body>
+
+</html>

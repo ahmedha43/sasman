@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوابة المشترك | SASMAN Portal</title>
+    <link rel="icon" type="image/x-icon" href="/radius/favicon.ico">
+    <link rel="stylesheet" href="/radius/fonts/google-fonts.css">
+    <link rel="stylesheet" href="/radius/vendor/fontawesome/all.min.css">
+    <script src="/radius/vendor/html5-qrcode/html5-qrcode.min.js"></script>
+    <script src="/radius/vendor/hls/hls.min.js"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --primary-hover: #7c3aed;
+            --primary-light: rgba(139, 92, 246, 0.08);
+            --bg-start: #8b5cf6;
+            --bg-end: #0f172a;
+            --text-dark: #1e293b;
+            --text-secondary: #64748b;
+            --white: #ffffff;
+            --danger: #ef4444;
+            --border-color: #cbd5e1;
+            --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            
+            --bg: #f1f5f9;
+            --card: rgba(255, 255, 255, 0.72);
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #cbd5e1;
+            --success: #10b981;
+            --success-light: rgba(16, 185, 129, 0.1);
+            --danger-light: rgba(239, 68, 68, 0.1);
+            --warning: #f59e0b;
+            --radius-md: 4px;
+            --radius-lg: 6px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Cairo', 'Open Sans', sans-serif;
+            background: linear-gradient(135deg, #8b5cf6 0%, #4c1d95 40%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            position: relative;
+            direction: rtl;
+        }
+
+        /* Tech network background constellation elements */
+        .bg-network-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .bg-network-overlay svg {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 540px;
+            margin: 0 auto;
+            padding: 24px 16px;
+            z-index: 10;
+            position: relative;
+        }
+
+        header {
+            text-align: center;
+            padding: 30px 0 20px;
+        }
+
+        .logo {
+            font-size: 34px;
+            font-weight: 800;
+            color: var(--white);
+            letter-spacing: -1px;
+            margin-bottom: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .tagline {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 13px;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        /* Glassmorphism Cards */
+        .card {
+            background: var(--card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+            margin-bottom: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            transition: var(--transition-smooth);
+            color: var(--text-dark);
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 30px 60px -10px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        h2 { 
+            margin-top: 0; 
+            font-size: 1.15rem; 
+            color: var(--text-dark); 
+            font-weight: 700;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--text-dark); }
+        
+        input {
+            width: 100%;
+            height: 48px;
+            padding: 10px 16px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-dark);
+            background-color: var(--white);
+            outline: none;
+            transition: var(--transition-smooth);
+            direction: ltr;
+            text-align: right;
+        }
+
+        input:focus,
+        input:not(:placeholder-shown) {
+            text-align: left;
+            direction: ltr;
+        }
+
+        input::placeholder {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            text-align: right;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+            background-color: var(--white);
+        }
+
+        .btn {
+            width: 100%;
+            height: 48px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-family: 'Cairo', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn-primary { 
+            background: linear-gradient(135deg, var(--primary) 0%, #6d28d9 100%); 
+            color: white; 
+            box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.2), 0 2px 4px -1px rgba(139, 92, 246, 0.1);
+        }
+        
+        .btn-primary:hover { 
+            background: linear-gradient(135deg, var(--primary-hover) 0%, #5b21b6 100%); 
+            box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.3), 0 4px 6px -2px rgba(139, 92, 246, 0.15);
+            transform: translateY(-1px); 
+        }
+        
+        .btn-secondary { 
+            background-color: rgba(255, 255, 255, 0.2);
+            color: var(--text-dark);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(5px);
+        }
+        
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.35);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .status-item {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 18px;
+            border-radius: var(--radius-md);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: var(--transition-smooth);
+        }
+
+        .status-item:hover {
+            background: rgba(255, 255, 255, 0.72);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+        
+        .status-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 700; }
+        .status-value { font-size: 16px; font-weight: 800; color: var(--primary-hover); }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        
+        .badge-active { background: var(--success-light); color: var(--success); }
+        .badge-expired { background: var(--danger-light); color: var(--danger); }
+
+        #login-screen { display: block; }
+        #dashboard-screen { display: none; }
+
+        .usage-bar {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            margin: 12px 0;
+            overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .usage-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary) 0%, #0ea5e9 100%);
+            width: 0%;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        footer {
+            margin-top: auto;
+            text-align: center;
+            padding: 24px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        /* TV Streaming Premium Styles */
+        .tv-card {
+            background: linear-gradient(135deg, #0f172a, #1e1b4b);
+            color: #f8fafc;
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            margin-bottom: 24px;
+            border: 1px solid #334155;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .tv-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(to left, var(--primary), var(--primary-hover));
+        }
+
+        .tv-card h2 {
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .tv-player-container {
+            width: 100%;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: #020617;
+            position: relative;
+            margin-bottom: 18px;
+            aspect-ratio: 16/9;
+            border: 1px solid #334155;
+            display: none;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+        }
+        
+        .tv-player-container video {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .stream-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid #334155;
+            border-radius: var(--radius-md);
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+        
+        .stream-item:hover {
+            background: rgba(51, 65, 85, 0.8);
+            transform: translateY(-1px);
+            border-color: #475569;
+        }
+        
+        .stream-item.active {
+            background: rgba(14, 165, 233, 0.25);
+            border-color: var(--primary);
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.25);
+        }
+        
+        .stream-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            text-align: right;
+        }
+        
+        .stream-title {
+            font-weight: 700;
+            font-size: 15px;
+        }
+        
+        .stream-status {
+            font-size: 11px;
+            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .stream-status::before {
+            content: "";
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #38bdf8;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .stream-play-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(14, 165, 233, 0.3);
+            transition: var(--transition-smooth);
+        }
+        
+        .stream-item:hover .stream-play-btn {
+            background: var(--primary-hover);
+            transform: scale(1.1);
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(56, 189, 248, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+        }
+        
+        .no-streams {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+            padding: 24px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Tech Network Constellation SVG overlay matching login.html -->
+    <div class="bg-network-overlay">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+            <!-- bottom-left tech constellation/mesh sphere -->
+            <path d="M 0 1080 L 0 700 Q 150 750 300 850 T 700 950 T 1100 1080 Z" fill="rgba(255,255,255,0.02)"/>
+            
+            <circle cx="120" cy="1000" r="5" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="250" cy="920" r="7" fill="rgba(255,255,255,0.15)"/>
+            <circle cx="380" cy="980" r="5" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="480" cy="870" r="7" fill="rgba(255,255,255,0.12)"/>
+            <circle cx="340" cy="810" r="5" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="180" cy="790" r="8" fill="rgba(255,255,255,0.15)"/>
+            <circle cx="290" cy="710" r="6" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="450" cy="730" r="8" fill="rgba(255,255,255,0.18)"/>
+            <circle cx="600" cy="790" r="5" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="550" cy="950" r="7" fill="rgba(255,255,255,0.12)"/>
+            <circle cx="700" cy="870" r="6" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="650" cy="710" r="8" fill="rgba(255,255,255,0.15)"/>
+            <circle cx="780" cy="760" r="6" fill="rgba(255,255,255,0.1)"/>
+            <circle cx="880" cy="830" r="7" fill="rgba(255,255,255,0.12)"/>
+
+            <line x1="120" y1="1000" x2="250" y2="920" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="250" y1="920" x2="380" y2="980" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="380" y1="980" x2="550" y2="950" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="250" y1="920" x2="340" y2="810" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="340" y1="810" x2="480" y2="870" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="480" y1="870" x2="600" y2="790" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="600" y1="790" x2="550" y2="950" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="180" y1="790" x2="340" y2="810" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="180" y1="790" x2="290" y2="710" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="290" y1="710" x2="450" y2="730" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="450" y1="730" x2="340" y2="810" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="450" y1="730" x2="600" y2="790" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="450" y1="730" x2="650" y2="710" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="600" y1="790" x2="780" y2="760" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="650" y1="710" x2="780" y2="760" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="780" y1="760" x2="880" y2="830" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="550" y1="950" x2="700" y2="870" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+            <line x1="700" y1="870" x2="880" y2="830" stroke="rgba(255,255,255,0.06)" stroke-width="1.2"/>
+
+            <!-- Tech icons & lines at the top-left -->
+            <g transform="translate(250, 160)">
+                <rect x="-25" y="-20" width="50" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="-15" cy="-14" r="2" fill="rgba(255,255,255,0.15)"/>
+                <circle cx="-8" cy="-14" r="2" fill="rgba(255,255,255,0.15)"/>
+                <line x1="12" y1="-14" x2="20" y2="-14" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                
+                <rect x="-25" y="-2" width="50" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="-15" cy="4" r="2" fill="rgba(255,255,255,0.15)"/>
+                <circle cx="-8" cy="4" r="2" fill="rgba(255,255,255,0.15)"/>
+                <line x1="12" y1="4" x2="20" y2="4" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                
+                <rect x="-25" y="16" width="50" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="-15" cy="22" r="2" fill="rgba(255,255,255,0.15)"/>
+                <circle cx="-8" cy="22" r="2" fill="rgba(255,255,255,0.15)"/>
+                <line x1="12" y1="22" x2="20" y2="22" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+            </g>
+            <!-- Cloud Outline -->
+            <g transform="translate(450, 140)">
+                <path d="M -20 10 A 12 12 0 0 1 -10 -12 A 18 18 0 0 1 20 -12 A 12 12 0 0 1 30 10 Z" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <line x1="0" y1="10" x2="0" y2="-5" stroke="rgba(255,255,255,0.05)" stroke-width="1.2"/>
+            </g>
+            <!-- WiFi Arcs -->
+            <g transform="translate(350, 260)">
+                <circle cx="0" cy="15" r="3" fill="rgba(255,255,255,0.2)"/>
+                <path d="M -8 7 A 12 12 0 0 1 8 7" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M -16 -1 A 22 22 0 0 1 16 -1" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M -24 -9 A 32 32 0 0 1 24 -9" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.5"/>
+            </g>
+
+            <!-- Tech icons & lines at the top-right -->
+            <g transform="translate(1050, 130)">
+                <path d="M -25 -10 A 30 30 0 0 0 25 -10" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <line x1="0" y1="18" x2="0" y2="5" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <line x1="-15" y1="25" x2="15" y2="25" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="0" cy="-15" r="2.5" fill="rgba(255,255,255,0.2)"/>
+            </g>
+            <!-- Lock -->
+            <g transform="translate(1250, 180)">
+                <rect x="-15" y="-5" width="30" height="25" rx="3" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M -9 -5 V -15 A 9 9 0 0 1 9 -15 V -5" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="0" cy="5" r="3" fill="rgba(255,255,255,0.15)"/>
+                <path d="M 0 8 V 14" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+            </g>
+            <!-- WWW Planet Globe -->
+            <g transform="translate(1450, 220)">
+                <circle cx="0" cy="0" r="45" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <ellipse cx="0" cy="0" rx="18" ry="45" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <ellipse cx="0" cy="0" rx="45" ry="18" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <text x="0" y="5" font-family="'Open Sans', sans-serif" font-size="12" font-weight="bold" fill="rgba(255,255,255,0.2)" text-anchor="middle">WWW</text>
+            </g>
+            <!-- Rocket -->
+            <g transform="translate(1620, 340) rotate(45)">
+                <path d="M 0 -25 C 8 -12 8 12 8 20 L -8 20 C -8 12 -8 -12 0 -25 Z" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M -8 12 L -16 20 L -8 20 Z" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <path d="M 8 12 L 16 20 L 8 20 Z" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+                <circle cx="0" cy="0" r="3.5" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+            </g>
+
+            <!-- Digital Grid background lines -->
+            <circle cx="960" cy="540" r="450" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1" stroke-dasharray="5,5"/>
+            <circle cx="960" cy="540" r="650" fill="none" stroke="rgba(255,255,255,0.015)" stroke-width="1"/>
+        </svg>
+    </div>
+
+<div class="container">
+    <header>
+        <div class="logo-container" style="margin-bottom: 24px; display: flex; justify-content: center; align-items: center;">
+            <img class="logo-img" src="/radius/unnamed.png" style="max-width: 220px; height: auto; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));"
+                onerror="this.style.display='none'; document.getElementById('fallback-logo').style.display='flex';"
+                alt="SAS RADIUS Logo">
+            <div id="fallback-logo" style="display: none; width: 60px; height: 60px; background: rgba(255, 255, 255, 0.1); color: #fff; border-radius: 12px; align-items: center; justify-content: center; margin: 0 auto; font-size: 28px;">
+                <i class="fa-solid fa-server"></i>
+            </div>
+        </div>
+        <div class="tagline">بوابة الخدمة الذاتية للمشتركين</div>
+    </header>
+
+    <!-- Login Screen -->
+    <div id="login-screen">
+        <div class="card">
+            <h2>تسجيل الدخول</h2>
+            <div class="form-group">
+                <label>اسم المستخدم (اليوزر):</label>
+                <input type="text" id="login-username" placeholder="مثال: user123">
+            </div>
+            <div class="form-group">
+                <label>كلمة المرور:</label>
+                <input type="password" id="login-password" placeholder="••••••••">
+            </div>
+            <button class="btn btn-primary" onclick="portalLogin()">دخول 🔒</button>
+        </div>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen">
+        <!-- User Info -->
+        <div class="card" style="text-align:center;">
+            <div id="user-status-badge" class="badge badge-active" style="margin-bottom:10px;">نشط</div>
+            <h2 id="display-name" style="margin-bottom:5px;">جارِ التحميل...</h2>
+            <p id="display-username" style="color:var(--text-light); margin:0; font-size:14px;"></p>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="status-grid">
+            <div class="status-item">
+                <div class="status-label">تاريخ الانتهاء</div>
+                <div id="display-expiry" class="status-value" style="font-size:14px;">-</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">الرصيد الحالي</div>
+                <div id="display-balance" class="status-value">0 د.ع</div>
+            </div>
+        </div>
+
+        <!-- Live TV Streaming -->
+        <div class="tv-card">
+            <h2>📡 البث المحلي المباشر</h2>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: -8px; margin-bottom: 15px;">شاهد قنواتك المفضلة بدون استهلاك باقة الإنترنت الخاصة بك!</p>
+
+            <div id="tv-player-container" class="tv-player-container">
+                <video id="tv-video" controls playsinline></video>
+            </div>
+            
+            <div id="streams-list">
+                <div class="no-streams">جاري تحميل القنوات المتاحة...</div>
+            </div>
+        </div>
+
+        <!-- Usage -->
+        <div class="card">
+            <h2>إحصائيات الاستهلاك</h2>
+            <div style="display:flex; justify-content:space-between; font-size:14px;">
+                <span>إجمالي البيانات:</span>
+                <span id="display-usage" style="font-weight:bold;">0 MB</span>
+            </div>
+            <div class="usage-bar">
+                <div id="usage-fill" class="usage-fill" style="width: 45%;"></div>
+            </div>
+            <div style="font-size:12px; color:var(--text-light); display:flex; justify-content:space-between;">
+                <span>تحميل: <span id="display-usage-in">0</span></span>
+                <span>رفع: <span id="display-usage-out">0</span></span>
+            </div>
+        </div>
+
+        <!-- Voucher Redeem -->
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0;">تعبئة كرت شحن 🎫</h2>
+                <button class="btn btn-secondary" style="width:auto; padding:8px 12px; font-size:12px; display:flex; gap:5px;" onclick="toggleScanner()">
+                    <span id="scanner-btn-text">مسح كود QR</span> 📷
+                </button>
+            </div>
+            
+            <div id="qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden; margin-bottom: 15px; display: none; border: 1px solid var(--border);"></div>
+
+            <div class="form-group">
+                <label>أدخل كود الكرت:</label>
+                <input type="text" id="voucher-code" placeholder="ABC-123-XYZ" style="text-align:center; text-transform:uppercase; letter-spacing:2px; font-weight:bold;">
+            </div>
+            <button class="btn btn-primary" id="redeem-btn" onclick="redeemVoucher()">تفعيل الكرت الآن</button>
+        </div>
+
+        <!-- Change Password -->
+        <div class="card">
+            <h2>تغيير كلمة المرور 🔑</h2>
+            <div class="form-group">
+                <label>كلمة المرور الحالية:</label>
+                <input type="password" id="old-pass" placeholder="••••••••">
+            </div>
+            <div class="form-group">
+                <label>كلمة المرور الجديدة:</label>
+                <input type="password" id="new-pass" placeholder="••••••••">
+            </div>
+            <button class="btn btn-secondary" onclick="changePortalPassword()">تحديث كلمة المرور</button>
+        </div>
+
+        <button class="btn" style="background:transparent; color:var(--danger); font-size:14px; margin-top:10px;" onclick="portalLogout()">تسجيل الخروج 👋</button>
+    </div>
+
+    <!-- System Footer -->
+    <div class="system-footer" style="text-align: center; margin-top: 24px; color: rgba(255, 255, 255, 0.7); font-size: 0.85rem; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.2); padding-bottom: 24px;">
+        <p>جميع الحقوق محفوظة &copy; <a href="#" style="color: #fff; text-decoration: none; font-weight: 700;">SASMAN RADIUS</a></p>
+        <p style="margin-top: 5px; font-size: 0.75rem; opacity: 0.85;">إدارة اشتراكات المايكروتك والشبكات الذكية</p>
+    </div>
+</div>
+
+<script>
+    let currentUsername = localStorage.getItem('portal_username');
+    let html5QrCode;
+
+    function toggleScanner() {
+        const readerDiv = document.getElementById('qr-reader');
+        const btnText = document.getElementById('scanner-btn-text');
+
+        if (readerDiv.style.display === 'none') {
+            readerDiv.style.display = 'block';
+            btnText.innerText = 'إيقاف الكاميرا';
+            startScanner();
+        } else {
+            stopScanner();
+            readerDiv.style.display = 'none';
+            btnText.innerText = 'مسح كود QR';
+        }
+    }
+
+    function startScanner() {
+        // التحقق من أن الاتصال آمن (HTTPS) لأن المتصفحات تمنع الكاميرا على HTTP
+        if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            alert('⚠️ تنبيه أمني:\nلا يمكن تشغيل الكاميرا لأن الاتصال غير آمن (HTTP).\n\nالمتصفحات الحديثة تشترط استخدام (HTTPS) لفتح الكاميرا للحفاظ على الخصوصية.\n\n💡 الحل:\nاستخدم رابط آمن يبدأ بـ https:// أو قم بإدخال كود الكرت يدوياً في الحقل أدناه.');
+            stopScanner();
+            document.getElementById('qr-reader').style.display = 'none';
+            document.getElementById('scanner-btn-text').innerText = 'مسح كود QR';
+            return;
+        }
+
+        html5QrCode = new Html5Qrcode("qr-reader");
+        
+        // تحسين الإعدادات لتناسب شاشات الهواتف المختلفة
+        const config = { 
+            fps: 15, // زيادة عدد الإطارات لاستجابة أسرع
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+                // جعل مربع المسح ديناميكياً ليناسب حجم الشاشة بدلاً من حجم ثابت
+                let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+                let qrboxSize = Math.floor(minEdgeSize * 0.75); // 75% من أصغر بعد
+                return { width: qrboxSize, height: qrboxSize };
+            },
+            aspectRatio: 1.0
+        };
+
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            config, 
+            (decodedText) => {
+                let code = decodedText;
+                if (decodedText.includes('code=')) {
+                    const parts = decodedText.split('code=');
+                    code = parts[parts.length - 1].split('&')[0];
+                } else if (decodedText.startsWith('http')) {
+                    try {
+                        const url = new URL(decodedText);
+                        code = url.searchParams.get('code') || decodedText;
+                    } catch(e) {}
+                }
+
+                document.getElementById('voucher-code').value = code.toUpperCase();
+                document.getElementById('voucher-code').style.borderColor = 'var(--success)';
+                
+                stopScanner();
+                document.getElementById('qr-reader').style.display = 'none';
+                document.getElementById('scanner-btn-text').innerText = 'مسح كود QR';
+                
+                redeemVoucher();
+            }
+        ).catch((err) => {
+            console.error("Scanner error:", err);
+            let msg = '⚠️ تعذر فتح الكاميرا.\n\n';
+            let errString = err.toString();
+            
+            if (errString.includes('NotAllowedError')) {
+                msg += '⛔ المتصفح يمنع الوصول للكاميرا. يرجى إعطاء صلاحية الكاميرا للمتصفح، أو التأكد من أن الرابط آمن (HTTPS).';
+            } else if (errString.includes('NotFoundError')) {
+                msg += '⚠️ لم يتم العثور على كاميرا خلفية في جهازك.';
+            } else if (errString.includes('NotSupportedError')) {
+                msg += '⚠️ الكاميرا غير مدعومة في هذه الصفحة: تأكد من أن الرابط يبدأ بـ https://';
+            } else {
+                msg += 'حدث خطأ غير معروف: تأكد من استخدام اتصال آمن (HTTPS).';
+            }
+            alert(msg);
+            
+            stopScanner();
+            document.getElementById('qr-reader').style.display = 'none';
+            document.getElementById('scanner-btn-text').innerText = 'مسح كود QR';
+        });
+    }
+
+    function stopScanner() {
+        if (html5QrCode && html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => {
+                html5QrCode.clear();
+            }).catch(e => console.error(e));
+        }
+    }
+
+    // Check for voucher code in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlVoucherCode = urlParams.get('code');
+    if (urlVoucherCode) {
+        sessionStorage.setItem('pending_voucher', urlVoucherCode);
+    }
+
+    if (currentUsername) {
+        showDashboard();
+    }
+
+    async function portalLogin() {
+        const u = document.getElementById('login-username').value.trim();
+        const p = document.getElementById('login-password').value;
+
+        if (!u || !p) return alert('يرجى إدخال اليوزر والباسورد');
+
+        try {
+            const res = await fetch('/radius/api/portal/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+            } else {
+                localStorage.setItem('portal_username', data.username);
+                currentUsername = data.username;
+                showDashboard();
+            }
+        } catch (e) {
+            alert('فشل الاتصال بالسيرفر');
+        }
+    }
+
+    function showDashboard() {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('dashboard-screen').style.display = 'block';
+        loadPortalStatus();
+        loadPortalStreams();
+
+        // Auto-fill pending voucher if exists
+        const pendingVoucher = sessionStorage.getItem('pending_voucher');
+        if (pendingVoucher) {
+            setTimeout(() => {
+                const vInput = document.getElementById('voucher-code');
+                if (vInput) {
+                    vInput.value = pendingVoucher;
+                    sessionStorage.removeItem('pending_voucher');
+                    vInput.style.borderColor = 'var(--success)';
+                    vInput.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 800);
+        }
+    }
+
+    async function loadPortalStatus() {
+        try {
+            const res = await fetch('/radius/api/portal/status?username=' + currentUsername);
+            const data = await res.json();
+            
+            if (data.error) {
+                portalLogout();
+                return;
+            }
+
+            document.getElementById('display-name').innerText = data.full_name || 'مشترك';
+            document.getElementById('display-username').innerText = '@' + data.username;
+            document.getElementById('display-expiry').innerText = data.expiry;
+            document.getElementById('display-balance').innerText = data.balance.toLocaleString() + ' د.ع';
+            document.getElementById('display-usage').innerText = formatBytes(data.usage_total);
+            document.getElementById('display-usage-in').innerText = formatBytes(data.usage_in);
+            document.getElementById('display-usage-out').innerText = formatBytes(data.usage_out);
+            
+            const badge = document.getElementById('user-status-badge');
+            badge.innerText = data.status;
+            badge.className = 'badge ' + (data.status === 'نشط' ? 'badge-active' : 'badge-expired');
+
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function redeemVoucher() {
+        const code = document.getElementById('voucher-code').value.trim().toUpperCase();
+        if (!code) return alert('يرجى إدخال كود الكرت');
+
+        const btn = document.getElementById('redeem-btn');
+        btn.disabled = true;
+        btn.innerText = '⏳ جاري المعالجة...';
+
+        try {
+            const res = await fetch('/radius/api/vouchers/redeem', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: currentUsername, code: code })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if (!data.error) {
+                document.getElementById('voucher-code').value = '';
+                loadPortalStatus();
+            }
+        } catch (e) {
+            alert('خطأ في الاتصال');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'تفعيل الكرت الآن';
+        }
+    }
+
+    async function changePortalPassword() {
+        const oldP = document.getElementById('old-pass').value;
+        const newP = document.getElementById('new-pass').value;
+        
+        if (!oldP || !newP) return alert('يرجى ملء كافة الحقول');
+
+        try {
+            const res = await fetch('/radius/api/portal/password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: currentUsername, old_password: oldP, new_password: newP })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if (!data.error) {
+                document.getElementById('old-pass').value = '';
+                document.getElementById('new-pass').value = '';
+            }
+        } catch (e) {
+            alert('خطأ في الاتصال');
+        }
+    }
+
+    function portalLogout() {
+        localStorage.removeItem('portal_username');
+        location.reload();
+    }
+
+    function formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    let hlsPlayer = null;
+    let hlsRecoverAttempts = 0;
+
+    async function loadPortalStreams() {
+        const listDiv = document.getElementById('streams-list');
+        try {
+            const res = await fetch('/radius/api/portal/streams?username=' + currentUsername);
+            if (res.status === 403) {
+                listDiv.innerHTML = '<div class="no-streams">⚠️ عذراً، يجب أن يكون اشتراكك نشطاً لتتمكن من مشاهدة القنوات المحلية.</div>';
+                return;
+            }
+            const streams = await res.json();
+            
+            if (!streams || streams.length === 0) {
+                listDiv.innerHTML = '<div class="no-streams">📺 لا توجد قنوات تبث حالياً. يرجى المحاولة لاحقاً.</div>';
+                return;
+            }
+
+            listDiv.innerHTML = '';
+            streams.forEach(stream => {
+                const item = document.createElement('div');
+                item.className = 'stream-item';
+                item.onclick = () => playStream(stream.id, stream.name, stream.source);
+                item.innerHTML = `
+                    <div class="stream-info">
+                        <div class="stream-title">${stream.name}</div>
+                        <div class="stream-status">مباشر الآن</div>
+                    </div>
+                    <button class="stream-play-btn">▶</button>
+                `;
+                listDiv.appendChild(item);
+            });
+        } catch (e) {
+            listDiv.innerHTML = '<div class="no-streams">❌ فشل تحميل قنوات البث.</div>';
+        }
+    }
+
+    function playStream(streamId, streamName, streamSource) {
+        const container = document.getElementById('tv-player-container');
+        const video = document.getElementById('tv-video');
+        
+        container.style.display = 'block';
+        container.scrollIntoView({ behavior: 'smooth' });
+
+        // Highlight selected stream
+        document.querySelectorAll('.stream-item').forEach(item => {
+            if (item.querySelector('.stream-title').innerText === streamName) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+
+        if (!streamSource) {
+            alert('مصدر القناة غير موجود.');
+            return;
+        }
+
+        const isHttpSource = streamSource.startsWith('http://') || streamSource.startsWith('https://');
+        const streamURL = isHttpSource ? '/radius/api/portal/stream-proxy?url=' + encodeURIComponent(streamSource) : streamSource;
+        const isHlsStream = streamSource.toLowerCase().includes('.m3u8');
+
+        if (hlsPlayer) {
+            hlsPlayer.destroy();
+            hlsPlayer = null;
+        }
+        hlsRecoverAttempts = 0;
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+
+        if (isHlsStream && Hls.isSupported()) {
+            hlsPlayer = new Hls({
+                maxMaxBufferLength: 10,
+                enableWorker: false,
+                lowLatencyMode: false,
+                liveSyncDurationCount: 3
+            });
+            hlsPlayer.loadSource(streamURL);
+            hlsPlayer.attachMedia(video);
+            hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+                video.play().catch(e => console.log("Auto-play blocked, waiting for user interaction."));
+            });
+            hlsPlayer.on(Hls.Events.ERROR, function (event, data) {
+                console.error("HLS error", {
+                    type: data.type,
+                    details: data.details,
+                    fatal: data.fatal,
+                    sourceBufferName: data.sourceBufferName,
+                    mimeType: data.mimeType,
+                    error: data.error ? data.error.message : null
+                });
+                if (data.fatal) {
+                    switch (data.type) {
+                        case Hls.ErrorTypes.NETWORK_ERROR:
+                            console.error("Fatal network error encountered, trying to recover...");
+                            hlsPlayer.startLoad();
+                            break;
+                        case Hls.ErrorTypes.MEDIA_ERROR:
+                            hlsRecoverAttempts++;
+                            if (hlsRecoverAttempts <= 2) {
+                                console.error("Fatal media error encountered, trying to recover...");
+                                hlsPlayer.recoverMediaError();
+                            } else {
+                                console.error("Fatal media error persisted, stopping playback.");
+                                hlsPlayer.destroy();
+                                hlsPlayer = null;
+                                alert('تعذر تشغيل مصدر البث في هذا المتصفح. تأكد أن الرابط صالح ومتوافق مع تشغيل المتصفح.');
+                            }
+                            break;
+                        default:
+                            console.error("Fatal error, cannot recover.");
+                            hlsPlayer.destroy();
+                            hlsPlayer = null;
+                            break;
+                    }
+                }
+            });
+        } else if (isHlsStream && video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = streamURL;
+            video.addEventListener('loadedmetadata', () => {
+                video.play();
+            });
+        } else {
+            video.src = streamURL;
+            video.play().catch(e => console.log("Auto-play blocked, waiting for user interaction."));
+        }
+    }
+</script>
+
+</body>
+</html>

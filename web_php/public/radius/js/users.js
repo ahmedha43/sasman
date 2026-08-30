@@ -178,6 +178,10 @@ function buildUserRow(u) {
         : '';
 
     // Actions Block
+    const quotaResetBtn = (u.quota_limit_mb && u.quota_limit_mb > 0)
+        ? `<button class="btn" style="padding: 6px 8px; font-size: 11px; width:auto; border-radius: 6px; background: rgba(147,51,234,0.1); color: #9333ea; border: 1px solid rgba(147,51,234,0.3);" title="تصفير وإعادة شحن الكوتة" onclick="resetUserQuota('${encodeURIComponent(u.user)}')">⚡ كوتة</button>`
+        : '';
+
     const actions = `
         <div class="action-row" style="display: flex; gap: 6px; justify-content: flex-start; flex-wrap: nowrap;">
             <button class="btn btn-primary" style="padding: 6px 10px; font-size: 11px; width:auto; border-radius: 6px;" title="تجديد الاشتراك" onclick="openRenewModal('${encodeURIComponent(u.user)}')">🔄 تجديد</button>
@@ -186,18 +190,46 @@ function buildUserRow(u) {
                 ${u.enabled ? '🚫 إيقاف' : '✅ تشغيل'}
             </button>
             <button class="btn" style="padding: 6px 10px; font-size: 11px; width:auto; border-radius: 6px; background: var(--primary-light); color: var(--primary); border: 1px solid var(--border);" title="تفاصيل وتاريخ المشترك" onclick="openUserDetails('${encodeURIComponent(u.user)}')">📋</button>
+            ${quotaResetBtn}
             ${disconnectBtn}
             <button class="btn btn-danger" style="padding: 6px 10px; font-size: 11px; width:auto; border-radius: 6px;" title="حذف" onclick="deleteUser('${encodeURIComponent(u.user)}')">🗑️</button>
         </div>
     `;
 
-    // Traffic Display
-    const traffic = (s.download || s.upload)
+    // Traffic & Quota Display
+    let traffic = (s.download || s.upload)
         ? `<div style="font-size:11px; font-family:monospace; line-height:1.4; white-space: nowrap;">
             <span style="color:var(--info); font-weight:600;" title="تنزيل (Download)">⬇️ ${escapeHtml(s.download || '0 B')}</span><br>
             <span style="color:var(--primary); font-weight:600;" title="رفع (Upload)">⬆️ ${escapeHtml(s.upload || '0 B')}</span>
            </div>`
         : '<span style="color:var(--text-muted);">—</span>';
+
+    if (u.quota_limit_mb && u.quota_limit_mb > 0) {
+        const totalGB = (u.quota_limit_mb >= 1024) ? (u.quota_limit_mb / 1024).toFixed(u.quota_limit_mb % 1024 === 0 ? 0 : 1) + ' GB' : u.quota_limit_mb + ' MB';
+        const usedMB = (u.used_bytes_total || 0) / (1024 * 1024);
+        const usedDisplay = usedMB >= 1024 ? (usedMB / 1024).toFixed(2) + ' GB' : usedMB.toFixed(0) + ' MB';
+        const pct = Math.min(100, Math.max(0, u.used_percent || 0));
+        let barColor = '#10b981';
+        if (pct >= 90 || u.quota_status === 'depleted') barColor = '#ef4444';
+        else if (pct >= 70) barColor = '#f59e0b';
+
+        const quotaBadge = (u.quota_status === 'depleted' || pct >= 100)
+            ? `<div style="margin-top:3px;"><span class="badge badge-danger" style="font-size:9px; padding:2px 6px;">نفدت الكوتة 🛑</span></div>`
+            : '';
+
+        traffic += `
+            <div style="margin-top:6px; min-width:105px;">
+                <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:var(--text-muted); margin-bottom:2px;">
+                    <span>📊 ${usedDisplay}</span>
+                    <span>${totalGB}</span>
+                </div>
+                <div style="background:rgba(0,0,0,0.08); height:6px; border-radius:3px; overflow:hidden; width:100%;">
+                    <div style="background:${barColor}; width:${pct}%; height:100%; transition: width 0.3s;"></div>
+                </div>
+                ${quotaBadge}
+            </div>
+        `;
+    }
 
     // IP & MAC Display
     let ipMacDisplay = '<span style="color:var(--text-muted);">—</span>';
@@ -603,3 +635,26 @@ function openUserModal() {
 function closeUserModal() {
     document.getElementById('user-modal').classList.remove('active');
 }
+
+async function resetUserQuota(encodedUser) {
+    const username = decodeURIComponent(encodedUser);
+    if (!confirm(`هل أنت متأكد من تصفير وإعادة شحن كوتة البيانات للمشترك ${username}؟`)) return;
+
+    try {
+        const res = await apiFetch(`/radius/api/users/${encodeURIComponent(username)}/reset-quota`, {
+            method: 'POST'
+        });
+        const result = await res.json();
+        if (res.ok) {
+            alert(result.message || '✅ تم تصفير الكوتة بنجاح');
+            loadUsers();
+        } else {
+            alert('❌ فشل: ' + (result.error || result.message));
+        }
+    } catch (e) {
+        console.error('Reset quota failed', e);
+        alert('❌ حدث خطأ أثناء الاتصال بالخادم');
+    }
+}
+
+window.resetUserQuota = resetUserQuota;

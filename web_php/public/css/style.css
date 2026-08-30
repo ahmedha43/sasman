@@ -1377,3 +1377,236 @@ table tbody tr:hover {
     }
 }
 
+/* ==========================================================================
+   RBAC Matrix Studio Pro Design System
+   ========================================================================== */
+.rbac-matrix-box {
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.rbac-matrix-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #1e293b;
+}
+
+.rbac-title-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #f59e0b;
+}
+
+.rbac-preset-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rbac-preset-btn {
+    border: none;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #ffffff;
+}
+
+.rbac-preset-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.rbac-preset-btn.reseller { background: #0284c7; }
+.rbac-preset-btn.reseller:hover { background: #0369a1; }
+
+.rbac-preset-btn.manager { background: #10b981; }
+.rbac-preset-btn.manager:hover { background: #059669; }
+
+.rbac-preset-btn.readonly { background: #475569; }
+.rbac-preset-btn.readonly:hover { background: #334155; }
+
+.rbac-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.rbac-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    transition: var(--transition-smooth);
+}
+
+.rbac-card:hover {
+    border-color: #475569;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.rbac-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rbac-card-header.users { color: #38bdf8; }
+.rbac-card-header.vouchers { color: #fbbf24; }
+.rbac-card-header.network { color: #34d399; }
+.rbac-card-header.finance { color: #a78bfa; }
+
+.rbac-card-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.rbac-card-icon.users { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+.rbac-card-icon.vouchers { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+.rbac-card-icon.network { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+.rbac-card-icon.finance { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
+
+.rbac-card-title {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.rbac-item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rbac-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    transition: var(--transition-fast);
+    cursor: pointer;
+    user-select: none;
+}
+
+.rbac-item-row:hover {
+    background: rgba(15, 23, 42, 0.9);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.rbac-item-row.danger-item {
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.rbac-item-row.danger-item:hover {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.rbac-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rbac-item-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f1f5f9;
+}
+
+.rbac-item-title.danger {
+    color: #f87171;
+}
+
+.rbac-item-desc {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* Custom iOS/Tailwind Style Toggle Switch */
+.rbac-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.rbac-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.rbac-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #475569;
+    transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 24px;
+}
+
+.rbac-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.rbac-switch input:checked + .rbac-slider {
+    background-color: #10b981;
+}
+
+.rbac-switch.danger input:checked + .rbac-slider {
+    background-color: #ef4444;
+}
+
+.rbac-switch.primary input:checked + .rbac-slider {
+    background-color: #0ea5e9;
+}
+
+.rbac-switch input:checked + .rbac-slider:before {
+    transform: translateX(20px);
+}
+
+

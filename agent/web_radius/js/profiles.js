@@ -8,12 +8,18 @@ function toggleProfileQuotaType() {
 
     if (quotaType === 'gb') {
         if (valWrapper) valWrapper.style.display = 'block';
-        if (badge) badge.innerText = 'GB';
-        if (input && !input.value) input.value = '5';
+        if (badge) badge.innerText = 'جيجابايت (GB)';
+        if (input) {
+            if (!input.value || input.value === '500') input.value = '5';
+            setTimeout(() => { input.focus(); input.select(); }, 50);
+        }
     } else if (quotaType === 'mb') {
         if (valWrapper) valWrapper.style.display = 'block';
-        if (badge) badge.innerText = 'MB';
-        if (input && !input.value) input.value = '500';
+        if (badge) badge.innerText = 'ميجابايت (MB)';
+        if (input) {
+            if (!input.value || input.value === '5') input.value = '500';
+            setTimeout(() => { input.focus(); input.select(); }, 50);
+        }
     } else {
         if (valWrapper) valWrapper.style.display = 'none';
         if (input) input.value = '';

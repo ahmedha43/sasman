@@ -15,17 +15,29 @@ function escapeHtml(value) {
 
 async function apiFetch(url, options = {}) {
     const opts = Object.assign({ credentials: 'same-origin' }, options);
-    opts.headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+    const token = localStorage.getItem('sasman_admin_token') || localStorage.getItem('radius_token');
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+    if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+    }
+    opts.headers = headers;
     const res = await fetch(url, opts);
     if (res.status === 401) {
-        try { const data = await res.clone().json(); if (data && data.auth_required) window.location.href = '/radius/login.html'; } catch (e) {}
+        try { 
+            const data = await res.clone().json(); 
+            if (data && data.auth_required) {
+                localStorage.removeItem('sasman_admin_token');
+                localStorage.removeItem('radius_token');
+                window.location.href = '/radius/login.html'; 
+            }
+        } catch (e) {}
     }
     return res;
 }
 
 async function loadCurrentAdmin() {
     try {
-        const res = await fetch('/radius/api/auth/me', { credentials: 'same-origin' });
+        const res = await apiFetch('/radius/api/auth/me');
         if (!res.ok) return null;
         currentAdmin = await res.json();
         
@@ -62,6 +74,16 @@ async function loadCurrentAdmin() {
             el.style.display = currentAdmin.role === 'superadmin' ? 'block' : 'none';
         });
 
+        // RBAC Permission Data Visibility
+        document.querySelectorAll('[data-perm]').forEach(el => {
+            const perm = el.getAttribute('data-perm');
+            if (perm && !hasPermission(perm)) {
+                el.style.display = 'none';
+            } else {
+                el.style.display = '';
+            }
+        });
+
         loadAdmins(); // Load for all roles to see sub-agents if any
 
         const form = document.getElementById('profile-form');
@@ -73,6 +95,45 @@ async function loadCurrentAdmin() {
         return currentAdmin;
     } catch (e) { return null; }
 }
+
+function hasPermission(permissionName) {
+    if (!currentAdmin) return false;
+    if (currentAdmin.role === 'superadmin') return true;
+    if (typeof currentAdmin[permissionName] !== 'undefined') {
+        return !!currentAdmin[permissionName];
+    }
+    if (currentAdmin.permissions) {
+        let p = currentAdmin.permissions;
+        if (typeof p === 'string') {
+            try { p = JSON.parse(p); } catch(e) {}
+        }
+        if (typeof p === 'object' && p !== null && typeof p[permissionName] !== 'undefined') {
+            return !!p[permissionName];
+        }
+    }
+    const defaults = {
+        can_create_users: true,
+        can_edit_users: true,
+        can_delete_users: false,
+        can_toggle_users: true,
+        can_disconnect_users: true,
+        can_renew_users: true,
+        can_generate_vouchers: true,
+        can_delete_vouchers: false,
+        can_print_vouchers: true,
+        can_manage_profiles: false,
+        can_manage_nas: false,
+        can_manage_devices: false,
+        can_manage_transactions: true,
+        can_manage_subagents: false,
+        can_view_logs: true,
+        can_clear_logs: false,
+        can_manage_whatsapp: false,
+        can_manage_streams: false
+    };
+    return defaults[permissionName] ?? false;
+}
+window.hasPermission = hasPermission;
 
 let isFreshInstall = false;
 let setupStateCache = null;
@@ -268,19 +329,175 @@ async function handleRegisterSubmit(e) {
         password: form.password.value, 
         name: form.name.value.trim(), 
         email: form.email.value.trim(),
-        role: form.role.value,
-        can_manage_profiles: form.can_manage_profiles?.checked || false,
-        can_manage_nas: form.can_manage_nas?.checked || false
+        role: form.role ? form.role.value : 'agent',
+        can_create_users: form.can_create_users ? form.can_create_users.checked : true,
+        can_edit_users: form.can_edit_users ? form.can_edit_users.checked : true,
+        can_delete_users: form.can_delete_users ? form.can_delete_users.checked : false,
+        can_toggle_users: form.can_toggle_users ? form.can_toggle_users.checked : true,
+        can_disconnect_users: form.can_disconnect_users ? form.can_disconnect_users.checked : true,
+        can_renew_users: form.can_renew_users ? form.can_renew_users.checked : true,
+        can_generate_vouchers: form.can_generate_vouchers ? form.can_generate_vouchers.checked : true,
+        can_delete_vouchers: form.can_delete_vouchers ? form.can_delete_vouchers.checked : false,
+        can_print_vouchers: form.can_print_vouchers ? form.can_print_vouchers.checked : true,
+        can_manage_profiles: form.can_manage_profiles ? form.can_manage_profiles.checked : false,
+        can_manage_nas: form.can_manage_nas ? form.can_manage_nas.checked : false,
+        can_manage_devices: form.can_manage_devices ? form.can_manage_devices.checked : false,
+        can_manage_transactions: form.can_manage_transactions ? form.can_manage_transactions.checked : true,
+        can_manage_subagents: form.can_manage_subagents ? form.can_manage_subagents.checked : false,
+        can_view_logs: form.can_view_logs ? form.can_view_logs.checked : true,
     };
     const res = await apiFetch('/radius/api/auth/register', { method: 'POST', body: JSON.stringify(payload) });
     const data = await res.json();
-    alert(res.ok ? (data.message || 'تم الإنشاء') : (data.error || 'خطأ'));
+    alert(res.ok ? (data.message || 'تم إنشاء حساب الوكيل بنجاح') : (data.error || 'فشل الإنشاء'));
     if (res.ok) { 
         form.reset(); 
         closeAgentModal();
         loadAdmins(); 
     }
 }
+
+function openAgentPermsModal(adminId, username) {
+    const admin = (radiusAdminsCache || []).find(a => a.id == adminId);
+    if (!admin) return;
+
+    document.getElementById('agent-perms-admin-id').value = adminId;
+    document.getElementById('agent-perms-username').textContent = '@' + (username || admin.username || '');
+
+    const fields = [
+        'can_create_users', 'can_edit_users', 'can_delete_users', 'can_toggle_users', 'can_disconnect_users', 'can_renew_users',
+        'can_generate_vouchers', 'can_delete_vouchers', 'can_print_vouchers',
+        'can_manage_profiles', 'can_manage_nas', 'can_manage_devices',
+        'can_manage_transactions', 'can_manage_subagents', 'can_view_logs'
+    ];
+
+    fields.forEach(f => {
+        const el = document.getElementById('edit_perm_' + f);
+        if (el) {
+            el.checked = !!admin[f];
+        }
+    });
+
+    const modal = document.getElementById('agent-perms-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeAgentPermsModal() {
+    const modal = document.getElementById('agent-perms-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function submitAgentPerms(e) {
+    e.preventDefault();
+    const adminId = document.getElementById('agent-perms-admin-id').value;
+    if (!adminId) return;
+
+    const fields = [
+        'can_create_users', 'can_edit_users', 'can_delete_users', 'can_toggle_users', 'can_disconnect_users', 'can_renew_users',
+        'can_generate_vouchers', 'can_delete_vouchers', 'can_print_vouchers',
+        'can_manage_profiles', 'can_manage_nas', 'can_manage_devices',
+        'can_manage_transactions', 'can_manage_subagents', 'can_view_logs'
+    ];
+
+    const payload = {};
+    fields.forEach(f => {
+        const el = document.getElementById('edit_perm_' + f);
+        if (el) {
+            payload[f] = el.checked;
+        }
+    });
+
+    try {
+        const res = await apiFetch(`/radius/api/auth/admins/${adminId}/permissions`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert('تم حفظ وتحديث مصفوفة الصلاحيات بنجاح ✅');
+            closeAgentPermsModal();
+            loadAdmins();
+        } else {
+            alert(data.error || 'فشل تحديث الصلاحيات');
+        }
+    } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر');
+    }
+}
+
+function applyHtmlPreset(prefix, type) {
+    const setVal = (f, val) => {
+        if (prefix === 'edit') {
+            const el = document.getElementById('edit_perm_' + f);
+            if (el) el.checked = val;
+        } else {
+            const form = document.querySelector('#agent-modal form');
+            if (form && form[f]) form[f].checked = val;
+        }
+    };
+
+    if (type === 'reseller') {
+        setVal('can_create_users', true);
+        setVal('can_edit_users', true);
+        setVal('can_renew_users', true);
+        setVal('can_toggle_users', true);
+        setVal('can_disconnect_users', true);
+        setVal('can_delete_users', false);
+        setVal('can_generate_vouchers', true);
+        setVal('can_print_vouchers', true);
+        setVal('can_delete_vouchers', false);
+        setVal('can_manage_profiles', false);
+        setVal('can_manage_nas', false);
+        setVal('can_manage_devices', false);
+        setVal('can_manage_transactions', true);
+        setVal('can_manage_subagents', false);
+        setVal('can_view_logs', true);
+    } else if (type === 'manager') {
+        setVal('can_create_users', true);
+        setVal('can_edit_users', true);
+        setVal('can_renew_users', true);
+        setVal('can_toggle_users', true);
+        setVal('can_disconnect_users', true);
+        setVal('can_delete_users', true);
+        setVal('can_generate_vouchers', true);
+        setVal('can_print_vouchers', true);
+        setVal('can_delete_vouchers', true);
+        setVal('can_manage_profiles', true);
+        setVal('can_manage_nas', true);
+        setVal('can_manage_devices', true);
+        setVal('can_manage_transactions', true);
+        setVal('can_manage_subagents', true);
+        setVal('can_view_logs', true);
+    } else if (type === 'readonly') {
+        setVal('can_create_users', false);
+        setVal('can_edit_users', false);
+        setVal('can_renew_users', false);
+        setVal('can_toggle_users', false);
+        setVal('can_disconnect_users', false);
+        setVal('can_delete_users', false);
+        setVal('can_generate_vouchers', false);
+        setVal('can_print_vouchers', true);
+        setVal('can_delete_vouchers', false);
+        setVal('can_manage_profiles', false);
+        setVal('can_manage_nas', false);
+        setVal('can_manage_devices', false);
+        setVal('can_manage_transactions', false);
+        setVal('can_manage_subagents', false);
+        setVal('can_view_logs', true);
+    }
+}
+function toggleRbacInput(rowEl) {
+    if (!rowEl) return;
+    const input = rowEl.querySelector('input[type="checkbox"]');
+    if (input) {
+        input.checked = !input.checked;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+window.toggleRbacInput = toggleRbacInput;
+window.applyHtmlPreset = applyHtmlPreset;
+window.openAgentPermsModal = openAgentPermsModal;
+window.closeAgentPermsModal = closeAgentPermsModal;
+window.submitAgentPerms = submitAgentPerms;
 
 async function loadAdmins() {
     const tbody = document.getElementById('admins-tbody');
@@ -306,24 +523,32 @@ async function loadAdmins() {
         tbody.innerHTML = list.map(a => {
             const created = a.created_at ? new Date(a.created_at).toLocaleString('ar') : '';
             const isSelf = a.id === me;
-            const roleName = a.role === 'superadmin' ? 'مدير أساسي' : 'وكيل فرعي';
+            const roleName = a.role === 'superadmin' ? '<span style="color:#ef4444; font-weight:bold;">👑 مدير أساسي</span>' : '<span style="color:#f59e0b;">وكيل فرعي</span>';
             const balance = (a.balance || 0).toLocaleString() + ' د.ع';
             const canManage = currentAdmin && (currentAdmin.role === 'superadmin' || a.parent_id === currentAdmin.id);
             
-            let perms = [];
-            if (a.can_manage_profiles) perms.push('باقات');
-            if (a.can_manage_nas) perms.push('راوترات');
-            const permsText = perms.length ? perms.join('، ') : 'بدون';
+            let badges = [];
+            if (a.role === 'superadmin') {
+                badges.push('<span style="background:rgba(16,185,129,0.15); color:#10b981; padding:2px 6px; border-radius:4px; font-size:11px;">كامل الصلاحيات</span>');
+            } else {
+                if (a.can_create_users) badges.push('<span style="background:rgba(14,165,233,0.15); color:#0ea5e9; padding:2px 6px; border-radius:4px; font-size:11px;">مشتركين</span>');
+                if (a.can_generate_vouchers) badges.push('<span style="background:rgba(245,158,11,0.15); color:#f59e0b; padding:2px 6px; border-radius:4px; font-size:11px;">كروت</span>');
+                if (a.can_manage_profiles) badges.push('<span style="background:rgba(139,92,246,0.15); color:#8b5cf6; padding:2px 6px; border-radius:4px; font-size:11px;">باقات</span>');
+                if (a.can_manage_nas) badges.push('<span style="background:rgba(6,182,212,0.15); color:#06b6d4; padding:2px 6px; border-radius:4px; font-size:11px;">مايكروتك</span>');
+                if (a.can_delete_users) badges.push('<span style="background:rgba(239,68,68,0.15); color:#ef4444; padding:2px 6px; border-radius:4px; font-size:11px;">حذف</span>');
+            }
+            const permsHtml = badges.length ? `<div style="display:flex; gap:4px; flex-wrap:wrap;">${badges.join('')}</div>` : '<span style="color:#64748b; font-size:11px;">بدون</span>';
 
             const btn = isSelf
                 ? '<span style="color:#64748b; font-size:13px;">حسابك</span>'
-                : `<div style="display:flex; gap:5px;">
-                     ${canManage ? `<button class="btn" style="width:auto; padding:6px 14px; background:#16a34a;" onclick="openAgentTxModal(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}', 'recharge')">شحن</button>` : ''}
-                     ${canManage ? `<button class="btn" style="width:auto; padding:6px 14px; background:#eab308; color:white; border:none;" onclick="openAgentTxModal(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}', 'withdraw')">سحب</button>` : ''}
-                     ${canManage ? `<button class="btn" style="width:auto; padding:6px 14px; background:#6366f1; color:white; border:none;" onclick="openAgentLogModal(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}')">السجل</button>` : ''}
-                     ${canManage ? `<button class="btn btn-danger" style="width:auto; padding:6px 14px;" onclick="deleteAdmin(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}')">حذف</button>` : ''}
+                : `<div style="display:flex; gap:5px; flex-wrap:wrap;">
+                     ${canManage && a.role !== 'superadmin' ? `<button class="btn" style="width:auto; padding:6px 12px; background:#0ea5e9; color:white; border:none;" onclick="openAgentPermsModal(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}')" title="الصلاحيات الحبيبية"><i class="fa-solid fa-sliders"></i> الصلاحيات</button>` : ''}
+                     ${canManage ? `<button class="btn" style="width:auto; padding:6px 12px; background:#16a34a; color:white; border:none;" onclick="openAgentTxModal(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}', 'recharge')">شحن</button>` : ''}
+                     ${canManage ? `<button class="btn" style="width:auto; padding:6px 12px; background:#eab308; color:white; border:none;" onclick="openAgentTxModal(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}', 'withdraw')">سحب</button>` : ''}
+                     ${canManage ? `<button class="btn" style="width:auto; padding:6px 12px; background:#6366f1; color:white; border:none;" onclick="openAgentLogModal(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}')">السجل</button>` : ''}
+                     ${canManage ? `<button class="btn btn-danger" style="width:auto; padding:6px 12px;" onclick="deleteAdmin(${a.id}, '${(a.username || '').replace(/'/g, "\\'")}')">حذف</button>` : ''}
                    </div>`;
-            return `<tr><td>${a.id}</td><td>${a.username}</td><td>${a.name || '-'}</td><td>${roleName}</td><td><span style="font-size:12px; color:#64748b;">${permsText}</span></td><td>${balance}</td><td>${created}</td><td>${btn}</td></tr>`;
+            return `<tr><td>${a.id}</td><td style="font-family:monospace; font-weight:bold; color:var(--info);">@${escapeHtml(a.username)}</td><td>${escapeHtml(a.name || '-')}</td><td>${roleName}</td><td>${permsHtml}</td><td style="color:#10b981; font-weight:bold;">${balance}</td><td style="font-size:12px; color:#64748b;">${created}</td><td>${btn}</td></tr>`;
         }).join('');
     } catch (e) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">خطأ في تحميل البيانات</td></tr>'; }
 }
@@ -460,7 +685,7 @@ async function openAgentLogModal(id, username) {
             return;
         }
         const list = await res.json();
-        const filtered = Array.isArray(list) ? list.filter(tx => tx.admin_id == id || !tx.admin_id) : [];
+        const filtered = Array.isArray(list) ? list.filter(tx => tx.admin_id == id || tx.admin_username === username || !tx.admin_id) : [];
         
         if (!filtered.length) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد عمليات مسجلة لهذا الوكيل بعد</td></tr>';
@@ -468,7 +693,11 @@ async function openAgentLogModal(id, username) {
         }
         
         tbody.innerHTML = filtered.map(tx => {
-            const date = tx.created_at ? new Date(tx.created_at).toLocaleString('ar') : '';
+            let date = '';
+            if (tx.created_at) {
+                const parsedDate = new Date(tx.created_at.replace(' ', 'T'));
+                date = !isNaN(parsedDate.getTime()) ? parsedDate.toLocaleString('ar') : tx.created_at;
+            }
             const isRecharge = (tx.transaction_type === 'recharge' || tx.type === 'recharge');
             const tTypeName = isRecharge ? 'شحن رصيد ➕' : 'سحب رصيد ➖';
             const tTypeColor = isRecharge ? '#16a34a' : '#dc2626';

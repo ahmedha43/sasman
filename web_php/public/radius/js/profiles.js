@@ -1,5 +1,31 @@
 let radiusProfilesCache = [];
 
+function toggleProfileQuotaType() {
+    const quotaType = document.querySelector('input[name="prof_quota_type"]:checked')?.value || 'unlimited';
+    const valWrapper = document.getElementById('prof-quota-val-wrapper');
+    const badge = document.getElementById('prof-quota-unit-badge');
+    const input = document.getElementById('prof-quota-val');
+
+    if (quotaType === 'gb') {
+        if (valWrapper) valWrapper.style.display = 'block';
+        if (badge) badge.innerText = 'جيجابايت (GB)';
+        if (input) {
+            if (!input.value || input.value === '500') input.value = '5';
+            setTimeout(() => { input.focus(); input.select(); }, 50);
+        }
+    } else if (quotaType === 'mb') {
+        if (valWrapper) valWrapper.style.display = 'block';
+        if (badge) badge.innerText = 'ميجابايت (MB)';
+        if (input) {
+            if (!input.value || input.value === '5') input.value = '500';
+            setTimeout(() => { input.focus(); input.select(); }, 50);
+        }
+    } else {
+        if (valWrapper) valWrapper.style.display = 'none';
+        if (input) input.value = '';
+    }
+}
+
 function toggleProfileLinkType() {
     const linkType = document.querySelector('input[name="prof_link_type"]:checked')?.value || 'none';
     const poolWrapper = document.getElementById('prof-mikrotik-pool-wrapper');
@@ -58,7 +84,7 @@ async function loadProfiles() {
         const selectedUserProfile = userProfileSelect ? userProfileSelect.value : null;
 
         if (profiles.length === 0) {
-            if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">لا توجد باقات...</td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">لا توجد باقات...</td></tr>';
             if (userProfileSelect) userProfileSelect.innerHTML = '<option value="">لا توجد باقات</option>';
         } else {
             if (tbody) {
@@ -77,10 +103,21 @@ async function loadProfiles() {
                         expiredDisplay = `<span class="badge badge-danger" style="font-size: 0.85em;">🔴 Profile: ${p.expired_profile}</span>`;
                     }
 
+                    let quotaDisplay = '<span class="badge badge-success" style="font-weight:600;">🟢 مفتوح (Unlimited)</span>';
+                    if (p.quota_limit_mb && p.quota_limit_mb > 0) {
+                        if (p.quota_limit_mb >= 1024) {
+                            const gb = (p.quota_limit_mb / 1024).toFixed(p.quota_limit_mb % 1024 === 0 ? 0 : 1);
+                            quotaDisplay = `<span class="badge" style="background:rgba(2,132,199,0.15); color:#0284c7; font-weight:700;">📊 ${gb} GB</span>`;
+                        } else {
+                            quotaDisplay = `<span class="badge" style="background:rgba(147,51,234,0.15); color:#9333ea; font-weight:700;">📊 ${p.quota_limit_mb} MB</span>`;
+                        }
+                    }
+
                     return `
                     <tr>
                         <td><strong>${p.name}</strong></td>
                         <td><span class="badge badge-success">${p.limit}</span></td>
+                        <td>${quotaDisplay}</td>
                         <td>${poolDisplay}</td>
                         <td>${p.validity_days ? p.validity_days + ' يوم' : 'مفتوح'}</td>
                         <td><span class="badge badge-warning" style="font-weight:600;">${p.price > 0 ? p.price.toLocaleString() + ' د.ع' : '—'}</span></td>
@@ -120,6 +157,16 @@ async function createProfile() {
         return el.value || "";
     };
 
+    // Calculate quota limit in MB
+    let quotaLimitMB = 0;
+    const quotaType = document.querySelector('input[name="prof_quota_type"]:checked')?.value || 'unlimited';
+    const quotaVal = parseFloat(getVal('prof-quota-val')) || 0;
+    if (quotaType === 'gb' && quotaVal > 0) {
+        quotaLimitMB = Math.round(quotaVal * 1024);
+    } else if (quotaType === 'mb' && quotaVal > 0) {
+        quotaLimitMB = Math.round(quotaVal);
+    }
+
     const payload = {
         original_name: getVal('prof-original-name').trim(),
         name: getVal('prof-name').trim(),
@@ -132,6 +179,7 @@ async function createProfile() {
         price: parseFloat(getVal('prof-price')) || 0,
         agent_price: parseFloat(getVal('prof-agent-price')) || 0,
         simultaneous: getVal('prof-simultaneous') || "1",
+        quota_limit_mb: quotaLimitMB,
         expired_pool: document.getElementById('prof-expired-pool')?.value.trim() || '',
         expired_profile: document.getElementById('prof-expired-profile')?.value.trim() || '',
         admin_id: parseInt(getVal('prof-owner') || "0")
@@ -207,6 +255,21 @@ function editProfile(name) {
     }
     toggleProfileExpiredLinkType();
 
+    // Set Quota radio & input
+    if (p.quota_limit_mb && p.quota_limit_mb > 0) {
+        if (p.quota_limit_mb >= 1024 && p.quota_limit_mb % 1024 === 0) {
+            document.querySelector('input[name="prof_quota_type"][value="gb"]').checked = true;
+            document.getElementById('prof-quota-val').value = p.quota_limit_mb / 1024;
+        } else {
+            document.querySelector('input[name="prof_quota_type"][value="mb"]').checked = true;
+            document.getElementById('prof-quota-val').value = p.quota_limit_mb;
+        }
+    } else {
+        document.querySelector('input[name="prof_quota_type"][value="unlimited"]').checked = true;
+        document.getElementById('prof-quota-val').value = '';
+    }
+    toggleProfileQuotaType();
+
     if (document.getElementById('prof-owner')) document.getElementById('prof-owner').value = p.admin_id || "0";
 
     document.getElementById('prof-modal-title').innerText = 'تعديل باقة اشتراك: ' + p.name;
@@ -222,6 +285,8 @@ function resetProfileForm() {
     document.getElementById('prof-mikrotik-group').value = "";
     document.querySelector('input[name="prof_link_type"][value="none"]').checked = true;
     toggleProfileLinkType();
+    document.querySelector('input[name="prof_quota_type"][value="unlimited"]').checked = true;
+    toggleProfileQuotaType();
     document.getElementById('prof-val').value = "30";
     document.getElementById('prof-price').value = "";
     if (document.getElementById('prof-agent-price')) document.getElementById('prof-agent-price').value = "";
