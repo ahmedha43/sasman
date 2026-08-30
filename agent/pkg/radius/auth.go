@@ -2,6 +2,7 @@ package radius
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -58,7 +59,7 @@ func LoginHandler(c *fiber.Ctx) error {
 
 	LogActivity(&admin.ID, admin.Username, "تسجيل دخول", admin.Username, fmt.Sprintf("تم تسجيل الدخول بنجاح بحساب (%s)", admin.Role), c.IP())
 
-	return c.JSON(fiber.Map{"message": "تم تسجيل الدخول", "admin": admin})
+	return c.JSON(fiber.Map{"message": "تم تسجيل الدخول", "admin": admin, "token": token})
 }
 
 func LogoutHandler(c *fiber.Ctx) error {
@@ -102,7 +103,7 @@ func UpdateProfileHandler(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
 	}
-	admin, err := UpdateAdminProfile(id, strings.TrimSpace(body.Name), strings.TrimSpace(body.Email), c.Locals("can_manage_profiles").(bool), c.Locals("can_manage_nas").(bool))
+	admin, err := UpdateAdminProfile(id, strings.TrimSpace(body.Name), strings.TrimSpace(body.Email))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -138,31 +139,126 @@ func RegisterAdminHandler(c *fiber.Ctx) error {
 	requesterRole, _ := c.Locals("role").(string)
 
 	type req struct {
-		Username          string `json:"username"`
-		Password          string `json:"password"`
-		Name              string `json:"name"`
-		Email             string `json:"email"`
-		Role              string `json:"role"`
-		CanManageProfiles bool   `json:"can_manage_profiles"`
-		CanManageNas      bool   `json:"can_manage_nas"`
+		Username              string          `json:"username"`
+		Password              string          `json:"password"`
+		Name                  string          `json:"name"`
+		Email                 string          `json:"email"`
+		Role                  string          `json:"role"`
+		CanManageProfiles     bool            `json:"can_manage_profiles"`
+		CanManageNas          bool            `json:"can_manage_nas"`
+		CanCreateUsers        bool            `json:"can_create_users"`
+		CanEditUsers          bool            `json:"can_edit_users"`
+		CanDeleteUsers        bool            `json:"can_delete_users"`
+		CanToggleUsers        bool            `json:"can_toggle_users"`
+		CanDisconnectUsers    bool            `json:"can_disconnect_users"`
+		CanRenewUsers         bool            `json:"can_renew_users"`
+		CanGenerateVouchers   bool            `json:"can_generate_vouchers"`
+		CanDeleteVouchers     bool            `json:"can_delete_vouchers"`
+		CanPrintVouchers      bool            `json:"can_print_vouchers"`
+		CanManageDevices      bool            `json:"can_manage_devices"`
+		CanManageTransactions bool            `json:"can_manage_transactions"`
+		CanManageSubagents    bool            `json:"can_manage_subagents"`
+		CanViewLogs           bool        `json:"can_view_logs"`
+		CanClearLogs          bool        `json:"can_clear_logs"`
+		CanManageWhatsapp     bool        `json:"can_manage_whatsapp"`
+		CanManageStreams      bool        `json:"can_manage_streams"`
+		Permissions           interface{} `json:"permissions"`
 	}
 	var body req
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+		log.Printf("[register] BodyParser error: %v", err)
+		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة: " + err.Error()})
 	}
 
 	// Security: Only superadmin can assign roles other than 'agent'
-	// and only superadmin can create a superadmin.
 	if requesterRole != "superadmin" {
-		body.Role = "agent" // Force 'agent' role for non-superadmins
+		body.Role = "agent"
 	}
 
-	admin, err := CreateAdminAccount(body.Username, body.Password, body.Name, body.Email, body.Role, &adminID, body.CanManageProfiles, body.CanManageNas)
+	perms := make(map[string]bool)
+	if m, ok := body.Permissions.(map[string]interface{}); ok {
+		for k, v := range m {
+			if b, ok := v.(bool); ok {
+				perms[k] = b
+			} else if i, ok := v.(float64); ok {
+				perms[k] = (i != 0)
+			}
+		}
+	}
+
+	perms["can_manage_profiles"] = body.CanManageProfiles
+	perms["can_manage_nas"] = body.CanManageNas
+	perms["can_create_users"] = body.CanCreateUsers
+	perms["can_edit_users"] = body.CanEditUsers
+	perms["can_delete_users"] = body.CanDeleteUsers
+	perms["can_toggle_users"] = body.CanToggleUsers
+	perms["can_disconnect_users"] = body.CanDisconnectUsers
+	perms["can_renew_users"] = body.CanRenewUsers
+	perms["can_generate_vouchers"] = body.CanGenerateVouchers
+	perms["can_delete_vouchers"] = body.CanDeleteVouchers
+	perms["can_print_vouchers"] = body.CanPrintVouchers
+	perms["can_manage_devices"] = body.CanManageDevices
+	perms["can_manage_transactions"] = body.CanManageTransactions
+	perms["can_manage_subagents"] = body.CanManageSubagents
+	perms["can_view_logs"] = body.CanViewLogs
+	perms["can_clear_logs"] = body.CanClearLogs
+	perms["can_manage_whatsapp"] = body.CanManageWhatsapp
+	perms["can_manage_streams"] = body.CanManageStreams
+
+	admin, err := CreateAdminAccount(body.Username, body.Password, body.Name, body.Email, body.Role, &adminID, perms)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 	LogActivityFromCtx(c, "إنشاء حساب وكيل", admin.Username, fmt.Sprintf("تم إنشاء حساب وكيل جديد %s بدور (%s)", admin.Username, admin.Role))
 	return c.JSON(fiber.Map{"message": "تم إنشاء الحساب", "admin": admin})
+}
+
+func UpdateAdminPermissionsHandler(c *fiber.Ctx) error {
+	currentID, ok := c.Locals("admin_id").(int64)
+	if !ok {
+		return c.Status(401).JSON(fiber.Map{"error": "غير مسجل"})
+	}
+	role, _ := c.Locals("role").(string)
+
+	id, err := c.ParamsInt("id")
+	if err != nil || id <= 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "معرّف غير صالح"})
+	}
+
+	targetAdmin, err := GetAdminByID(int64(id))
+	if err != nil || targetAdmin == nil {
+		return c.Status(404).JSON(fiber.Map{"error": "الوكيل غير موجود"})
+	}
+
+	if role != "superadmin" {
+		if targetAdmin.ParentID == nil || *targetAdmin.ParentID != currentID {
+			return c.Status(403).JSON(fiber.Map{"error": "غير مصرح لك بتعديل صلاحيات هذا الوكيل"})
+		}
+	}
+
+	var rawMap map[string]interface{}
+	if err := c.BodyParser(&rawMap); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "بيانات الصلاحيات غير صالحة"})
+	}
+
+	perms := make(map[string]bool)
+	for k, v := range rawMap {
+		if b, ok := v.(bool); ok {
+			perms[k] = b
+		} else if i, ok := v.(float64); ok {
+			perms[k] = (i != 0)
+		} else if s, ok := v.(string); ok {
+			perms[k] = (s == "1" || s == "true")
+		}
+	}
+
+	updated, err := UpdateAdminPermissions(int64(id), perms)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	LogActivityFromCtx(c, "تعديل صلاحيات وكيل", targetAdmin.Username, fmt.Sprintf("تم تحديث مصفوفة صلاحيات الوكيل %s", targetAdmin.Username))
+	return c.JSON(fiber.Map{"message": "تم تحديث الصلاحيات بنجاح", "admin": updated})
 }
 
 func ListAdminsHandler(c *fiber.Ctx) error {

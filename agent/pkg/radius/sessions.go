@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 const (
@@ -338,4 +340,19 @@ func classifySessionStatus(open bool, lastUpdate string) string {
 		return "stale"
 	}
 	return "online"
+}
+
+// ListActiveSessionsHandler returns all currently active sessions
+func ListActiveSessionsHandler(c *fiber.Ctx) error {
+	sessions, err := LoadSessionsFromDB()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	activeList := make([]SessionInfo, 0)
+	for _, s := range sessions {
+		if s.Online {
+			activeList = append(activeList, s)
+		}
+	}
+	return c.JSON(fiber.Map{"sessions": activeList, "total": len(activeList)})
 }

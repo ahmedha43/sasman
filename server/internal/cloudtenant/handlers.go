@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/url"
@@ -173,6 +174,8 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	// Admins & Staff
 	protectedRadius.Get("/auth/admins", h.handleListAdmins)
 	protectedRadius.Post("/auth/register", h.handleRegisterAdmin)
+	protectedRadius.Post("/auth/admins/:id/permissions", h.handleUpdateAdminPermissions)
+	protectedRadius.Put("/auth/admins/:id/permissions", h.handleUpdateAdminPermissions)
 	protectedRadius.Put("/auth/profile", h.handleUpdateProfile)
 	protectedRadius.Delete("/auth/admins/:id", h.handleDeleteAdmin)
 	protectedRadius.Post("/auth/recharge", h.handleRechargeAdmin)
@@ -1512,7 +1515,7 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
 	rows, err := db.Query(`
 		SELECT id, username, COALESCE(name, ''), role, COALESCE(phone, ''), 
-		       COALESCE(balance, 0), is_active, COALESCE(permissions, '[]'), created_at
+		       COALESCE(balance, 0), is_active, COALESCE(permissions, '{}'), created_at
 		FROM radius_admins
 		ORDER BY id ASC
 	`)
@@ -1530,23 +1533,46 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 	}
 	defer rows.Close()
 
-	type AdminItem struct {
-		ID          int64   `json:"id"`
-		Username    string  `json:"username"`
-		Name        string  `json:"name"`
-		Role        string  `json:"role"`
-		Phone       string  `json:"phone"`
-		Balance     float64 `json:"balance"`
-		IsActive    int     `json:"is_active"`
-		Permissions string  `json:"permissions"`
-		CreatedAt   string  `json:"created_at"`
-	}
-
-	list := []AdminItem{}
+	list := []fiber.Map{}
 	for rows.Next() {
-		var a AdminItem
-		if err := rows.Scan(&a.ID, &a.Username, &a.Name, &a.Role, &a.Phone, &a.Balance, &a.IsActive, &a.Permissions, &a.CreatedAt); err == nil {
-			list = append(list, a)
+		var id int64
+		var username, name, role, phone, permStr, createdAt string
+		var balance float64
+		var isActive int
+		if err := rows.Scan(&id, &username, &name, &role, &phone, &balance, &isActive, &permStr, &createdAt); err == nil {
+			item := fiber.Map{
+				"id":          id,
+				"username":    username,
+				"name":        name,
+				"role":        role,
+				"phone":       phone,
+				"balance":     balance,
+				"is_active":   isActive,
+				"permissions": permStr,
+				"created_at":  createdAt,
+			}
+
+			// Parse perms and flatten into response
+			var pMap map[string]bool
+			if err := json.Unmarshal([]byte(permStr), &pMap); err == nil && pMap != nil {
+				for k, v := range pMap {
+					item[k] = v
+				}
+			} else {
+				// Default values
+				item["can_create_users"] = true
+				item["can_edit_users"] = true
+				item["can_delete_users"] = false
+				item["can_toggle_users"] = true
+				item["can_disconnect_users"] = true
+				item["can_renew_users"] = true
+				item["can_generate_vouchers"] = true
+				item["can_delete_vouchers"] = false
+				item["can_print_vouchers"] = true
+				item["can_manage_transactions"] = true
+				item["can_view_logs"] = true
+			}
+			list = append(list, item)
 		}
 	}
 	return c.JSON(list)
@@ -1554,40 +1580,87 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleRegisterAdmin(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
-	var req struct {
-		Username          string `json:"username"`
-		Password          string `json:"password"`
-		Name              string `json:"name"`
-		Phone             string `json:"phone"`
-		Role              string `json:"role"`
-		CanManageProfiles bool   `json:"can_manage_profiles"`
-		CanManageNAS      bool   `json:"can_manage_nas"`
+	var rawMap map[string]interface{}
+	if err := c.BodyParser(&rawMap); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "بيانات غير صالحة"})
 	}
-	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Username) == "" || strings.TrimSpace(req.Password) == "" {
+
+	username, _ := rawMap["username"].(string)
+	password, _ := rawMap["password"].(string)
+	name, _ := rawMap["name"].(string)
+	phone, _ := rawMap["phone"].(string)
+	role, _ := rawMap["role"].(string)
+
+	username = strings.TrimSpace(username)
+	password = strings.TrimSpace(password)
+	if username == "" || password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المستخدم وكلمة المرور مطلوبان"})
 	}
 
-	if req.Role == "" {
-		req.Role = "agent"
+	if role == "" {
+		role = "agent"
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل تشفير كلمة المرور"})
 	}
 
-	perms := fmt.Sprintf(`{"can_manage_profiles":%t,"can_manage_nas":%t}`, req.CanManageProfiles, req.CanManageNAS)
+	perms := make(map[string]bool)
+	for k, v := range rawMap {
+		if strings.HasPrefix(k, "can_") {
+			if b, ok := v.(bool); ok {
+				perms[k] = b
+			} else if s, ok := v.(string); ok {
+				perms[k] = (s == "1" || s == "true")
+			}
+		}
+	}
+
+	permBytes, _ := json.Marshal(perms)
 
 	_, err = db.Exec(`
 		INSERT INTO radius_admins (username, password, role, name, phone, balance, is_active, permissions)
 		VALUES (?, ?, ?, ?, ?, 0.0, 1, ?)
-	`, strings.TrimSpace(req.Username), string(hash), req.Role, req.Name, req.Phone, perms)
+	`, username, string(hash), role, name, phone, string(permBytes))
 
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المستخدم مسجل مسبقاً أو غير صالح"})
 	}
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم إنشاء الحساب بنجاح"})
+}
+
+func (h *APIHandler) handleUpdateAdminPermissions(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	id := c.Params("id")
+	if id == "" || id == "0" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "معرّف غير صالح"})
+	}
+
+	var rawMap map[string]interface{}
+	if err := c.BodyParser(&rawMap); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "بيانات الصلاحيات غير صالحة"})
+	}
+
+	perms := make(map[string]bool)
+	for k, v := range rawMap {
+		if strings.HasPrefix(k, "can_") {
+			if b, ok := v.(bool); ok {
+				perms[k] = b
+			} else if s, ok := v.(string); ok {
+				perms[k] = (s == "1" || s == "true")
+			}
+		}
+	}
+
+	permBytes, _ := json.Marshal(perms)
+	_, err := db.Exec("UPDATE radius_admins SET permissions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", string(permBytes), id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل تحديث الصلاحيات"})
+	}
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم تحديث الصلاحيات بنجاح", "permissions": perms})
 }
 
 func (h *APIHandler) handleUpdateProfile(c *fiber.Ctx) error {

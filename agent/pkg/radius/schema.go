@@ -190,6 +190,23 @@ func EnsureSchema() {
 			balance REAL NOT NULL DEFAULT 0,
 			can_manage_profiles INTEGER NOT NULL DEFAULT 0,
 			can_manage_nas INTEGER NOT NULL DEFAULT 0,
+			can_create_users INTEGER NOT NULL DEFAULT 1,
+			can_edit_users INTEGER NOT NULL DEFAULT 1,
+			can_delete_users INTEGER NOT NULL DEFAULT 0,
+			can_toggle_users INTEGER NOT NULL DEFAULT 1,
+			can_disconnect_users INTEGER NOT NULL DEFAULT 1,
+			can_renew_users INTEGER NOT NULL DEFAULT 1,
+			can_generate_vouchers INTEGER NOT NULL DEFAULT 1,
+			can_delete_vouchers INTEGER NOT NULL DEFAULT 0,
+			can_print_vouchers INTEGER NOT NULL DEFAULT 1,
+			can_manage_devices INTEGER NOT NULL DEFAULT 0,
+			can_manage_transactions INTEGER NOT NULL DEFAULT 1,
+			can_manage_subagents INTEGER NOT NULL DEFAULT 0,
+			can_view_logs INTEGER NOT NULL DEFAULT 1,
+			can_clear_logs INTEGER NOT NULL DEFAULT 0,
+			can_manage_whatsapp INTEGER NOT NULL DEFAULT 0,
+			can_manage_streams INTEGER NOT NULL DEFAULT 0,
+			permissions TEXT NOT NULL DEFAULT '',
 			plain_secret TEXT NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -291,6 +308,23 @@ func EnsureSchema() {
 	DB.Exec("ALTER TABLE radius_profile_meta ADD COLUMN agent_price REAL NOT NULL DEFAULT 0")
 	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_manage_profiles INTEGER NOT NULL DEFAULT 0")
 	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_manage_nas INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_create_users INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_edit_users INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_delete_users INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_toggle_users INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_disconnect_users INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_renew_users INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_generate_vouchers INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_delete_vouchers INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_print_vouchers INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_manage_devices INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_manage_transactions INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_manage_subagents INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_view_logs INTEGER NOT NULL DEFAULT 1")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_clear_logs INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_manage_whatsapp INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN can_manage_streams INTEGER NOT NULL DEFAULT 0")
+	DB.Exec("ALTER TABLE radius_admins ADD COLUMN permissions TEXT NOT NULL DEFAULT ''")
 	DB.Exec("ALTER TABLE radius_profile_meta ADD COLUMN expired_pool TEXT DEFAULT ''")
 	DB.Exec("ALTER TABLE radius_profile_meta ADD COLUMN expired_profile TEXT DEFAULT ''")
 	

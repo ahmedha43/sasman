@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -81,6 +82,10 @@ func GetUserTransactions(c *fiber.Ctx) error {
 }
 
 func AddTransaction(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_manage_transactions") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لإضافة حركات مالية أو تسديد ديون"})
+	}
+
 	rawUser := c.Params("user")
 	username, _ := url.PathUnescape(rawUser)
 
@@ -270,4 +275,150 @@ func GetUserBalance(c *fiber.Ctx) error {
 
 	_, _, balance, _, _ := loadUserExtraInfo(username)
 	return c.JSON(fiber.Map{"balance": balance})
+}
+
+func ListAllTransactionsHandler(c *fiber.Ctx) error {
+	adminID, _ := c.Locals("admin_id").(int64)
+	role, _ := c.Locals("role").(string)
+
+	var query string
+	var args []interface{}
+
+	if role == "superadmin" {
+		query = `SELECT t.id, t.username, t.transaction_type, t.amount, t.notes, t.created_at, COALESCE(a.username, 'admin') as admin_name
+		         FROM radius_user_transactions t
+		         LEFT JOIN radius_admins a ON t.admin_id = a.id
+		         ORDER BY t.created_at DESC LIMIT 500`
+	} else {
+		query = `SELECT t.id, t.username, t.transaction_type, t.amount, t.notes, t.created_at, COALESCE(a.username, 'admin') as admin_name
+		         FROM radius_user_transactions t
+		         LEFT JOIN radius_admins a ON t.admin_id = a.id
+		         WHERE t.admin_id = ?
+		         ORDER BY t.created_at DESC LIMIT 500`
+		args = append(args, adminID)
+	}
+
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	defer rows.Close()
+
+	transactions := make([]map[string]interface{}, 0)
+	userTransMap := make(map[string][]map[string]interface{})
+	var globalPayments, globalDebts float64
+
+	for rows.Next() {
+		var id int
+		var username, tType, notes, createdAt, adminName string
+		var amount float64
+		if err := rows.Scan(&id, &username, &tType, &amount, &notes, &createdAt, &adminName); err != nil {
+			continue
+		}
+		item := map[string]interface{}{
+			"id":         id,
+			"username":   username,
+			"type":       tType,
+			"amount":     amount,
+			"notes":      notes,
+			"created_at": createdAt,
+			"admin":      adminName,
+		}
+		transactions = append(transactions, item)
+		userTransMap[username] = append(userTransMap[username], item)
+
+		if tType == "payment" || tType == "تجديد اشتراك" {
+			globalPayments += amount
+		} else if tType == "debt" {
+			globalDebts += amount
+		}
+	}
+
+	// Fetch all users with their balance and info
+	var uQuery string
+	var uArgs []interface{}
+	if role == "superadmin" {
+		uQuery = `SELECT m.username, COALESCE(m.full_name, ''), COALESCE(m.phone, ''), COALESCE(m.balance, 0)
+		          FROM radius_user_meta m
+		          ORDER BY m.balance DESC, m.username ASC`
+	} else {
+		uQuery = `SELECT m.username, COALESCE(m.full_name, ''), COALESCE(m.phone, ''), COALESCE(m.balance, 0)
+		          FROM radius_user_meta m
+		          WHERE m.admin_id = ? OR m.admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?)
+		          ORDER BY m.balance DESC, m.username ASC`
+		uArgs = append(uArgs, adminID, adminID)
+	}
+
+	uRows, err := DB.Query(uQuery, uArgs...)
+	userSummaries := make([]map[string]interface{}, 0)
+	if err == nil {
+		defer uRows.Close()
+		for uRows.Next() {
+			var uName, fullName, phone string
+			var balance float64
+			if err := uRows.Scan(&uName, &fullName, &phone, &balance); err != nil {
+				continue
+			}
+
+			// Calculate total paid & debt for this specific user
+			var userPaid, userDebt float64
+			for _, t := range userTransMap[uName] {
+				amt, _ := t["amount"].(float64)
+				tType, _ := t["type"].(string)
+				if tType == "payment" || tType == "تجديد اشتراك" {
+					userPaid += amt
+				} else if tType == "debt" {
+					userDebt += amt
+				}
+			}
+
+			userSummaries = append(userSummaries, map[string]interface{}{
+				"username":     uName,
+				"full_name":    fullName,
+				"phone":        phone,
+				"balance":      balance,
+				"total_paid":   userPaid,
+				"total_debt":   userDebt,
+				"transactions": userTransMap[uName],
+			})
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"transactions":    transactions,
+		"user_summaries":  userSummaries,
+		"global_payments": globalPayments,
+		"global_debts":    globalDebts,
+	})
+}
+
+func AddGlobalTransactionHandler(c *fiber.Ctx) error {
+	type reqPayload struct {
+		Username string  `json:"username"`
+		Type     string  `json:"type"`
+		Amount   float64 `json:"amount"`
+		Notes    string  `json:"notes"`
+	}
+	var req reqPayload
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+	}
+
+	req.Username = strings.TrimSpace(req.Username)
+	if req.Username == "" || req.Amount <= 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "يرجى إدخال اسم المشترك ومبلغ صالح"})
+	}
+
+	if req.Type != "debt" && req.Type != "payment" {
+		req.Type = "payment"
+	}
+
+	adminID, _ := c.Locals("admin_id").(int64)
+	if err := addUserTransaction(req.Username, req.Type, req.Amount, req.Notes, adminID); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	LogActivityFromCtx(c, "سجل مالي", req.Username, fmt.Sprintf("تمت إضافة حركة مالية (%s) بمبلغ %.0f د.ع", req.Type, req.Amount))
+
+	return c.JSON(fiber.Map{"message": "تمت إضافة الحركة المالية بنجاح", "success": true})
 }

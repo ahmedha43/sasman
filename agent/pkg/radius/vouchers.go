@@ -26,6 +26,10 @@ type Voucher struct {
 }
 
 func GenerateVouchers(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_generate_vouchers") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لتوليد كروت الشحن"})
+	}
+
 	adminID, _ := c.Locals("admin_id").(int64)
 	ensureVoucherBatchSchema()
 
@@ -333,9 +337,17 @@ func DeleteVoucher(c *fiber.Ctx) error {
 }
 
 func DeleteVoucherBatch(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_delete_vouchers") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لحذف كروت الشحن"})
+	}
+
+	batchID := c.Params("batch_id")
+	if batchID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "معرف المجموعة مطلوب"})
+	}
+
 	adminID, _ := c.Locals("admin_id").(int64)
 	role, _ := c.Locals("role").(string)
-	batchID := c.Params("batch_id")
 
 	var err error
 	var res sql.Result
@@ -356,6 +368,10 @@ func DeleteVoucherBatch(c *fiber.Ctx) error {
 }
 
 func ClearAllVouchers(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_delete_vouchers") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لمسح وتفريغ كروت الشحن"})
+	}
+
 	role, _ := c.Locals("role").(string)
 	if role != "superadmin" {
 		return c.Status(403).JSON(fiber.Map{"error": "غير مصرح لك بحذف جميع الكروت"})

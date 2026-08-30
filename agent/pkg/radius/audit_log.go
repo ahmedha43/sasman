@@ -91,6 +91,10 @@ func LogActivityFromCtx(c *fiber.Ctx, actionType, target, details string) {
 
 // GetAuditLogsHandler fetches logs with filtering, searching, and pagination
 func GetAuditLogsHandler(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_view_logs") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية للاطلاع على سجل العمليات والرقابة"})
+	}
+
 	if DB == nil {
 		return c.Status(500).JSON(fiber.Map{"error": "قاعدة البيانات غير متاحة"})
 	}
@@ -187,6 +191,10 @@ func GetAuditLogsHandler(c *fiber.Ctx) error {
 
 // ClearAuditLogsHandler clears old or all audit logs (superadmin only)
 func ClearAuditLogsHandler(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_clear_logs") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لمسح وتفريغ سجل العمليات"})
+	}
+
 	if DB == nil {
 		return c.Status(500).JSON(fiber.Map{"error": "قاعدة البيانات غير متاحة"})
 	}
@@ -222,6 +230,10 @@ func ClearAuditLogsHandler(c *fiber.Ctx) error {
 
 // ExportAuditLogsCSVHandler exports logs to CSV file for Excel
 func ExportAuditLogsCSVHandler(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_view_logs") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لتصدير سجل العمليات"})
+	}
+
 	if DB == nil {
 		return c.Status(500).JSON(fiber.Map{"error": "قاعدة البيانات غير متاحة"})
 	}

@@ -583,6 +583,8 @@ func main() {
 	radiusAccount.Post("/password", radius.ChangePasswordHandler)
 	radiusAccount.Post("/register", radius.RegisterAdminHandler)
 	radiusAccount.Get("/admins", radius.ListAdminsHandler)
+	radiusAccount.Post("/admins/:id/permissions", radius.UpdateAdminPermissionsHandler)
+	radiusAccount.Put("/admins/:id/permissions", radius.UpdateAdminPermissionsHandler)
 	radiusAccount.Delete("/admins/:id", radius.DeleteAdminHandler)
 	radiusAccount.Post("/recharge", radius.RechargeAdminHandler)
 	radiusAccount.Post("/withdraw", radius.WithdrawAdminHandler)
@@ -728,8 +730,9 @@ func main() {
 	radiusSecure.Post("/profiles", radius.CreateProfile)
 	radiusSecure.Delete("/profiles/:name", radius.DeleteProfile)
 
-	// Users
+	// Users & Sessions
 	radiusSecure.Get("/users", radius.GetUsers)
+	radiusSecure.Get("/sessions", radius.ListActiveSessionsHandler)
 	radiusSecure.Post("/users", radius.CreateUser)
 	radiusSecure.Post("/users/:user/renew", radius.RenewUser)
 	radiusSecure.Delete("/users/:user", radius.DeleteUser)
@@ -772,6 +775,8 @@ func main() {
 	radiusSecure.Get("/users/:user/transactions", radius.GetUserTransactions)
 	radiusSecure.Post("/users/:user/transactions", radius.AddTransaction)
 	radiusSecure.Get("/users/:user/balance", radius.GetUserBalance)
+	radiusSecure.Get("/transactions", radius.ListAllTransactionsHandler)
+	radiusSecure.Post("/transactions", radius.AddGlobalTransactionHandler)
 
 	// Database pruning
 	radiusSecure.Post("/prune", radius.ManualPruneHandler)

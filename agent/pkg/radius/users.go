@@ -148,14 +148,23 @@ func CreateUser(c *fiber.Ctx) error {
 	adminID, _ := c.Locals("admin_id").(int64)
 	role, _ := c.Locals("role").(string)
 
-	// Check if new username already exists
+	// Determine if this is a create or edit operation
 	var newUsernameExists bool
 	_ = DB.QueryRow("SELECT 1 FROM radcheck WHERE username=? AND attribute='Cleartext-Password'", req.User).Scan(&newUsernameExists)
 
-	// Determine if this is a username change operation
 	var usernameChanged bool
 	var oldUsername string
 	var currentExpiration sql.NullInt64
+
+	if (req.OldUser != "" && req.OldUser != req.User) || newUsernameExists {
+		if !HasPermission(c, "can_edit_users") {
+			return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لتعديل بيانات المشتركين"})
+		}
+	} else {
+		if !HasPermission(c, "can_create_users") {
+			return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لإضافة مشتركين جدد"})
+		}
+	}
 
 	if req.OldUser != "" && req.OldUser != req.User {
 		// Username is being changed
@@ -287,6 +296,10 @@ func CreateUser(c *fiber.Ctx) error {
 }
 
 func RenewUser(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_renew_users") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لتجديد اشتراكات المشتركين"})
+	}
+
 	rawUser := c.Params("user")
 	username, _ := url.PathUnescape(rawUser)
 	log.Printf("[radius] Renew request: raw=[%s], decoded=[%s]", rawUser, username)
@@ -425,6 +438,10 @@ func RenewUser(c *fiber.Ctx) error {
 }
 
 func DeleteUser(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_delete_users") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لحذف المشتركين"})
+	}
+
 	rawUser := c.Params("user")
 	username, _ := url.PathUnescape(rawUser)
 	log.Printf("[radius] Delete request: raw=[%s], decoded=[%s]", rawUser, username)
@@ -470,6 +487,10 @@ func DeleteUser(c *fiber.Ctx) error {
 }
 
 func DisconnectUser(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_disconnect_users") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لفصل جلسة المشترك"})
+	}
+
 	rawUser := c.Params("user")
 	username, _ := url.PathUnescape(rawUser)
 	username = strings.TrimSpace(username)
@@ -508,6 +529,10 @@ func DisconnectUser(c *fiber.Ctx) error {
 }
 
 func ToggleUserStatus(c *fiber.Ctx) error {
+	if !HasPermission(c, "can_toggle_users") {
+		return c.Status(403).JSON(fiber.Map{"error": "🚫 ليس لديك صلاحية لتعطيل أو تفعيل حساب المشترك"})
+	}
+
 	rawUser := c.Params("user")
 	username, _ := url.PathUnescape(rawUser)
 	username = strings.TrimSpace(username)
@@ -869,62 +894,93 @@ func PortalLoginHandler(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
 	}
 
-	var storedPass string
-	err := DB.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", req.Username).Scan(&storedPass)
-	if err == sql.ErrNoRows || storedPass != req.Password {
+	cleanUser := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(req.Username), "@"))
+	if cleanUser == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "اسم المستخدم مطلوب"})
+	}
+
+	var storedPass, actualUser string
+	err := DB.QueryRow("SELECT username, value FROM radcheck WHERE (username = ? OR LOWER(username) = LOWER(?)) AND attribute IN ('Cleartext-Password', 'User-Password') LIMIT 1", cleanUser, cleanUser).Scan(&actualUser, &storedPass)
+	reqPass := strings.TrimSpace(req.Password)
+	cleanStoredPass := strings.TrimSpace(storedPass)
+	if err == sql.ErrNoRows || (cleanStoredPass != reqPass && storedPass != req.Password) {
 		return c.Status(401).JSON(fiber.Map{"error": "اسم المستخدم أو كلمة المرور غير صحيحة"})
 	}
 
-	LogActivity(nil, req.Username, "تسجيل دخول كارت/مشترك", req.Username, fmt.Sprintf("تم تسجيل دخول المشترك %s عبر بوابة المشتركين", req.Username), c.IP())
+	LogActivity(nil, actualUser, "تسجيل دخول كارت/مشترك", actualUser, fmt.Sprintf("تم تسجيل دخول المشترك %s عبر بوابة المشتركين", actualUser), c.IP())
 
 	return c.JSON(fiber.Map{
 		"message":  "تم تسجيل الدخول بنجاح",
-		"username": req.Username,
-		"token":    req.Username, // Simple token for portal
+		"username": actualUser,
+		"token":    actualUser, // Simple token for portal
+		"success":  true,
 	})
 }
 
 func PortalStatusHandler(c *fiber.Ctx) error {
-	username := c.Query("username")
+	rawUser := c.Query("username")
+	username := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rawUser), "@"))
 	if username == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing username"})
 	}
 
-	var m UserMeta
+	var actualUser, password, fullName, phone, groupName string
+	var balance float64
 	var expirationUnix sql.NullInt64
-	var groupName sql.NullString
 	
 	err := DB.QueryRow(`
-		SELECT m.full_name, m.phone, m.balance, m.expiration_unix, COALESCE(g.groupname, '')
-		FROM radius_user_meta m
-		LEFT JOIN radusergroup g ON m.username = g.username
-		WHERE m.username = ?`, username).Scan(&m.FullName, &m.Phone, &m.Balance, &expirationUnix, &groupName)
+		SELECT r.username, r.value, COALESCE(m.full_name, ''), COALESCE(m.phone, ''), COALESCE(m.balance, 0), m.expiration_unix, COALESCE(g.groupname, 'افتراضي')
+		FROM radcheck r
+		LEFT JOIN radius_user_meta m ON r.username = m.username
+		LEFT JOIN radusergroup g ON r.username = g.username
+		WHERE (r.username = ? OR LOWER(r.username) = LOWER(?)) AND r.attribute IN ('Cleartext-Password', 'User-Password')
+		LIMIT 1`, username, username).Scan(&actualUser, &password, &fullName, &phone, &balance, &expirationUnix, &groupName)
 
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
+		// Fallback: check radius_user_meta directly
+		err = DB.QueryRow(`
+			SELECT m.username, COALESCE(m.full_name, ''), COALESCE(m.phone, ''), COALESCE(m.balance, 0), m.expiration_unix, COALESCE(g.groupname, 'افتراضي')
+			FROM radius_user_meta m
+			LEFT JOIN radusergroup g ON m.username = g.username
+			WHERE (m.username = ? OR LOWER(m.username) = LOWER(?))
+			LIMIT 1`, username, username).Scan(&actualUser, &fullName, &phone, &balance, &expirationUnix, &groupName)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "المشترك غير موجود"})
+		}
 	}
 
-	status := "منتهي"
+	status := "نشط"
 	expiryStr := "غير محدد"
-	if expirationUnix.Valid {
-		if expirationUnix.Int64 > time.Now().Unix() {
-			status = "نشط"
+	if expirationUnix.Valid && expirationUnix.Int64 > 0 {
+		if expirationUnix.Int64 <= time.Now().Unix() {
+			status = "منتهي"
 		}
 		expiryStr = time.Unix(expirationUnix.Int64, 0).In(baghdadLocation).Format("2006-01-02 15:04")
+	} else {
+		// Check radcheck Expiration attribute
+		var expVal string
+		if e := DB.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Expiration'", actualUser).Scan(&expVal); e == nil && expVal != "" {
+			expiryStr = expVal
+			if t := parseDBTime(expVal); !t.IsZero() && t.Unix() <= time.Now().Unix() {
+				status = "منتهي"
+			}
+		}
 	}
 
 	var totalIn, totalOut int64
-	_ = DB.QueryRow("SELECT SUM(acctinputoctets), SUM(acctoutputoctets) FROM radacct WHERE username = ?", username).Scan(&totalIn, &totalOut)
+	_ = DB.QueryRow("SELECT SUM(acctinputoctets), SUM(acctoutputoctets) FROM radacct WHERE username = ?", actualUser).Scan(&totalIn, &totalOut)
 
 	return c.JSON(fiber.Map{
-		"username":   username,
-		"full_name":  m.FullName,
-		"status":     status,
-		"expiry":     expiryStr,
-		"balance":    m.Balance,
-		"profile":    groupName.String,
-		"usage_in":   totalIn,
-		"usage_out":  totalOut,
+		"username":    actualUser,
+		"full_name":   fullName,
+		"phone":       phone,
+		"status":      status,
+		"expiry":      expiryStr,
+		"expires_at":  expiryStr,
+		"balance":     balance,
+		"profile":     groupName,
+		"usage_in":    totalIn,
+		"usage_out":   totalOut,
 		"usage_total": totalIn + totalOut,
 	})
 }
