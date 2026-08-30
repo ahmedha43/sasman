@@ -50,11 +50,8 @@ async function handleSystemReset() {
     }
 
     try {
-        const resp = await fetch('/radius/api/system/reset', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('radius_token')}`
-            }
+        const resp = await apiFetch('/radius/api/system/reset', {
+            method: 'POST'
         });
 
         const result = await resp.json();

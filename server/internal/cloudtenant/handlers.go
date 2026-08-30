@@ -142,10 +142,11 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Get("/users/:username/transactions", h.handleGetUserTransactions)
 	protectedRadius.Post("/users/:username/transactions", h.handleAddUserTransaction)
 
-	// Excel Import / Export & SAS4 Migration
+	// Excel Import / Export & SAS4 Migration & System Factory Reset
 	protectedRadius.Post("/import/excel", h.handleImportExcel)
 	protectedRadius.Get("/export/excel", h.handleExportExcel)
 	protectedRadius.Post("/import/sas4", h.handleImportSAS4)
+	protectedRadius.Post("/system/reset", h.handleResetSystemDatabase)
 
 	protectedRadius.Get("/profiles", h.handleListProfiles)
 	protectedRadius.Post("/profiles", h.handleCreateProfile)
@@ -3423,6 +3424,26 @@ func (h *APIHandler) handlePortalPassword(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"message": "تم تغيير كلمة المرور بنجاح"})
 }
+
+func (h *APIHandler) handleResetSystemDatabase(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	if db == nil {
+		return c.Status(500).JSON(fiber.Map{"error": "قاعدة بيانات المستأجر غير متوفرة"})
+	}
+
+	tables := []string{
+		"radcheck", "radreply", "radusergroup", "radgroupcheck", "radgroupreply",
+		"radacct", "radpostauth", "nas", "radius_user_meta", "radius_profile_meta",
+		"radius_user_transactions", "radius_vouchers",
+	}
+
+	for _, table := range tables {
+		_, _ = db.Exec(fmt.Sprintf("DELETE FROM %s", table))
+	}
+
+	return c.JSON(fiber.Map{"message": "تم تصفير وإعادة ضبط مصنع كافة بيانات النظام بنجاح"})
+}
+
 
 
 
