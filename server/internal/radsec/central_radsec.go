@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -186,8 +187,12 @@ func (s *CentralRadSecServer) processPacket(agent *CentralAgentConn, p *packet.P
 		s.handleAccessRequest(agent, p)
 	case types.AccountingRequest:
 		s.handleAccountingRequest(agent, p)
+	case types.DisconnectACK:
+		log.Printf("[radsec-central] ✅ Disconnect-ACK received from [%s] (Session terminated successfully on MikroTik!)", agent.CommonName)
+	case types.DisconnectNAK:
+		log.Printf("[radsec-central] ⚠️ Disconnect-NAK received from [%s] (Session not found or already closed on MikroTik)", agent.CommonName)
 	default:
-		log.Printf("[radsec-central] Unsupported RADIUS packet code: %d from %s", p.Code, agent.CommonName)
+		log.Printf("[radsec-central] Received RADIUS packet code: %d from %s", p.Code, agent.CommonName)
 	}
 }
 
@@ -583,34 +588,72 @@ func (s *CentralRadSecServer) handleAccountingRequest(agent *CentralAgentConn, p
 	agent.mu.Unlock()
 }
 
-func (s *CentralRadSecServer) DisconnectUser(nasIP string, username string, sessionID string) error {
+func (s *CentralRadSecServer) DisconnectUser(subdomainOrNAS string, username string, sessionID string, framedIP string) error {
 	s.mu.RLock()
-	agent := s.agentsByNAS[nasIP]
-	if agent == nil {
-		for _, a := range s.agentsByCN {
-			agent = a
-			break
+	var targetAgent *CentralAgentConn
+
+	// 1. Try exact CN match (agent-{subdomain}-SASMAN)
+	cnKey := fmt.Sprintf("agent-%s-SASMAN", subdomainOrNAS)
+	if a, ok := s.agentsByCN[cnKey]; ok && a.Conn != nil {
+		targetAgent = a
+	}
+
+	// 2. Try direct CN match
+	if targetAgent == nil {
+		if a, ok := s.agentsByCN[subdomainOrNAS]; ok && a.Conn != nil {
+			targetAgent = a
+		}
+	}
+
+	// 3. Try NAS IP match
+	if targetAgent == nil {
+		if a, ok := s.agentsByNAS[subdomainOrNAS]; ok && a.Conn != nil {
+			targetAgent = a
+		}
+	}
+
+	// 4. Substring CN match
+	if targetAgent == nil {
+		for cn, a := range s.agentsByCN {
+			if strings.Contains(strings.ToLower(cn), strings.ToLower(subdomainOrNAS)) && a.Conn != nil {
+				targetAgent = a
+				break
+			}
 		}
 	}
 	s.mu.RUnlock()
 
-	if agent == nil {
-		return fmt.Errorf("no active RadSec connection for NAS [%s]", nasIP)
+	if targetAgent == nil {
+		return fmt.Errorf("no active RadSec mTLS connection found for tenant/NAS [%s]", subdomainOrNAS)
 	}
 
 	req := &packet.Packet{
 		Code:       types.DisconnectRequest,
 		Identifier: byte(time.Now().UnixNano() & 0xFF),
 	}
-	req.Attributes = append(req.Attributes, packet.Attribute{
-		Type:  types.AttrUserName,
-		Value: []byte(username),
-	})
+	if req.Identifier == 0 {
+		req.Identifier = 1
+	}
+
+	if username != "" {
+		req.Attributes = append(req.Attributes, packet.Attribute{
+			Type:  types.AttrUserName,
+			Value: []byte(username),
+		})
+	}
 	if sessionID != "" {
 		req.Attributes = append(req.Attributes, packet.Attribute{
 			Type:  types.AttrAcctSessionID,
 			Value: []byte(sessionID),
 		})
+	}
+	if framedIP != "" {
+		if ip := net.ParseIP(framedIP).To4(); ip != nil {
+			req.Attributes = append(req.Attributes, packet.Attribute{
+				Type:  types.AttrFramedIPAddress,
+				Value: ip,
+			})
+		}
 	}
 
 	reqWire, err := req.Marshal([]byte("radsec"))
@@ -618,15 +661,31 @@ func (s *CentralRadSecServer) DisconnectUser(nasIP string, username string, sess
 		return fmt.Errorf("marshal Disconnect-Request: %w", err)
 	}
 
-	agent.mu.Lock()
-	err = writeFramedPacket(agent.Conn, reqWire)
-	agent.mu.Unlock()
+	// 1. Send over RadSec TLS framed connection
+	targetAgent.mu.Lock()
+	_ = targetAgent.Conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
+	err = writeFramedPacket(targetAgent.Conn, reqWire)
+	targetAgent.mu.Unlock()
+
+	// 2. Also try direct UDP 3799 if remote IP is reachable
+	go func() {
+		host, _, splitErr := net.SplitHostPort(targetAgent.RemoteAddr)
+		if splitErr == nil && host != "" {
+			udpAddr := net.JoinHostPort(host, "3799")
+			conn, dErr := net.DialTimeout("udp", udpAddr, 2*time.Second)
+			if dErr == nil {
+				defer conn.Close()
+				_ = conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+				_, _ = conn.Write(reqWire)
+			}
+		}
+	}()
 
 	if err != nil {
-		return fmt.Errorf("send reverse disconnect: %w", err)
+		return fmt.Errorf("send reverse disconnect over TLS: %w", err)
 	}
 
-	log.Printf("[radsec-central] 📤 Sent Reverse Disconnect to [%s] for user [%s]", agent.CommonName, username)
+	log.Printf("[radsec-central] 📤 Sent Reverse Disconnect to [%s] (Remote: %s) for user [%s] (Session: %s)", targetAgent.CommonName, targetAgent.RemoteAddr, username, sessionID)
 	return nil
 }
 
@@ -652,6 +711,9 @@ func readFramedPacket(r io.Reader) ([]byte, error) {
 }
 
 func writeFramedPacket(w io.Writer, p []byte) error {
+	if conn, ok := w.(net.Conn); ok {
+		_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	}
 	_, err := w.Write(p)
 	return err
 }

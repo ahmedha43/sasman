@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -143,9 +144,16 @@ func initWAStore() {
 
 	storePath := os.Getenv("WHATSAPP_STORE_PATH")
 	if storePath == "" {
-		storePath = "/app/data/whatsapp.db"
+		dataDir := os.Getenv("SASMAN_DATA_DIR")
+		if dataDir == "" {
+			dataDir = "data"
+		}
+		_ = os.MkdirAll(dataDir, 0755)
+		storePath = filepath.Join(dataDir, "whatsapp.db")
+	} else {
+		_ = os.MkdirAll(filepath.Dir(storePath), 0755)
 	}
-	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", storePath)
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", filepath.ToSlash(storePath))
 
 	waContainer, err = sqlstore.New(context.Background(), "sqlite", dsn, dbLog)
 	if err != nil {

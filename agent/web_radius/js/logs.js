@@ -40,12 +40,15 @@ function stopAutoRefresh() {
 async function clearLogs() {
     if (!confirm('هل أنت متأكد من تصفير سجل RADIUS؟ سيتم حذف كل البيانات الحالية من السجل.')) return;
     try {
-        const res = await fetch('/radius/api/logs', {
-            method: 'DELETE',
-            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('radius_token') }
-        });
+        const fetcher = (typeof apiFetch === 'function') 
+            ? apiFetch('/radius/api/logs', { method: 'DELETE' }) 
+            : fetch('/radius/api/logs', {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('radius_token') || '') }
+            });
+        const res = await fetcher;
         const result = await res.json();
-        alert(result.message || result.error);
+        alert(result.message || result.error || 'تم تصفير السجل بنجاح');
         fetchLogs();
     } catch (e) {
         alert('خطأ: ' + e.message);

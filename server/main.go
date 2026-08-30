@@ -363,7 +363,7 @@ func main() {
 				}
 			}
 			// 1. If agent is connected via container WebSocket tunnel
-			if svc.GetAgentBySubdomain(subdomain) != nil {
+			if svc.IsAgentConnected(subdomain) {
 				return svc.OnGlobalAuthRequest(subdomain, req)
 			}
 
@@ -415,7 +415,7 @@ func main() {
 				}
 			}
 			// 1. Container mode
-			if svc.GetAgentBySubdomain(subdomain) != nil {
+			if svc.IsAgentConnected(subdomain) {
 				svc.OnGlobalAcctUpdate(subdomain, req)
 				if subdomain != "" {
 					acctBytes, _ := json.Marshal(req)
@@ -456,9 +456,12 @@ func main() {
 	if err := centralRadSec.Start(2083); err != nil {
 		log.Printf("[CentralRadSec] ❌ Failed to start Central RadSec Server on :2083: %v", err)
 	}
+	cloudTenantMgr.SetDisconnector(centralRadSec)
 
 	// Auto-resume dedicated cloud agent instances for active cloud tenants
 	go cloudTenantMgr.EnsureAllCloudAgentsRunning()
+	cloudTenantMgr.StartExpirationSweeper()
+	cloudTenantMgr.StartTenantTelegramBackupScheduler()
 
 	app := fiber.New(fiber.Config{
 		AppName:   "SASMAN Central Server",
@@ -470,8 +473,8 @@ func main() {
 		host := c.Get("Host")
 		subdomain := tunnel.ExtractSubdomainForHost(host, centralDomain)
 		if subdomain != "" {
-			// 1. Container mode (Local MikroTik agent connected via tunnel)
-			if svc.GetAgentBySubdomain(subdomain) != nil {
+			// 1. Container mode (Local MikroTik agent connected via WebSocket tunnel)
+			if svc.IsAgentConnected(subdomain) {
 				return svc.ForwardRequestToAgent(c, subdomain)
 			}
 
@@ -544,6 +547,18 @@ func main() {
 			return c.SendFile(filepath.Join(radiusDir, "login.html"))
 		})
 		app.Get("/radius/portal.html", func(c *fiber.Ctx) error {
+			return c.SendFile(filepath.Join(radiusDir, "portal.html"))
+		})
+		app.Get("/radius/portal", func(c *fiber.Ctx) error {
+			return c.SendFile(filepath.Join(radiusDir, "portal.html"))
+		})
+		app.Get("/portal", func(c *fiber.Ctx) error {
+			return c.SendFile(filepath.Join(radiusDir, "portal.html"))
+		})
+		app.Get("/portal/", func(c *fiber.Ctx) error {
+			return c.SendFile(filepath.Join(radiusDir, "portal.html"))
+		})
+		app.Get("/portal.html", func(c *fiber.Ctx) error {
 			return c.SendFile(filepath.Join(radiusDir, "portal.html"))
 		})
 		app.Get("/radius/*", func(c *fiber.Ctx) error {
@@ -853,6 +868,16 @@ func main() {
 /user aaa set use-radius=yes default-group=read
 /ppp aaa set use-radius=yes accounting=yes interim-update=1m
 /ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
+
+# Configure Secure Device Tunnel using the exact same certificate (Port 1194 TLS)
+/interface ovpn-client remove [find name="ovpn-sasman"]
+/interface ovpn-client add name="ovpn-sasman" connect-to=167.86.73.203 port=1194 mode=ip protocol=tcp user="%[1]s" password="" certificate=$certName auth=sha256 cipher=aes256-gcm verify-server-certificate=yes add-default-route=no disabled=no comment="SASMAN Cloud Device Tunnel (%[1]s)"
+
+# Configure Firewall & NAT for Cloud Device Access Automatically
+/ip firewall filter remove [find comment="Allow SASMAN Tunnel"]
+/ip firewall filter add chain=input in-interface=ovpn-sasman action=accept place-before=0 comment="Allow SASMAN Tunnel"
+/ip firewall nat remove [find comment="SASMAN LAN Access"]
+/ip firewall nat add chain=srcnat out-interface=!ovpn-sasman src-address=10.250.0.0/24 action=masquerade comment="SASMAN LAN Access"
 
 :put "=================================================="
 :put "  [4/4] Cleaning Up Temporary Files..."
@@ -1392,6 +1417,19 @@ func main() {
 				}
 				agent["ota_status"] = "idle"
 			}
+
+			// Detect Cloud Tenant status and mark as online
+			if cloudTenantMgr != nil {
+				if _, err := os.Stat(cloudTenantMgr.GetPool().GetTenantDBPath(subdomain)); err == nil {
+					agent["online"] = true
+					agent["connected"] = true
+					agent["mode"] = "cloud"
+					agent["agent_version"] = "Cloud Edition"
+					if agent["last_seen"] == nil || agent["last_seen"] == "" || agent["last_seen"] == "-" {
+						agent["last_seen"] = time.Now().Format(time.RFC3339)
+					}
+				}
+			}
 		}
 
 		seen := make(map[string]bool)
@@ -1523,10 +1561,13 @@ func main() {
 	})
 
 	app.Post("/api/agents/:subdomain/delete", func(c *fiber.Ctx) error {
-		subdomain := c.Params("subdomain")
+		subdomain := strings.ToLower(strings.TrimSpace(c.Params("subdomain")))
 		svc.RemoveAgent(subdomain)
+		if cloudTenantMgr != nil {
+			_ = cloudTenantMgr.DeleteTenant(subdomain)
+		}
 		_ = repo.DeleteSubdomain(subdomain)
-		return c.JSON(fiber.Map{"success": true, "subdomain": subdomain})
+		return c.JSON(fiber.Map{"success": true, "subdomain": subdomain, "message": "تم حذف الوكيل والنطاق الفرعي وجميع بياناته نهائياً"})
 	})
 
 	app.Post("/api/agents/:subdomain/credentials", func(c *fiber.Ctx) error {

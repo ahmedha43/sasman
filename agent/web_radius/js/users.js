@@ -543,35 +543,56 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Device Proxy Modal Control
-function openDeviceModal(ip) {
+// Device Proxy Modal Control (Subscriber Device AirOS / WebFig)
+function openDeviceProxyModal(ip) {
     const modal = document.getElementById('device-proxy-modal');
     const iframe = document.getElementById('device-proxy-iframe');
     const loading = document.getElementById('device-proxy-loading');
     const title = document.getElementById('device-proxy-title');
 
-    title.innerText = `📡 واجهة الجهاز: ${ip}`;
-    iframe.style.display = 'none';
-    loading.style.display = 'block';
-    
-    // Set source
-    iframe.src = `/proxy/${ip}/`;
+    if (!modal) return;
+
+    if (title) title.innerText = `📡 واجهة الجهاز: ${ip}`;
+    if (iframe) {
+        iframe.style.display = 'none';
+        iframe.src = `/proxy/${ip}/`;
+        iframe.onload = () => {
+            if (loading) loading.style.display = 'none';
+            iframe.style.display = 'block';
+        };
+    }
+    if (loading) loading.style.display = 'block';
     
     modal.classList.add('active');
+}
 
-    iframe.onload = () => {
-        loading.style.display = 'none';
-        iframe.style.display = 'block';
-    };
+function closeDeviceProxyModal() {
+    const modal = document.getElementById('device-proxy-modal');
+    const iframe = document.getElementById('device-proxy-iframe');
+    const loading = document.getElementById('device-proxy-loading');
+    
+    if (modal) modal.classList.remove('active');
+    if (iframe) {
+        iframe.src = 'about:blank';
+        iframe.style.display = 'none';
+    }
+    if (loading) loading.style.display = 'none';
+}
+
+function openDeviceModal(ip) {
+    openDeviceProxyModal(ip);
 }
 
 function closeDeviceModal() {
-    const modal = document.getElementById('device-proxy-modal');
-    const iframe = document.getElementById('device-proxy-iframe');
-    
-    modal.classList.remove('active');
-    iframe.src = 'about:blank';
+    closeDeviceProxyModal();
+    const netModal = document.getElementById('device-modal');
+    if (netModal) netModal.classList.remove('active');
 }
+
+window.openDeviceProxyModal = openDeviceProxyModal;
+window.closeDeviceProxyModal = closeDeviceProxyModal;
+window.openDeviceModal = openDeviceModal;
+window.closeDeviceModal = closeDeviceModal;
 
 function openUserModal() {
     resetUserForm();

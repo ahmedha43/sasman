@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+	<meta charset="UTF-8">
+	<title>تقرير التدقيق الفني الرسمي — SASMAN Cloud Platform</title>
+	<style>
+		:root {
+			--bg: #090d16;
+			--card: #111827;
+			--border: #1f2937;
+			--primary: #38bdf8;
+			--accent: #10b981;
+			--text: #f8fafc;
+			--text-muted: #94a3b8;
+		}
+		* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+		body { background: var(--bg); color: var(--text); padding: 40px 20px; line-height: 1.6; }
+		.container { max-width: 1000px; margin: 0 auto; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+		.header { border-bottom: 2px solid var(--border); padding-bottom: 24px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+		.header-title h1 { font-size: 24px; color: var(--primary); margin-bottom: 6px; }
+		.header-title p { color: var(--text-muted); font-size: 13px; }
+		.badge-cert { background: rgba(16,185,129,0.15); color: var(--accent); border: 1px solid var(--accent); padding: 6px 14px; border-radius: 8px; font-weight: bold; font-size: 13px; }
+		.section-title { font-size: 18px; color: var(--primary); margin: 30px 0 16px 0; border-right: 4px solid var(--primary); padding-right: 12px; }
+		table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+		th { background: #1e293b; color: #cbd5e1; text-align: right; padding: 12px 16px; font-weight: 600; border-bottom: 2px solid var(--border); }
+		td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text); }
+		tr:hover { background: rgba(255,255,255,0.02); }
+		.badge-accent { color: var(--primary); font-weight: bold; font-family: monospace; font-size: 14px; }
+		.text-amber { color: #f59e0b; font-weight: bold; }
+		.badge-success { background: #064e3b; color: #6ee7b7; padding: 3px 8px; border-radius: 6px; font-weight: bold; font-size: 12px; }
+		.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 20px; }
+		.feature-box { background: #0f172a; border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+		.feature-box h4 { color: var(--primary); margin-bottom: 8px; font-size: 15px; }
+		.feature-box p { font-size: 12.5px; color: var(--text-muted); }
+		.footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
+		@media print {
+			body { background: #fff; color: #000; padding: 0; }
+			.container { border: none; box-shadow: none; max-width: 100%; padding: 20px; }
+			th { background: #f1f5f9; color: #000; }
+			td { color: #000; border-bottom: 1px solid #ccc; }
+			.feature-box { background: #f8fafc; border: 1px solid #ddd; }
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<div class="header-title">
+				<h1>📜 تقرير الفحص الفني وتقييم الأداء الرسمي</h1>
+				<p>منظومة SASMAN Cloud Platform — Carrier-Grade AAA & Network Management</p>
+			</div>
+			<div class="badge-cert">
+				✓ معتمد وفق معايير Enterprise
+			</div>
+		</div>
+
+		<p style="color:#cbd5e1; font-size:14px;">
+			يوثق هذا التقرير الرسمي نتائج اختبارات الضغط والأداء الحي لمنصة <strong>SASMAN</strong> تحت مختلف مستويات الحمل والتوسع من <strong>1,000 إلى 100,000 مشترك</strong> عبر مسار التشفير الكامل <strong>mTLS RadSec RFC 6614</strong> وقواعد البيانات السحابية المعزولة.
+		</p>
+
+		<h3 class="section-title">📊 نتائج اختبارات التحمل والإنتاجية (Stress Benchmark Results)</h3>
+		<table>
+			<thead>
+				<tr>
+					<th>المشتركون المسجلون</th>
+					<th>حجم الطلبات</th>
+					<th>معدل الإنتاجية (RPS)</th>
+					<th>زمن p50</th>
+					<th>زمن p95</th>
+					<th>زمن p99</th>
+					<th>الذاكرة (RAM)</th>
+					<th>نسبة الخطأ</th>
+				</tr>
+			</thead>
+			<tbody>
+				
+		<tr>
+			<td><strong>1000</strong></td>
+			<td>5000</td>
+			<td class="badge-accent">71940.1 req/s</td>
+			<td>587.1µs</td>
+			<td><strong>1.151ms</strong></td>
+			<td class="text-amber">2.0042ms</td>
+			<td>1.6 MB</td>
+			<td><span class="badge-success">0 (0.00%)</span></td>
+		</tr>
+		<tr>
+			<td><strong>5000</strong></td>
+			<td>10000</td>
+			<td class="badge-accent">62442.9 req/s</td>
+			<td>999.7µs</td>
+			<td><strong>2.0025ms</strong></td>
+			<td class="text-amber">6.999ms</td>
+			<td>2.8 MB</td>
+			<td><span class="badge-success">0 (0.00%)</span></td>
+		</tr>
+		<tr>
+			<td><strong>10000</strong></td>
+			<td>20000</td>
+			<td class="badge-accent">64321.9 req/s</td>
+			<td>1.0002ms</td>
+			<td><strong>2.5236ms</strong></td>
+			<td class="text-amber">5.517ms</td>
+			<td>2.6 MB</td>
+			<td><span class="badge-success">0 (0.00%)</span></td>
+		</tr>
+		<tr>
+			<td><strong>50000</strong></td>
+			<td>30000</td>
+			<td class="badge-accent">66865.1 req/s</td>
+			<td>1.6865ms</td>
+			<td><strong>3.4791ms</strong></td>
+			<td class="text-amber">5.5188ms</td>
+			<td>4.6 MB</td>
+			<td><span class="badge-success">0 (0.00%)</span></td>
+		</tr>
+		<tr>
+			<td><strong>100000</strong></td>
+			<td>50000</td>
+			<td class="badge-accent">60922.6 req/s</td>
+			<td>2.0016ms</td>
+			<td><strong>5.0038ms</strong></td>
+			<td class="text-amber">7.0072ms</td>
+			<td>7.9 MB</td>
+			<td><span class="badge-success">0 (0.00%)</span></td>
+		</tr>
+			</tbody>
+		</table>
+
+		<h3 class="section-title">🛡️ الركائز التقنية المعتمدة للمنظومة</h3>
+		<div class="features-grid">
+			<div class="feature-box">
+				<h4>🔐 بروتوكول RadSec المشفر</h4>
+				<p>مصادقة TLS 1.3 مع شهادات ECDSA فريدة لكل راوتر لتجاوز CGNAT بدون فقدان حزم.</p>
+			</div>
+			<div class="feature-box">
+				<h4>🌐 نفق الأجهزة المعزول</h4>
+				<p>وصول مباشر لصحونات المشتركين والراوترات المنزلية عبر بروكسي محمي بتقنية Session Socket.</p>
+			</div>
+			<div class="feature-box">
+				<h4>⚡ منفذ Winbox المباشر</h4>
+				<p>تخصيص بورت فريد لكل وكيل يتيح الدخول ببرنامج Winbox من أي مكان في العالم فوراً.</p>
+			</div>
+			<div class="feature-box">
+				<h4>📂 عزل البيانات التام</h4>
+				<p>قاعدة بيانات مستقلة لكل وكيل (DB-per-Tenant) خالية من التعليق وقفل الجداول.</p>
+			</div>
+		</div>
+
+		<div class="footer">
+			<div>تاريخ التوليد: 2026-08-30 03:54:18</div>
+			<div>SASMAN Carrier-Grade Cloud Platform © 2026</div>
+		</div>
+	</div>
+</body>
+</html>

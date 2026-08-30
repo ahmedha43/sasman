@@ -10,29 +10,49 @@ async function loadNAS() {
         if (nasList.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">لا توجد أجهزة NAS متصلة...</td></tr>';
         } else {
-            tbody.innerHTML = nasList.map(n => `
+            const hasCloudFixed = nasList.some(n => n.is_cloud_fixed);
+            const addNasBtn = document.querySelector("button[onclick='openNASModal()']");
+            if (addNasBtn) {
+                addNasBtn.style.display = hasCloudFixed ? 'none' : '';
+            }
+
+            tbody.innerHTML = nasList.map(n => {
+                let actionsHtml = '';
+                if (n.is_cloud_fixed) {
+                    actionsHtml = `
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                            <button class="btn" style="padding:6px 12px; font-size:12px; background:linear-gradient(135deg, #10b981, #059669); color:white; border:none; font-weight:bold; box-shadow:0 2px 6px rgba(16,185,129,0.3);" onclick="openAutoRadSecModal()"><i class="fa-solid fa-bolt"></i> كود التثبيت السريع</button>
+                            <button class="btn btn-primary" style="padding:6px 12px; font-size:12px;" onclick="window.open('/pki/cert/${n.subdomain || '1'}/agent.crt', '_blank')"><i class="fa-solid fa-download"></i> الشهادة</button>
+                            <span class="badge" style="background:rgba(99, 102, 241, 0.15); color:#6366f1; border:1px solid rgba(99, 102, 241, 0.3); padding:5px 8px; border-radius:6px; font-size:11px;"><i class="fa-solid fa-lock"></i> مثبت سحابياً</span>
+                        </div>
+                    `;
+                } else if (currentAdmin && currentAdmin.role === 'superadmin') {
+                    actionsHtml = `
+                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <button class="btn" style="padding:4px 8px; font-size:12px; background:var(--warning); border-color:var(--warning);" onclick="prepareEditNAS('${n.id}', '${escapeHtml(n.ip)}', '${escapeHtml(n.name)}', '${escapeHtml(n.secret)}', '${escapeHtml(n.profile_nas_ip)}', ${n.admin_id}, '${escapeHtml(n.admin_name)}')">تعديل</button>
+                            <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteNAS('${escapeHtml(n.ip)}')">حذف</button>
+                            <button class="btn" style="padding:4px 8px; font-size:12px; background:var(--primary); color:#fff;" onclick="generateNASCert('${n.id}', '${escapeHtml(n.name || n.ip)}')"><i class="fa-solid fa-key"></i> شهادة</button>
+                            ${n.common_name ? `
+                                <button class="btn btn-success" style="padding:4px 8px; font-size:12px;" onclick="downloadNASCertBundle('${n.id}')"><i class="fa-solid fa-download"></i> الحزمة</button>
+                                <button class="btn" style="padding:4px 8px; font-size:12px; background:#e53e3e; color:#fff;" onclick="revokeNASCert('${n.id}', '${escapeHtml(n.name || n.ip)}')"><i class="fa-solid fa-ban"></i> إبطال</button>
+                            ` : ''}
+                        </div>
+                    `;
+                } else {
+                    actionsHtml = '<span style="color:var(--text-muted); font-size:12px;">غير مصرح</span>';
+                }
+
+                return `
                 <tr>
                     <td><strong>${escapeHtml(n.ip)}</strong></td>
-                    <td>${n.profile_nas_ip ? escapeHtml(n.profile_nas_ip) : '<span style="color:var(--text-muted);">غير مضبوط</span>'}</td>
+                    <td>${n.profile_nas_ip ? escapeHtml(n.profile_nas_ip) : '<span style="color:var(--text-muted);">تلقائي</span>'}</td>
                     <td>${escapeHtml(n.name || '-')}</td>
                     <td><span style="font-family:monospace; background:var(--bg-app); color:var(--text-main); padding:2px 6px; border-radius:4px;">${escapeHtml(n.secret)}</span></td>
                     <td>${getRadSecBadge(n)}</td>
                     ${(currentAdmin && currentAdmin.role === 'superadmin') ? `<td><span class="badge badge-secondary">${escapeHtml(n.admin_name || 'System')}</span></td>` : ''}
-                    <td>
-                        ${(currentAdmin && currentAdmin.role === 'superadmin') ? `
-                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                                <button class="btn" style="padding:4px 8px; font-size:12px; background:var(--warning); border-color:var(--warning);" onclick="prepareEditNAS('${n.id}', '${escapeHtml(n.ip)}', '${escapeHtml(n.name)}', '${escapeHtml(n.secret)}', '${escapeHtml(n.profile_nas_ip)}', ${n.admin_id}, '${escapeHtml(n.admin_name)}')">تعديل</button>
-                                <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteNAS('${escapeHtml(n.ip)}')">حذف</button>
-                                <button class="btn" style="padding:4px 8px; font-size:12px; background:var(--primary); color:#fff;" onclick="generateNASCert('${n.id}', '${escapeHtml(n.name || n.ip)}')"><i class="fa-solid fa-key"></i> شهادة</button>
-                                ${n.common_name ? `
-                                    <button class="btn btn-success" style="padding:4px 8px; font-size:12px;" onclick="downloadNASCertBundle('${n.id}')"><i class="fa-solid fa-download"></i> الحزمة</button>
-                                    <button class="btn" style="padding:4px 8px; font-size:12px; background:#e53e3e; color:#fff;" onclick="revokeNASCert('${n.id}', '${escapeHtml(n.name || n.ip)}')"><i class="fa-solid fa-ban"></i> إبطال</button>
-                                ` : ''}
-                            </div>
-                        ` : '<span style="color:var(--text-muted); font-size:12px;">غير مصرح</span>'}
-                    </td>
+                    <td>${actionsHtml}</td>
                 </tr>
-            `).join('');
+            `}).join('');
         }
 
         const nasSelect = document.getElementById('prof-nas');
@@ -374,6 +394,31 @@ async function refreshNASLiveStatus() {
 
         if (titleEl) titleEl.textContent = data.status_text || (data.connected ? '🟢 راوتر المايكروتك متصل الآن' : '🔴 الراوتر غير متصل');
         if (descEl) descEl.textContent = `البروتوكول: ${data.protocol} | المعرّف: ${data.common_name || data.router_ip || '-'}`;
+
+        if (data.winbox_address) {
+            let winboxBox = document.getElementById('nas-winbox-info');
+            if (!winboxBox) {
+                const headerCard = descEl ? descEl.closest('.card') || descEl.parentNode : null;
+                if (headerCard) {
+                    winboxBox = document.createElement('div');
+                    winboxBox.id = 'nas-winbox-info';
+                    winboxBox.style = 'margin-top:12px; padding:10px 14px; background:rgba(30,41,59,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:8px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;';
+                    headerCard.appendChild(winboxBox);
+                }
+            }
+            if (winboxBox) {
+                winboxBox.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <i class="fa-solid fa-desktop" style="color:#38bdf8; font-size:16px;"></i>
+                        <span style="font-size:13px; color:#cbd5e1;">منفذ Winbox السحابي المباشر:</span>
+                        <strong style="font-family:monospace; color:#38bdf8; font-size:14px; background:#0f172a; padding:2px 8px; border-radius:4px; border:1px solid #334155; direction:ltr;">${data.winbox_address}</strong>
+                    </div>
+                    <button class="btn btn-sm" onclick="navigator.clipboard.writeText('${data.winbox_address}'); alert('تم نسخ عنوان Winbox: ${data.winbox_address}');" style="background:#0284c7; color:#fff; padding:4px 12px; font-size:12px; border-radius:6px; border:none; font-weight:600; cursor:pointer;">
+                        <i class="fa-solid fa-copy"></i> نسخ للـ Winbox
+                    </button>
+                `;
+            }
+        }
 
         if (modeBadge) {
             modeBadge.textContent = data.mode === 'cloud' ? 'RadSec TLS السحابي' : 'محلي (Loopback)';

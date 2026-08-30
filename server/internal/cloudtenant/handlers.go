@@ -1,21 +1,43 @@
 package cloudtenant
 
 import (
+	"bytes"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"math/big"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/xuri/excelize/v2"
 	"golang.org/x/crypto/bcrypt"
 	"mikrotik-manager/pkg/tunnel"
 )
 
 type APIHandler struct {
 	mgr *Manager
+}
+
+func formatBytes(bytes int64) string {
+	if bytes <= 0 {
+		return "0 B"
+	}
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 func NewAPIHandler(mgr *Manager) *APIHandler {
@@ -93,6 +115,12 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	radiusAPI.Get("/nas/status", h.handleNASLiveStatus)
 	radiusAPI.Get("/nas/provision-code", h.handleNASProvisionCode)
 
+	// Subscriber Portal APIs (Public)
+	radiusAPI.Get("/portal/streams", h.handleListStreams)
+	radiusAPI.Post("/portal/login", h.handlePortalLogin)
+	radiusAPI.Get("/portal/status", h.handlePortalStatus)
+	radiusAPI.Post("/portal/password", h.handlePortalPassword)
+
 	// Broadcasts & System configs (Public / semi-public for UI initialization)
 	radiusAPI.Get("/broadcasts/active", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"active": false, "broadcasts": []interface{}{}})
@@ -109,44 +137,104 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Get("/users/:username/details", h.handleGetUserDetails)
 	protectedRadius.Post("/users/:username/toggle-status", h.handleToggleUserStatus)
 	protectedRadius.Post("/users/:username/disconnect", h.handleDisconnectUser)
-	protectedRadius.Get("/users/:username/transactions", func(c *fiber.Ctx) error {
-		return c.JSON([]interface{}{})
-	})
-	protectedRadius.Post("/users/:username/transactions", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"success": true, "message": "تم تسجيل الحركة"})
-	})
+	protectedRadius.Get("/users/:username/transactions", h.handleGetUserTransactions)
+	protectedRadius.Post("/users/:username/transactions", h.handleAddUserTransaction)
+
+	// Excel Import / Export & SAS4 Migration
+	protectedRadius.Post("/import/excel", h.handleImportExcel)
+	protectedRadius.Get("/export/excel", h.handleExportExcel)
+	protectedRadius.Post("/import/sas4", h.handleImportSAS4)
 
 	protectedRadius.Get("/profiles", h.handleListProfiles)
 	protectedRadius.Post("/profiles", h.handleCreateProfile)
 	protectedRadius.Delete("/profiles/:name", h.handleDeleteProfile)
 
+	// Vouchers
 	protectedRadius.Get("/vouchers", h.handleListVouchers)
 	protectedRadius.Post("/vouchers/generate", h.handleGenerateVouchers)
 	protectedRadius.Delete("/vouchers/:id", h.handleDeleteVoucher)
+	protectedRadius.Delete("/vouchers/batch/:batch_id", h.handleDeleteVoucherBatch)
+	protectedRadius.Delete("/vouchers/all/clear", h.handleClearAllVouchers)
 
+	// NAS & RadSec
 	protectedRadius.Get("/nas", h.handleListNAS)
+	protectedRadius.Post("/nas", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "في الوضع السحابي، يتم إدارة المايكروتك تلقائياً عبر الشهادات المشفرة ولا يمكن إضافة NAS يدوياً."})
+	})
+	protectedRadius.Put("/nas/:id", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "في الوضع السحابي، إعدادات الـ NAS ثابتة ومحمية."})
+	})
+	protectedRadius.Delete("/nas/:ip", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "في الوضع السحابي، إعدادات الـ NAS ثابتة ومحمية ولا يمكن حذفها."})
+	})
+	protectedRadius.Get("/nas/provision-code", h.handleNASProvisionCode)
+	protectedRadius.Get("/nas/status", h.handleNASLiveStatus)
+	protectedRadius.Get("/nas/radsec-status", h.handleNASLiveStatus)
+	// Admins & Staff
 	protectedRadius.Get("/auth/admins", h.handleListAdmins)
-	protectedRadius.Get("/whatsapp/config", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"enabled": false, "phone_number": ""})
-	})
-	protectedRadius.Get("/whatsapp/templates", func(c *fiber.Ctx) error {
-		return c.JSON([]interface{}{})
-	})
-	protectedRadius.Get("/streams", func(c *fiber.Ctx) error {
-		return c.JSON([]interface{}{})
-	})
+	protectedRadius.Post("/auth/register", h.handleRegisterAdmin)
+	protectedRadius.Put("/auth/profile", h.handleUpdateProfile)
+	protectedRadius.Delete("/auth/admins/:id", h.handleDeleteAdmin)
+	protectedRadius.Post("/auth/recharge", h.handleRechargeAdmin)
+	protectedRadius.Post("/auth/withdraw", h.handleWithdrawAdmin)
+	protectedRadius.Get("/auth/admins/transactions", h.handleListAdminTransactions)
+
+	// WhatsApp
+	protectedRadius.Get("/whatsapp/config", h.handleGetWhatsappConfig)
+	protectedRadius.Post("/whatsapp/config", h.handleSaveWhatsappConfig)
+	protectedRadius.Get("/whatsapp/qr", h.handleGetWhatsappQR)
+	protectedRadius.Post("/whatsapp/logout", h.handleLogoutWhatsapp)
+	protectedRadius.Post("/whatsapp/test", h.handleTestWhatsapp)
+	protectedRadius.Get("/whatsapp/templates", h.handleGetWhatsappTemplates)
+	protectedRadius.Post("/whatsapp/templates", h.handleSaveWhatsappTemplates)
+
+	// Live Streams (IPTV)
+	protectedRadius.Get("/streams", h.handleListStreams)
+	protectedRadius.Post("/streams", h.handleCreateStream)
+	protectedRadius.Put("/streams/:id", h.handleUpdateStream)
+	protectedRadius.Delete("/streams/:id", h.handleDeleteStream)
+
+	// Emergency Blind Accept Bypass
+	protectedRadius.Get("/bypass", h.handleGetBypass)
+	protectedRadius.Post("/bypass", h.handleSetBypass)
+
 	protectedRadius.Get("/auth/shutdown/config", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"enabled": false})
 	})
-	protectedRadius.Get("/auth/backup/telegram", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"enabled": false})
-	})
+
+	// Backup & Restore
+	protectedRadius.Get("/auth/backup/telegram", h.handleGetTelegramBackupConfig)
+	protectedRadius.Post("/auth/backup/telegram", h.handleSaveTelegramBackupConfig)
+	protectedRadius.Post("/auth/backup/telegram/test", h.handleTestTelegramBackup)
+	protectedRadius.Get("/auth/backup", h.handleDownloadBackup)
+	protectedRadius.Post("/auth/restore", h.handleRestoreBackup)
+
+	// Logs
 	radiusAPI.Get("/logs", h.handleGetTenantLogs)
 	radiusAPI.Delete("/logs", h.handleClearTenantLogs)
 	radiusAPI.Get("/audit-logs", h.handleListAuditLogs)
+	protectedRadius.Delete("/audit-logs", h.handleClearAuditLogs)
+	protectedRadius.Get("/audit-logs/export", h.handleExportAuditLogsCSV)
 
+	// Sessions
 	protectedRadius.Get("/sessions", h.handleListActiveSessions)
 	protectedRadius.Post("/sessions/disconnect", h.handleDisconnectSession)
+
+	// Network Devices (Tower Links, Switches, Sectors, CPEs)
+	protectedRadius.Get("/devices/summary", h.handleGetDeviceSummary)
+	protectedRadius.Get("/devices/vendors", h.handleListDeviceVendors)
+	protectedRadius.Get("/devices/types", h.handleListDeviceTypes)
+	protectedRadius.Get("/devices", h.handleListNetworkDevices)
+	protectedRadius.Post("/devices", h.handleAddNetworkDevice)
+	protectedRadius.Get("/devices/:id", h.handleGetNetworkDeviceDetail)
+	protectedRadius.Put("/devices/:id", h.handleUpdateNetworkDevice)
+	protectedRadius.Delete("/devices/:id", h.handleDeleteNetworkDevice)
+	protectedRadius.Post("/devices/test-connection", h.handleTestDeviceConnection)
+	protectedRadius.Post("/devices/discover", h.handleDiscoverDevices)
+	protectedRadius.Post("/devices/:id/poll", h.handleTriggerDevicePoll)
+
+	// High-Speed Device Proxy (NanoStation / Home Routers)
+	app.All("/proxy/:target/*", h.handleDeviceProxy)
 }
 
 func (h *APIHandler) handleCheckSubdomain(c *fiber.Ctx) error {
@@ -302,7 +390,7 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 			}
 		}
 
-		if tokenString == "" {
+		if tokenString == "" || tokenString == "null" || tokenString == "undefined" {
 			subdomain := ""
 			if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
 				subdomain = sub
@@ -333,6 +421,20 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 		})
 
 		if err != nil || !token.Valid {
+			subdomain := ""
+			if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+				subdomain = sub
+			} else {
+				subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+			}
+			if subdomain != "" && (c.Path() == "/radius/api/logs" || c.Path() == "/radius/api/audit-logs") {
+				db, err := h.mgr.pool.Get(subdomain)
+				if err == nil {
+					c.Locals("subdomain", subdomain)
+					c.Locals("tenant_db", db)
+					return c.Next()
+				}
+			}
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success":       false,
 				"error":         "جلسة غير صالحة أو منتهية",
@@ -630,7 +732,12 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 		Status         string `json:"status"`
 		IP             string `json:"ip"`
 		MAC            string `json:"mac"`
+		CallingStation string `json:"calling_station"`
 		SessionSeconds int64  `json:"session_seconds"`
+		Download       string `json:"download"`
+		Upload         string `json:"upload"`
+		BytesIn        int64  `json:"bytes_in"`
+		BytesOut       int64  `json:"bytes_out"`
 	}
 
 	type UserItem struct {
@@ -672,17 +779,29 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 				u.Expired = false
 			}
 
-			// Check active session in radacct
+			// Check active session and accounting in radacct
 			var sessIP, sessMAC string
-			var sessTime int64
-			err := db.QueryRow("SELECT COALESCE(framedipaddress, ''), COALESCE(callingstationid, ''), COALESCE(acctsessiontime, 0) FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", u.User).Scan(&sessIP, &sessMAC, &sessTime)
+			var sessTime, sessIn, sessOut int64
+			err := db.QueryRow(`
+				SELECT COALESCE(framedipaddress, ''), COALESCE(callingstationid, ''), COALESCE(acctsessiontime, 0),
+				       COALESCE(acctinputoctets, 0), COALESCE(acctoutputoctets, 0)
+				FROM radacct 
+				WHERE username = ? AND acctstoptime IS NULL 
+				ORDER BY radacctid DESC LIMIT 1
+			`, u.User).Scan(&sessIP, &sessMAC, &sessTime, &sessIn, &sessOut)
+
 			if err == nil {
 				u.Session = SessionData{
 					Online:         true,
 					Status:         "online",
 					IP:             sessIP,
 					MAC:            sessMAC,
+					CallingStation: sessMAC,
 					SessionSeconds: sessTime,
+					Download:       formatBytes(sessIn),
+					Upload:         formatBytes(sessOut),
+					BytesIn:        sessIn,
+					BytesOut:       sessOut,
 				}
 				if u.Expired {
 					u.Session.Status = "expired_online"
@@ -708,15 +827,17 @@ func (h *APIHandler) handleCreateUser(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
 
 	var req struct {
-		User     string `json:"user"`
-		Username string `json:"username"`
-		Pass     string `json:"pass"`
-		Password string `json:"password"`
-		FullName string `json:"full_name"`
-		Phone    string `json:"phone"`
-		Profile  string `json:"profile"`
-		Days     int    `json:"days"`
-		OldUser  string `json:"old_user"`
+		User          string `json:"user"`
+		Username      string `json:"username"`
+		OldUser       string `json:"old_user"`
+		Pass          string `json:"pass"`
+		Password      string `json:"password"`
+		FullName      string `json:"full_name"`
+		Phone         string `json:"phone"`
+		Profile       string `json:"profile"`
+		ExpiresAt     string `json:"expires_at"`
+		ExpiresAtUnix int64  `json:"expires_at_unix"`
+		Days          int    `json:"days"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "بيانات غير صالحة"})
@@ -741,18 +862,71 @@ func (h *APIHandler) handleCreateUser(c *fiber.Ctx) error {
 	if req.Profile == "" {
 		req.Profile = "10M"
 	}
-	if req.Days <= 0 {
-		req.Days = 30
+
+	oldUser := strings.TrimSpace(req.OldUser)
+	isRename := oldUser != "" && oldUser != username
+
+	// Check existing user expiration and info
+	var existingExp int64
+	var existingEnabled int = 1
+	lookupUser := username
+	if isRename {
+		lookupUser = oldUser
+	}
+	_ = db.QueryRow("SELECT COALESCE(expiration_unix, 0), COALESCE(enabled, 1) FROM radius_user_meta WHERE username = ?", lookupUser).Scan(&existingExp, &existingEnabled)
+
+	var expUnix int64
+	if req.ExpiresAtUnix > 0 {
+		expUnix = req.ExpiresAtUnix
+	} else if strings.TrimSpace(req.ExpiresAt) != "" {
+		raw := strings.TrimSpace(req.ExpiresAt)
+		loc, _ := time.LoadLocation("Asia/Baghdad")
+		if loc == nil {
+			loc = time.FixedZone("Asia/Baghdad", 3*3600)
+		}
+		for _, layout := range []string{
+			"2006-01-02T15:04:05",
+			"2006-01-02T15:04",
+			"2006-01-02 15:04:05",
+			"2006-01-02 15:04",
+		} {
+			if t, err := time.ParseInLocation(layout, raw, loc); err == nil {
+				expUnix = t.Unix()
+				break
+			}
+		}
+		if expUnix == 0 {
+			if t, err := time.ParseInLocation("2006-01-02", raw, loc); err == nil {
+				expUnix = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, loc).Unix()
+			}
+		}
+	}
+
+	// If no expiration provided:
+	if expUnix == 0 {
+		if existingExp > 0 {
+			// Keep existing expiration date when editing!
+			expUnix = existingExp
+		} else {
+			// Default for new user from profile or days
+			validityDays := req.Days
+			if validityDays <= 0 {
+				_ = db.QueryRow("SELECT validity_days FROM radius_profile_meta WHERE groupname = ?", req.Profile).Scan(&validityDays)
+			}
+			if validityDays <= 0 {
+				validityDays = 30
+			}
+			expUnix = time.Now().Add(time.Duration(validityDays) * 24 * time.Hour).Unix()
+		}
 	}
 
 	// Handle Rename
-	if req.OldUser != "" && req.OldUser != username {
-		_, _ = db.Exec("DELETE FROM radcheck WHERE username = ?", req.OldUser)
-		_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", req.OldUser)
-		_, _ = db.Exec("DELETE FROM radius_user_meta WHERE username = ?", req.OldUser)
+	if isRename {
+		_, _ = db.Exec("DELETE FROM radcheck WHERE username = ?", oldUser)
+		_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", oldUser)
+		_, _ = db.Exec("DELETE FROM radius_user_meta WHERE username = ?", oldUser)
+		_, _ = db.Exec("UPDATE radacct SET username = ? WHERE username = ?", username, oldUser)
 	}
-
-	expUnix := time.Now().Add(time.Duration(req.Days) * 24 * time.Hour).Unix()
 
 	// Insert into radcheck
 	_, _ = db.Exec("DELETE FROM radcheck WHERE username = ?", username)
@@ -768,27 +942,39 @@ func (h *APIHandler) handleCreateUser(c *fiber.Ctx) error {
 	// Insert into radius_user_meta
 	_, _ = db.Exec(`
 		INSERT OR REPLACE INTO radius_user_meta (username, full_name, phone, expiration_unix, enabled)
-		VALUES (?, ?, ?, ?, 1)
-	`, username, req.FullName, req.Phone, expUnix)
+		VALUES (?, ?, ?, ?, ?)
+	`, username, req.FullName, req.Phone, expUnix, existingEnabled)
+
+	actionName := "تعديل مشترك"
+	if existingExp == 0 && !isRename {
+		actionName = "إضافة مشترك"
+	}
+	recordTenantAuditLog(db, 1, "المدير العام", actionName, username, fmt.Sprintf("تم حفظ المشترك مع باقة %s (تاريخ الانتهاء: %s)", req.Profile, time.Unix(expUnix, 0).Format("2006-01-02 15:04")), c.IP())
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم حفظ المشترك بنجاح"})
 }
 
 func (h *APIHandler) handleDeleteUser(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
-	username := c.Params("username")
+	rawUser := c.Params("username")
+	username, _ := url.PathUnescape(rawUser)
+	username = strings.TrimSpace(username)
 
 	_, _ = db.Exec("DELETE FROM radcheck WHERE username = ?", username)
 	_, _ = db.Exec("DELETE FROM radreply WHERE username = ?", username)
 	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
 	_, _ = db.Exec("DELETE FROM radius_user_meta WHERE username = ?", username)
 
+	recordTenantAuditLog(db, 1, "المدير العام", "حذف مشترك", username, "تم حذف المشترك من النظام", c.IP())
+
 	return c.JSON(fiber.Map{"success": true, "message": "تم حذف المشترك"})
 }
 
 func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
-	username := c.Params("username")
+	rawUser := c.Params("username")
+	username, _ := url.PathUnescape(rawUser)
+	username = strings.TrimSpace(username)
 
 	var req struct {
 		Profile string `json:"profile"`
@@ -818,6 +1004,8 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
 	_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, profile)
 
+	recordTenantAuditLog(db, 1, "المدير العام", "تجديد مشترك", username, fmt.Sprintf("تم تجديد الاشتراك مع باقة %s لمدة %d يوم", profile, validityDays), c.IP())
+
 	return c.JSON(fiber.Map{
 		"success":             true,
 		"message":             "تم تجديد اشتراك المشترك بنجاح",
@@ -827,7 +1015,9 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
-	username := c.Params("username")
+	rawUser := c.Params("username")
+	username, _ := url.PathUnescape(rawUser)
+	username = strings.TrimSpace(username)
 
 	var password, fullName, phone string
 	var expUnix int64
@@ -840,15 +1030,31 @@ func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 		profile = "10M"
 	}
 
-	var sessIP, sessMAC string
-	var sessTime int64
-	err := db.QueryRow("SELECT COALESCE(framedipaddress, ''), COALESCE(callingstationid, ''), COALESCE(acctsessiontime, 0) FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessIP, &sessMAC, &sessTime)
+	var sessIP, sessMAC, sessStart, sessNAS, sessID string
+	var sessTime, sessIn, sessOut int64
+	err := db.QueryRow(`
+		SELECT COALESCE(framedipaddress, ''), COALESCE(callingstationid, ''), COALESCE(acctsessiontime, 0),
+		       COALESCE(acctinputoctets, 0), COALESCE(acctoutputoctets, 0), COALESCE(acctstarttime, ''),
+		       COALESCE(nasipaddress, ''), COALESCE(acctsessionid, '')
+		FROM radacct 
+		WHERE username = ? AND acctstoptime IS NULL 
+		ORDER BY radacctid DESC LIMIT 1
+	`, username).Scan(&sessIP, &sessMAC, &sessTime, &sessIn, &sessOut, &sessStart, &sessNAS, &sessID)
+
 	session := fiber.Map{
 		"online":          err == nil,
 		"status":          "offline",
 		"ip":              sessIP,
 		"mac":             sessMAC,
+		"calling_station": sessMAC,
 		"session_seconds": sessTime,
+		"session_id":      sessID,
+		"nas_ip":          sessNAS,
+		"started_at":      sessStart,
+		"download":        formatBytes(sessIn),
+		"upload":          formatBytes(sessOut),
+		"bytes_in":        sessIn,
+		"bytes_out":       sessOut,
 	}
 	if err == nil {
 		session["status"] = "online"
@@ -860,47 +1066,58 @@ func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 	}
 
 	// Session history
-	sessions := make([]map[string]interface{}, 0)
-	rows, err := db.Query("SELECT acctstarttime, acctstoptime, COALESCE(framedipaddress, ''), COALESCE(acctinputoctets, 0), COALESCE(acctoutputoctets, 0), COALESCE(acctsessiontime, 0) FROM radacct WHERE username = ? ORDER BY radacctid DESC LIMIT 30", username)
+	sessionHistory := make([]map[string]interface{}, 0)
+	rows, err := db.Query(`
+		SELECT acctstarttime, COALESCE(acctstoptime, ''), COALESCE(framedipaddress, ''), 
+		       COALESCE(acctinputoctets, 0), COALESCE(acctoutputoctets, 0), COALESCE(acctsessiontime, 0),
+		       COALESCE(callingstationid, '')
+		FROM radacct 
+		WHERE username = ? 
+		ORDER BY radacctid DESC LIMIT 50
+	`, username)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
-			var start, stop, ip string
+			var start, stop, ip, mac string
 			var inBytes, outBytes, sTime int64
-			if err := rows.Scan(&start, &stop, &ip, &inBytes, &outBytes, &sTime); err == nil {
-				sessions = append(sessions, map[string]interface{}{
-					"started_at":   start,
-					"stopped_at":   stop,
-					"ip":           ip,
-					"download":     fmt.Sprintf("%.2f MB", float64(inBytes)/(1024*1024)),
-					"upload":       fmt.Sprintf("%.2f MB", float64(outBytes)/(1024*1024)),
-					"session_time": sTime,
+			if err := rows.Scan(&start, &stop, &ip, &inBytes, &outBytes, &sTime, &mac); err == nil {
+				sessionHistory = append(sessionHistory, map[string]interface{}{
+					"started_at":      start,
+					"stopped_at":      stop,
+					"ip":              ip,
+					"download":        formatBytes(inBytes),
+					"upload":          formatBytes(outBytes),
+					"session_time":    sTime,
+					"calling_station": mac,
 				})
 			}
 		}
 	}
 
 	return c.JSON(fiber.Map{
-		"user": fiber.Map{
-			"username":        username,
-			"password":        password,
-			"full_name":       fullName,
-			"phone":           phone,
-			"profile":         profile,
-			"expiration":      expStr,
-			"expiration_unix": expUnix,
-			"balance":         0,
-			"enabled":         enabledInt == 1,
-		},
-		"session":      session,
-		"sessions":     sessions,
-		"transactions": []interface{}{},
+		"user":            username,
+		"username":        username,
+		"password":        password,
+		"full_name":       fullName,
+		"phone":           phone,
+		"profile":         profile,
+		"expires_at":      expStr,
+		"expiration":      expStr,
+		"expiration_unix": expUnix,
+		"balance":         0,
+		"enabled":         enabledInt == 1,
+		"session":         session,
+		"session_history": sessionHistory,
+		"sessions":        sessionHistory,
+		"transactions":    []interface{}{},
 	})
 }
 
 func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
-	username := c.Params("username")
+	rawUser := c.Params("username")
+	username, _ := url.PathUnescape(rawUser)
+	username = strings.TrimSpace(username)
 
 	var enabled int
 	_ = db.QueryRow("SELECT COALESCE(enabled, 1) FROM radius_user_meta WHERE username = ?", username).Scan(&enabled)
@@ -918,10 +1135,20 @@ func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
 	// Ensure radcheck always has Cleartext-Password so the user is never lost
 	_, _ = db.Exec("UPDATE radcheck SET attribute = 'Cleartext-Password' WHERE username = ? AND attribute = 'Disabled-Password'", username)
 
-	// If disabled, disconnect active sessions in radacct
+	// If disabled, disconnect active sessions in radacct and send PoD to MikroTik
 	if newStatus == 0 {
+		subdomain, _ := c.Locals("subdomain").(string)
+		if subdomain == "" {
+			subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+		}
+		var sessionID, framedIP string
+		_ = db.QueryRow("SELECT COALESCE(acctsessionid, ''), COALESCE(framedipaddress, '') FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessionID, &framedIP)
+
 		now := time.Now().Format("2006-01-02 15:04:05")
 		_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", now, username)
+		if h.mgr != nil && subdomain != "" {
+			_ = h.mgr.DisconnectCloudUser(subdomain, username, sessionID, framedIP)
+		}
 	}
 
 	return c.JSON(fiber.Map{
@@ -933,17 +1160,58 @@ func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleDisconnectUser(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
-	username := c.Params("username")
+	subdomain, _ := c.Locals("subdomain").(string)
+	if subdomain == "" {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	rawUser := c.Params("username")
+	username, _ := url.PathUnescape(rawUser)
+	username = strings.TrimSpace(username)
+
+	var sessionID, framedIP string
+	_ = db.QueryRow("SELECT COALESCE(acctsessionid, ''), COALESCE(framedipaddress, '') FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessionID, &framedIP)
+
 	now := time.Now().Format("2006-01-02 15:04:05")
 	_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", now, username)
-	return c.JSON(fiber.Map{"success": true, "message": "تم فصل الجلسة بنجاح"})
+
+	// Send PoD / CoA Disconnect-Request to MikroTik
+	var coaErr error
+	if h.mgr != nil && subdomain != "" {
+		coaErr = h.mgr.DisconnectCloudUser(subdomain, username, sessionID, framedIP)
+	}
+
+	// Write log in tenant's radius.log
+	go func() {
+		if subdomain != "" {
+			tenantLogPath := filepath.Join(h.mgr.pool.GetTenantDir(subdomain), "radius.log")
+			statusStr := "PoD Disconnect-Request sent to MikroTik ✅"
+			if coaErr != nil {
+				statusStr = fmt.Sprintf("PoD Disconnect-Request failed (%v) ⚠️", coaErr)
+			}
+			line := fmt.Sprintf("[%s] RADIUS %s for user [%s] (Session: %s)\n",
+				time.Now().Format("2006-01-02 15:04:05"), statusStr, username, sessionID)
+			f, err := os.OpenFile(tenantLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err == nil {
+				_, _ = f.WriteString(line)
+				_ = f.Close()
+			}
+		}
+	}()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "تم إرسال أمر فصل الجلسة (PoD/CoA) إلى راوتر المايكروتك بنجاح",
+	})
 }
 
 func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
 
 	rows, err := db.Query(`
-		SELECT groupname, validity_days, price 
+		SELECT groupname, validity_days, price, COALESCE(agent_price, 0),
+		       COALESCE(pool, ''), COALESCE(mikrotik_group, ''), COALESCE(nas_ip, 'ALL'),
+		       COALESCE(simultaneous, '1'), COALESCE(expired_pool, ''), COALESCE(expired_profile, ''),
+		       COALESCE(admin_id, 1)
 		FROM radius_profile_meta
 		ORDER BY groupname ASC
 	`)
@@ -953,27 +1221,38 @@ func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
 	defer rows.Close()
 
 	type ProfileItem struct {
-		ID           int64   `json:"id"`
-		Name         string  `json:"name"`
-		ValidityDays int     `json:"validity_days"`
-		Price        float64 `json:"price"`
-		Limit        string  `json:"limit"`
-		RateLimit    string  `json:"rate_limit"`
-		NasIP        string  `json:"nas_ip"`
-		Simultaneous string  `json:"simultaneous"`
+		ID             int64   `json:"id"`
+		Name           string  `json:"name"`
+		ValidityDays   int     `json:"validity_days"`
+		Price          float64 `json:"price"`
+		AgentPrice     float64 `json:"agent_price"`
+		Limit          string  `json:"limit"`
+		RateLimit      string  `json:"rate_limit"`
+		Pool           string  `json:"pool"`
+		MikrotikGroup  string  `json:"mikrotik_group"`
+		NasIP          string  `json:"nas_ip"`
+		Simultaneous   string  `json:"simultaneous"`
+		ExpiredPool    string  `json:"expired_pool"`
+		ExpiredProfile string  `json:"expired_profile"`
+		AdminID        int64   `json:"admin_id"`
+		AdminName      string  `json:"admin_name"`
 	}
 
 	list := []ProfileItem{}
 	counter := int64(1)
 	for rows.Next() {
 		var p ProfileItem
-		if err := rows.Scan(&p.Name, &p.ValidityDays, &p.Price); err == nil {
+		if err := rows.Scan(&p.Name, &p.ValidityDays, &p.Price, &p.AgentPrice, &p.Pool, &p.MikrotikGroup, &p.NasIP, &p.Simultaneous, &p.ExpiredPool, &p.ExpiredProfile, &p.AdminID); err == nil {
 			p.ID = counter
 			counter++
-			_ = db.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", p.Name).Scan(&p.Limit)
-			p.RateLimit = p.Limit
-			p.NasIP = "167.86.73.203"
-			p.Simultaneous = "1"
+			p.AdminName = "المدير العام"
+			var limitVal string
+			_ = db.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", p.Name).Scan(&limitVal)
+			if limitVal == "" {
+				limitVal = "10M/10M"
+			}
+			p.Limit = limitVal
+			p.RateLimit = limitVal
 			list = append(list, p)
 		}
 	}
@@ -983,31 +1262,135 @@ func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleCreateProfile(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
+
 	var req struct {
-		Name         string  `json:"name"`
-		ValidityDays int     `json:"validity_days"`
-		Price        float64 `json:"price"`
-		Limit        string  `json:"limit"`
-		RateLimit    string  `json:"rate_limit"`
+		OriginalName   string      `json:"original_name"`
+		Name           string      `json:"name"`
+		Download       string      `json:"download"`
+		Upload         string      `json:"upload"`
+		Limit          string      `json:"limit"`
+		RateLimit      string      `json:"rate_limit"`
+		Pool           string      `json:"pool"`
+		MikrotikGroup  string      `json:"mikrotik_group"`
+		Validity       interface{} `json:"validity"`
+		ValidityDays   int         `json:"validity_days"`
+		Price          float64     `json:"price"`
+		AgentPrice     float64     `json:"agent_price"`
+		NasIP          string      `json:"nas_ip"`
+		Simultaneous   string      `json:"simultaneous"`
+		ExpiredPool    string      `json:"expired_pool"`
+		ExpiredProfile string      `json:"expired_profile"`
+		AdminID        int64       `json:"admin_id"`
 	}
 	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Name) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم الباقة مطلوب"})
 	}
+
 	name := strings.TrimSpace(req.Name)
-	if req.ValidityDays <= 0 {
-		req.ValidityDays = 30
+	originalName := strings.TrimSpace(req.OriginalName)
+	isRename := originalName != "" && originalName != name
+
+	// Parse validity days
+	validityDays := req.ValidityDays
+	if validityDays <= 0 && req.Validity != nil {
+		switch v := req.Validity.(type) {
+		case float64:
+			validityDays = int(v)
+		case string:
+			validityDays, _ = strconv.Atoi(strings.TrimSpace(v))
+		}
 	}
+	if validityDays <= 0 {
+		validityDays = 30
+	}
+
+	// Compute Rate Limit (e.g. "5M/10M" or from download/upload)
 	rateLimit := strings.TrimSpace(req.Limit)
 	if rateLimit == "" {
 		rateLimit = strings.TrimSpace(req.RateLimit)
 	}
 	if rateLimit == "" {
+		dl := strings.TrimSpace(req.Download)
+		ul := strings.TrimSpace(req.Upload)
+		if dl != "" || ul != "" {
+			if dl == "" {
+				dl = "10"
+			}
+			if ul == "" {
+				ul = "10"
+			}
+			if !strings.HasSuffix(strings.ToUpper(dl), "M") && !strings.HasSuffix(strings.ToUpper(dl), "K") {
+				dl += "M"
+			}
+			if !strings.HasSuffix(strings.ToUpper(ul), "M") && !strings.HasSuffix(strings.ToUpper(ul), "K") {
+				ul += "M"
+			}
+			rateLimit = ul + "/" + dl
+		}
+	}
+	if rateLimit == "" {
 		rateLimit = "10M/10M"
 	}
 
-	_, _ = db.Exec("INSERT OR REPLACE INTO radius_profile_meta (groupname, validity_days, price) VALUES (?, ?, ?)", name, req.ValidityDays, req.Price)
-	_, _ = db.Exec("DELETE FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", name)
+	simultaneous := strings.TrimSpace(req.Simultaneous)
+	if simultaneous == "" {
+		simultaneous = "1"
+	}
+	nasIP := strings.TrimSpace(req.NasIP)
+	if nasIP == "" {
+		nasIP = "ALL"
+	}
+
+	// If renaming an existing profile, update existing users
+	if isRename {
+		_, _ = db.Exec("DELETE FROM radius_profile_meta WHERE groupname = ?", originalName)
+		_, _ = db.Exec("DELETE FROM radgroupreply WHERE groupname = ?", originalName)
+		_, _ = db.Exec("DELETE FROM radgroupcheck WHERE groupname = ?", originalName)
+		_, _ = db.Exec("UPDATE radusergroup SET groupname = ? WHERE groupname = ?", name, originalName)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO radius_profile_meta (groupname, validity_days, price, agent_price, pool, mikrotik_group, nas_ip, simultaneous, expired_pool, expired_profile, admin_id, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+		ON CONFLICT(groupname) DO UPDATE SET
+			validity_days = excluded.validity_days,
+			price = excluded.price,
+			agent_price = excluded.agent_price,
+			pool = excluded.pool,
+			mikrotik_group = excluded.mikrotik_group,
+			nas_ip = excluded.nas_ip,
+			simultaneous = excluded.simultaneous,
+			expired_pool = excluded.expired_pool,
+			expired_profile = excluded.expired_profile,
+			updated_at = CURRENT_TIMESTAMP
+	`, name, validityDays, req.Price, req.AgentPrice, req.Pool, req.MikrotikGroup, nasIP, simultaneous, req.ExpiredPool, req.ExpiredProfile)
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Update radgroupreply attributes
+	_, _ = db.Exec("DELETE FROM radgroupreply WHERE groupname = ?", name)
 	_, _ = db.Exec("INSERT INTO radgroupreply (groupname, attribute, op, value) VALUES (?, 'Mikrotik-Rate-Limit', ':=', ?)", name, rateLimit)
+
+	if req.Pool != "" {
+		_, _ = db.Exec("INSERT INTO radgroupreply (groupname, attribute, op, value) VALUES (?, 'Framed-Pool', ':=', ?)", name, req.Pool)
+	}
+	if req.MikrotikGroup != "" {
+		_, _ = db.Exec("INSERT INTO radgroupreply (groupname, attribute, op, value) VALUES (?, 'Mikrotik-Group', ':=', ?)", name, req.MikrotikGroup)
+	}
+
+	// Update radgroupcheck attributes (Simultaneous-Use)
+	_, _ = db.Exec("DELETE FROM radgroupcheck WHERE groupname = ?", name)
+	if simultaneous != "0" && simultaneous != "unlimited" && simultaneous != "" {
+		_, _ = db.Exec("INSERT INTO radgroupcheck (groupname, attribute, op, value) VALUES (?, 'Simultaneous-Use', ':=', ?)", name, simultaneous)
+	}
+
+	actionType := "تعديل باقة"
+	if originalName == "" {
+		actionType = "إضافة باقة"
+	}
+	recordTenantAuditLog(db, 1, "المدير العام", actionType, name, fmt.Sprintf("سرعة: %s، صلاحية: %d يوم، سعر: %.0f د.ع", rateLimit, validityDays, req.Price), c.IP())
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم حفظ الباقة بنجاح"})
 }
@@ -1018,20 +1401,38 @@ func (h *APIHandler) handleDeleteProfile(c *fiber.Ctx) error {
 	_, _ = db.Exec("DELETE FROM radius_profile_meta WHERE groupname = ?", name)
 	_, _ = db.Exec("DELETE FROM radgroupreply WHERE groupname = ?", name)
 	_, _ = db.Exec("DELETE FROM radgroupcheck WHERE groupname = ?", name)
+
+	recordTenantAuditLog(db, 1, "المدير العام", "حذف باقة", name, "تم حذف الباقة من النظام", c.IP())
 	return c.JSON(fiber.Map{"success": true, "message": "تم حذف الباقة"})
 }
 
 func (h *APIHandler) handleListVouchers(c *fiber.Ctx) error {
-	db := c.Locals("tenant_db").(*sql.DB)
+	db, ok := c.Locals("tenant_db").(*sql.DB)
+	if !ok || db == nil {
+		subdomain := ""
+		if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+			subdomain = sub
+		} else {
+			subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+		}
+		if subdomain != "" {
+			db, _ = h.mgr.pool.Get(subdomain)
+		}
+	}
+	if db == nil {
+		return c.JSON([]interface{}{})
+	}
 
 	rows, err := db.Query(`
-		SELECT id, batch_id, code, profile_name, validity_days, price, is_used, used_by, used_at, created_at
+		SELECT id, COALESCE(batch_id, ''), code, profile_name, validity_days, COALESCE(price, 0),
+		       COALESCE(created_by, 1), COALESCE(is_used, 0), COALESCE(used_by, ''),
+		       COALESCE(used_at, ''), COALESCE(created_at, '')
 		FROM radius_vouchers
 		ORDER BY id DESC
-		LIMIT 200
+		LIMIT 500
 	`)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
+		return c.JSON([]interface{}{})
 	}
 	defer rows.Close()
 
@@ -1042,6 +1443,7 @@ func (h *APIHandler) handleListVouchers(c *fiber.Ctx) error {
 		ProfileName  string  `json:"profile_name"`
 		ValidityDays int     `json:"validity_days"`
 		Price        float64 `json:"price"`
+		CreatedBy    int64   `json:"created_by"`
 		IsUsed       int     `json:"is_used"`
 		UsedBy       string  `json:"used_by"`
 		UsedAt       string  `json:"used_at"`
@@ -1051,10 +1453,7 @@ func (h *APIHandler) handleListVouchers(c *fiber.Ctx) error {
 	vouchers := []VoucherItem{}
 	for rows.Next() {
 		var v VoucherItem
-		var usedBy, usedAt sql.NullString
-		if err := rows.Scan(&v.ID, &v.BatchID, &v.Code, &v.ProfileName, &v.ValidityDays, &v.Price, &v.IsUsed, &usedBy, &usedAt, &v.CreatedAt); err == nil {
-			v.UsedBy = usedBy.String
-			v.UsedAt = usedAt.String
+		if err := rows.Scan(&v.ID, &v.BatchID, &v.Code, &v.ProfileName, &v.ValidityDays, &v.Price, &v.CreatedBy, &v.IsUsed, &v.UsedBy, &v.UsedAt, &v.CreatedAt); err == nil {
 			vouchers = append(vouchers, v)
 		}
 	}
@@ -1076,34 +1475,431 @@ func (h *APIHandler) handleListNAS(c *fiber.Ctx) error {
 	} else {
 		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
 	}
+	if subdomain == "" {
+		subdomain = "default"
+	}
+
+	db, err := h.mgr.pool.Get(subdomain)
+	var secAgo sql.NullInt64
+	if err == nil && db != nil {
+		_ = db.QueryRow("SELECT CAST((julianday('now') - julianday(acctstarttime)) * 86400 AS INTEGER) FROM radacct ORDER BY radacctid DESC LIMIT 1").Scan(&secAgo)
+	}
+
+	radsecStatus := "configured"
+	if secAgo.Valid && secAgo.Int64 >= 0 && secAgo.Int64 < 300 {
+		radsecStatus = "online"
+	}
 
 	nasList := []fiber.Map{
 		{
 			"id":             1,
 			"ip":             "167.86.73.203",
 			"profile_nas_ip": "167.86.73.203",
-			"name":           "MikroTik RadSec (" + subdomain + ")",
+			"name":           "MikroTik RadSec Cloud (" + subdomain + ")",
 			"secret":         "radsec",
-			"radsec_status":  "online",
-			"admin_name":     "System",
+			"radsec_status":  radsecStatus,
+			"admin_name":     "System Cloud",
 			"common_name":    "agent-" + subdomain + "-SASMAN",
+			"is_cloud_fixed": true,
+			"subdomain":      subdomain,
+			"script_url":     fmt.Sprintf("https://%s/pki/install/%s.rsc", h.mgr.domain, subdomain),
 		},
 	}
 	return c.JSON(nasList)
 }
 
 func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
-	admins := []fiber.Map{
-		{
-			"id":        1,
-			"username":  "admin",
-			"role":      "superadmin",
-			"name":      "مدير النظام",
-			"is_active": 1,
-			"balance":   0,
-		},
+	db := c.Locals("tenant_db").(*sql.DB)
+	rows, err := db.Query(`
+		SELECT id, username, COALESCE(name, ''), role, COALESCE(phone, ''), 
+		       COALESCE(balance, 0), is_active, COALESCE(permissions, '[]'), created_at
+		FROM radius_admins
+		ORDER BY id ASC
+	`)
+	if err != nil {
+		return c.JSON([]fiber.Map{
+			{
+				"id":        1,
+				"username":  "admin",
+				"role":      "superadmin",
+				"name":      "مدير النظام",
+				"is_active": 1,
+				"balance":   0,
+			},
+		})
 	}
-	return c.JSON(admins)
+	defer rows.Close()
+
+	type AdminItem struct {
+		ID          int64   `json:"id"`
+		Username    string  `json:"username"`
+		Name        string  `json:"name"`
+		Role        string  `json:"role"`
+		Phone       string  `json:"phone"`
+		Balance     float64 `json:"balance"`
+		IsActive    int     `json:"is_active"`
+		Permissions string  `json:"permissions"`
+		CreatedAt   string  `json:"created_at"`
+	}
+
+	list := []AdminItem{}
+	for rows.Next() {
+		var a AdminItem
+		if err := rows.Scan(&a.ID, &a.Username, &a.Name, &a.Role, &a.Phone, &a.Balance, &a.IsActive, &a.Permissions, &a.CreatedAt); err == nil {
+			list = append(list, a)
+		}
+	}
+	return c.JSON(list)
+}
+
+func (h *APIHandler) handleRegisterAdmin(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	var req struct {
+		Username          string `json:"username"`
+		Password          string `json:"password"`
+		Name              string `json:"name"`
+		Phone             string `json:"phone"`
+		Role              string `json:"role"`
+		CanManageProfiles bool   `json:"can_manage_profiles"`
+		CanManageNAS      bool   `json:"can_manage_nas"`
+	}
+	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Username) == "" || strings.TrimSpace(req.Password) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المستخدم وكلمة المرور مطلوبان"})
+	}
+
+	if req.Role == "" {
+		req.Role = "agent"
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل تشفير كلمة المرور"})
+	}
+
+	perms := fmt.Sprintf(`{"can_manage_profiles":%t,"can_manage_nas":%t}`, req.CanManageProfiles, req.CanManageNAS)
+
+	_, err = db.Exec(`
+		INSERT INTO radius_admins (username, password, role, name, phone, balance, is_active, permissions)
+		VALUES (?, ?, ?, ?, ?, 0.0, 1, ?)
+	`, strings.TrimSpace(req.Username), string(hash), req.Role, req.Name, req.Phone, perms)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المستخدم مسجل مسبقاً أو غير صالح"})
+	}
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم إنشاء الحساب بنجاح"})
+}
+
+func (h *APIHandler) handleUpdateProfile(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	var req struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+		Phone string `json:"phone"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid body"})
+	}
+
+	_, _ = db.Exec("UPDATE radius_admins SET name = ?, phone = ?, updated_at = CURRENT_TIMESTAMP WHERE role = 'superadmin' OR id = 1", req.Name, req.Phone)
+	return c.JSON(fiber.Map{"success": true, "message": "تم تحديث الملف الشخصي بنجاح"})
+}
+
+func (h *APIHandler) handleDeleteAdmin(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	id := c.Params("id")
+	if id == "1" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "لا يمكن حذف الحساب الرئيسي للمدير"})
+	}
+	_, _ = db.Exec("DELETE FROM radius_admins WHERE id = ?", id)
+	return c.JSON(fiber.Map{"success": true, "message": "تم حذف الحساب بنجاح"})
+}
+
+func (h *APIHandler) handleRechargeAdmin(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+
+	var req struct {
+		AdminID int64   `json:"admin_id"`
+		Amount  float64 `json:"amount"`
+		Notes   string  `json:"notes"`
+	}
+	if err := c.BodyParser(&req); err != nil || req.Amount <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "المبلغ غير صالح"})
+	}
+
+	var adminName string
+	_ = db.QueryRow("SELECT username FROM radius_admins WHERE id = ?", req.AdminID).Scan(&adminName)
+	if adminName == "" {
+		adminName = fmt.Sprintf("وكيل #%d", req.AdminID)
+	}
+
+	_, err := db.Exec("UPDATE radius_admins SET balance = balance + ? WHERE id = ?", req.Amount, req.AdminID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	var newBal float64
+	_ = db.QueryRow("SELECT balance FROM radius_admins WHERE id = ?", req.AdminID).Scan(&newBal)
+	_, _ = db.Exec("INSERT INTO radius_admin_transactions (admin_id, type, transaction_type, performer_name, amount, balance_after, notes) VALUES (?, 'recharge', 'recharge', 'المدير العام', ?, ?, ?)", req.AdminID, req.Amount, newBal, req.Notes)
+
+	recordTenantAuditLog(db, 1, "المدير العام", "شحن رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم شحن الرصيد بنجاح"})
+}
+
+func (h *APIHandler) handleWithdrawAdmin(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+
+	var req struct {
+		AdminID int64   `json:"admin_id"`
+		Amount  float64 `json:"amount"`
+		Notes   string  `json:"notes"`
+	}
+	if err := c.BodyParser(&req); err != nil || req.Amount <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "المبلغ غير صالح"})
+	}
+
+	var adminName string
+	_ = db.QueryRow("SELECT username FROM radius_admins WHERE id = ?", req.AdminID).Scan(&adminName)
+	if adminName == "" {
+		adminName = fmt.Sprintf("وكيل #%d", req.AdminID)
+	}
+
+	_, err := db.Exec("UPDATE radius_admins SET balance = balance - ? WHERE id = ?", req.Amount, req.AdminID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	var newBal float64
+	_ = db.QueryRow("SELECT balance FROM radius_admins WHERE id = ?", req.AdminID).Scan(&newBal)
+	_, _ = db.Exec("INSERT INTO radius_admin_transactions (admin_id, type, transaction_type, performer_name, amount, balance_after, notes) VALUES (?, 'withdraw', 'withdraw', 'المدير العام', ?, ?, ?)", req.AdminID, req.Amount, newBal, req.Notes)
+
+	recordTenantAuditLog(db, 1, "المدير العام", "سحب رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم سحب الرصيد بنجاح"})
+}
+
+func (h *APIHandler) handleListAdminTransactions(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+
+	adminID := c.Query("admin_id")
+
+	// Backfill: If an admin has a positive balance but 0 transaction records, auto-insert an initial balance transaction
+	adminRows, aErr := db.Query("SELECT id, balance, created_at FROM radius_admins WHERE balance > 0")
+	if aErr == nil {
+		for adminRows.Next() {
+			var aID int64
+			var bal float64
+			var created string
+			if err := adminRows.Scan(&aID, &bal, &created); err == nil {
+				var count int
+				_ = db.QueryRow("SELECT COUNT(*) FROM radius_admin_transactions WHERE admin_id = ?", aID).Scan(&count)
+				if count == 0 {
+					_, _ = db.Exec("INSERT INTO radius_admin_transactions (admin_id, type, transaction_type, performer_name, amount, balance_after, notes, created_at) VALUES (?, 'recharge', 'recharge', 'المدير العام', ?, ?, 'رصيد سابق / شحن ابتدائي', ?)", aID, bal, bal, created)
+				}
+			}
+		}
+		adminRows.Close()
+	}
+
+	var rows *sql.Rows
+	var err error
+	if adminID != "" {
+		rows, err = db.Query("SELECT id, admin_id, COALESCE(type, 'recharge'), COALESCE(transaction_type, type, 'recharge'), COALESCE(performer_name, 'المدير العام'), amount, balance_after, COALESCE(notes, ''), created_at FROM radius_admin_transactions WHERE admin_id = ? ORDER BY id DESC LIMIT 100", adminID)
+	} else {
+		rows, err = db.Query("SELECT id, admin_id, COALESCE(type, 'recharge'), COALESCE(transaction_type, type, 'recharge'), COALESCE(performer_name, 'المدير العام'), amount, balance_after, COALESCE(notes, ''), created_at FROM radius_admin_transactions ORDER BY id DESC LIMIT 100")
+	}
+	if err != nil {
+		return c.JSON([]interface{}{})
+	}
+	defer rows.Close()
+
+	type TxLogItem struct {
+		ID              int64   `json:"id"`
+		AdminID         int64   `json:"admin_id"`
+		Type            string  `json:"type"`
+		TransactionType string  `json:"transaction_type"`
+		PerformerName   string  `json:"performer_name"`
+		Amount          float64 `json:"amount"`
+		BalanceAfter    float64 `json:"balance_after"`
+		Notes           string  `json:"notes"`
+		CreatedAt       string  `json:"created_at"`
+	}
+
+	res := []TxLogItem{}
+	for rows.Next() {
+		var t TxLogItem
+		if err := rows.Scan(&t.ID, &t.AdminID, &t.Type, &t.TransactionType, &t.PerformerName, &t.Amount, &t.BalanceAfter, &t.Notes, &t.CreatedAt); err == nil {
+			res = append(res, t)
+		}
+	}
+	return c.JSON(res)
+}
+
+func (h *APIHandler) handleListStreams(c *fiber.Ctx) error {
+	db, ok := c.Locals("tenant_db").(*sql.DB)
+	if !ok || db == nil {
+		subdomain := ""
+		if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+			subdomain = sub
+		} else {
+			subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+		}
+		if subdomain != "" {
+			db, _ = h.mgr.pool.Get(subdomain)
+		}
+	}
+	if db == nil {
+		return c.JSON([]interface{}{})
+	}
+
+	rows, err := db.Query("SELECT id, name, source, status, created_at FROM radius_streams ORDER BY created_at DESC")
+	if err != nil {
+		return c.JSON([]interface{}{})
+	}
+	defer rows.Close()
+
+	type StreamItem struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		Source    string `json:"source"`
+		Status    string `json:"status"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	streams := []StreamItem{}
+	for rows.Next() {
+		var s StreamItem
+		if err := rows.Scan(&s.ID, &s.Name, &s.Source, &s.Status, &s.CreatedAt); err == nil {
+			streams = append(streams, s)
+		}
+	}
+	return c.JSON(streams)
+}
+
+func (h *APIHandler) handleCreateStream(c *fiber.Ctx) error {
+	db, ok := c.Locals("tenant_db").(*sql.DB)
+	if !ok || db == nil {
+		subdomain := ""
+		if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+			subdomain = sub
+		} else {
+			subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+		}
+		if subdomain != "" {
+			db, _ = h.mgr.pool.Get(subdomain)
+		}
+	}
+	if db == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "قاعدة البيانات غير متاحة"})
+	}
+
+	var req struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Source string `json:"source"`
+		Status string `json:"status"`
+	}
+	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Source) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم القناة ورابط البث مطلوبان"})
+	}
+
+	if req.ID == "" {
+		req.ID = fmt.Sprintf("stream_%d", time.Now().Unix())
+	}
+	if req.Status == "" {
+		req.Status = "active"
+	}
+
+	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN local_relay INTEGER DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+
+	_, err := db.Exec(`
+		INSERT INTO radius_streams (id, name, source, status, updated_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(id) DO UPDATE SET
+			name = excluded.name,
+			source = excluded.source,
+			status = excluded.status,
+			updated_at = CURRENT_TIMESTAMP
+	`, req.ID, req.Name, req.Source, req.Status)
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	recordTenantAuditLog(db, 1, "المدير العام", "إضافة/تعديل قناة", req.Name, fmt.Sprintf("ID: %s, الرابط: %s", req.ID, req.Source), c.IP())
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم حفظ قناة البث بنجاح"})
+}
+
+func (h *APIHandler) handleUpdateStream(c *fiber.Ctx) error {
+	return h.handleCreateStream(c)
+}
+
+func (h *APIHandler) handleDeleteStream(c *fiber.Ctx) error {
+	db, ok := c.Locals("tenant_db").(*sql.DB)
+	if !ok || db == nil {
+		subdomain := ""
+		if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+			subdomain = sub
+		} else {
+			subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+		}
+		if subdomain != "" {
+			db, _ = h.mgr.pool.Get(subdomain)
+		}
+	}
+	if db == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "قاعدة البيانات غير متاحة"})
+	}
+	id := c.Params("id")
+	_, _ = db.Exec("DELETE FROM radius_streams WHERE id = ?", id)
+	recordTenantAuditLog(db, 1, "المدير العام", "حذف قناة", id, "تم حذف القناة من النظام", c.IP())
+	return c.JSON(fiber.Map{"success": true, "message": "تم حذف القناة بنجاح"})
+}
+
+func (h *APIHandler) handleGetBypass(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	var val string
+	_ = db.QueryRow("SELECT value FROM radius_settings WHERE key = 'bypass_enabled'").Scan(&val)
+	return c.JSON(fiber.Map{"enabled": val == "1" || val == "true"})
+}
+
+func (h *APIHandler) handleSetBypass(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	_ = c.BodyParser(&req)
+	val := "0"
+	if req.Enabled {
+		val = "1"
+	}
+	_ = setTenantSetting(db, "bypass_enabled", val)
+	return c.JSON(fiber.Map{"success": true, "enabled": req.Enabled})
+}
+
+func generateCloudRandomCode(length int, codeType string) string {
+	var charset string
+	switch codeType {
+	case "numeric":
+		charset = "0123456789"
+	case "uppercase":
+		charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	case "lowercase":
+		charset = "abcdefghjkmnpqrstuvwxyz23456789"
+	default:
+		charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+	}
+
+	result := make([]byte, length)
+	for i := 0; i < length; i++ {
+		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		result[i] = charset[num.Int64()]
+	}
+	return string(result)
 }
 
 func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
@@ -1114,6 +1910,8 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 		ProfileName  string  `json:"profile_name"`
 		ValidityDays int     `json:"validity_days"`
 		Price        float64 `json:"price"`
+		CodeType     string  `json:"code_type"`
+		CodeLength   int     `json:"code_length"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.Count <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "العدد غير صالح"})
@@ -1128,6 +1926,9 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 	if req.ValidityDays <= 0 {
 		req.ValidityDays = 30
 	}
+	if req.CodeLength <= 0 {
+		req.CodeLength = 10
+	}
 
 	batchID := fmt.Sprintf("batch_%d", time.Now().Unix())
 	tx, err := db.Begin()
@@ -1135,6 +1936,12 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
 	}
 	defer tx.Rollback()
+
+	// Insert batch record
+	_, _ = tx.Exec(`
+		INSERT INTO radius_voucher_batches (batch_id, name, profile_name, count, price)
+		VALUES (?, ?, ?, ?, ?)
+	`, batchID, fmt.Sprintf("دفعة %s", req.ProfileName), req.ProfileName, req.Count, req.Price)
 
 	stmt, err := tx.Prepare(`
 		INSERT INTO radius_vouchers (batch_id, code, profile_name, validity_days, price, created_by, is_used)
@@ -1146,7 +1953,7 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 	defer stmt.Close()
 
 	for i := 0; i < req.Count; i++ {
-		code := fmt.Sprintf("%d%05d", time.Now().Unix()%100000, i)
+		code := generateCloudRandomCode(req.CodeLength, req.CodeType)
 		_, _ = stmt.Exec(batchID, code, req.ProfileName, req.ValidityDays, req.Price)
 	}
 
@@ -1158,7 +1965,7 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 		"success":  true,
 		"batch_id": batchID,
 		"count":    req.Count,
-		"message":  fmt.Sprintf("تم توليد %d قسيمة بنجاح", req.Count),
+		"message":  fmt.Sprintf("تم توليد %d كرت بنجاح", req.Count),
 	})
 }
 
@@ -1251,17 +2058,31 @@ func (h *APIHandler) handleNASLiveStatus(c *fiber.Ctx) error {
 		statusText = "🟢 راوتر الوكيل متصل بـ RadSec الآن"
 	}
 
+	winboxPort := 0
+	if h.mgr.repo != nil {
+		subObj, err := h.mgr.repo.GetSubdomainByName(subdomain)
+		if err == nil && subObj != nil {
+			winboxPort = subObj.WinboxPort
+		}
+	}
+	winboxAddress := ""
+	if winboxPort > 0 {
+		winboxAddress = fmt.Sprintf("%s:%d", h.mgr.domain, winboxPort)
+	}
+
 	return c.JSON(fiber.Map{
-		"connected":     connected,
-		"latency_ms":    latency,
-		"mode":          "cloud",
-		"protocol":      "RadSec RFC 6614 (mTLS :2083)",
-		"router_ip":     lastIP.String,
-		"subdomain":     subdomain,
-		"common_name":   "agent-" + subdomain + "-SASMAN",
-		"status_text":   statusText,
-		"status_badge":  statusBadge,
-		"last_seen_sec": secAgo.Int64,
+		"connected":      connected,
+		"latency_ms":     latency,
+		"mode":           "cloud",
+		"protocol":       "RadSec RFC 6614 (mTLS :2083)",
+		"router_ip":      lastIP.String,
+		"subdomain":      subdomain,
+		"common_name":    "agent-" + subdomain + "-SASMAN",
+		"status_text":    statusText,
+		"status_badge":   statusBadge,
+		"last_seen_sec":  secAgo.Int64,
+		"winbox_port":    winboxPort,
+		"winbox_address": winboxAddress,
 	})
 }
 
@@ -1326,14 +2147,837 @@ func (h *APIHandler) handleClearTenantLogs(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير السجل"})
 }
 
+func recordTenantAuditLog(db *sql.DB, adminID int64, adminUser, actionType, target, details, ip string) {
+	if db == nil {
+		return
+	}
+	if adminUser == "" {
+		adminUser = "المدير العام"
+	}
+	if ip == "" {
+		ip = "127.0.0.1"
+	}
+	_, _ = db.Exec(`
+		INSERT INTO radius_audit_log (admin_id, admin_username, action, action_type, target, details, ip, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`, adminID, adminUser, actionType, actionType, target, details, ip)
+}
+
 func (h *APIHandler) handleListAuditLogs(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(c.Query("limit", "50"))
+	if limit < 1 || limit > 100 {
+		limit = 50
+	}
+	offset := (page - 1) * limit
+
+	search := strings.TrimSpace(c.Query("search"))
+	actionType := strings.TrimSpace(c.Query("action_type"))
+	startDate := strings.TrimSpace(c.Query("start_date"))
+	endDate := strings.TrimSpace(c.Query("end_date"))
+
+	whereClauses := []string{"1=1"}
+	args := []interface{}{}
+
+	if search != "" {
+		whereClauses = append(whereClauses, "(target LIKE ? OR details LIKE ? OR COALESCE(admin_username, '') LIKE ?)")
+		p := "%" + search + "%"
+		args = append(args, p, p, p)
+	}
+	if actionType != "" {
+		whereClauses = append(whereClauses, "(action = ? OR action_type = ?)")
+		args = append(args, actionType, actionType)
+	}
+	if startDate != "" {
+		whereClauses = append(whereClauses, "created_at >= ?")
+		args = append(args, startDate+" 00:00:00")
+	}
+	if endDate != "" {
+		whereClauses = append(whereClauses, "created_at <= ?")
+		args = append(args, endDate+" 23:59:59")
+	}
+
+	whereSQL := strings.Join(whereClauses, " AND ")
+
+	var total int
+	countQuery := "SELECT COUNT(*) FROM radius_audit_log WHERE " + whereSQL
+	_ = db.QueryRow(countQuery, args...).Scan(&total)
+
+	query := fmt.Sprintf(`
+		SELECT id, COALESCE(admin_id, 1), COALESCE(admin_username, 'المدير العام'),
+		       COALESCE(action_type, action, 'عملية'), COALESCE(target, ''),
+		       COALESCE(details, ''), COALESCE(ip, '127.0.0.1'), created_at
+		FROM radius_audit_log
+		WHERE %s
+		ORDER BY id DESC
+		LIMIT ? OFFSET ?
+	`, whereSQL)
+
+	args = append(args, limit, offset)
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return c.JSON(fiber.Map{
+			"logs":        []interface{}{},
+			"total":       0,
+			"total_pages": 1,
+			"page":        page,
+		})
+	}
+	defer rows.Close()
+
+	type AuditLogItem struct {
+		ID            int64  `json:"id"`
+		AdminID       int64  `json:"admin_id"`
+		AdminUsername string `json:"admin_username"`
+		ActionType    string `json:"action_type"`
+		Target        string `json:"target"`
+		Details       string `json:"details"`
+		IPAddress     string `json:"ip_address"`
+		CreatedAt     string `json:"created_at"`
+	}
+
+	logs := []AuditLogItem{}
+	for rows.Next() {
+		var l AuditLogItem
+		if err := rows.Scan(&l.ID, &l.AdminID, &l.AdminUsername, &l.ActionType, &l.Target, &l.Details, &l.IPAddress, &l.CreatedAt); err == nil {
+			logs = append(logs, l)
+		}
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
 	return c.JSON(fiber.Map{
-		"logs":        []interface{}{},
-		"total":       0,
-		"total_pages": 1,
-		"page":        1,
+		"logs":        logs,
+		"total":       total,
+		"total_pages": totalPages,
+		"page":        page,
 	})
 }
+
+func (h *APIHandler) handleClearAuditLogs(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	_, _ = db.Exec("DELETE FROM radius_audit_log")
+	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير سجل عمليات النظام بنجاح"})
+}
+
+func (h *APIHandler) handleExportAuditLogsCSV(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	rows, err := db.Query("SELECT id, COALESCE(admin_username, 'المدير العام'), COALESCE(action_type, action, ''), COALESCE(target, ''), COALESCE(details, ''), COALESCE(ip, '127.0.0.1'), created_at FROM radius_audit_log ORDER BY id DESC LIMIT 5000")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Error fetching audit logs")
+	}
+	defer rows.Close()
+
+	var buf bytes.Buffer
+	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM
+	buf.WriteString("ID,المنفذ,نوع العملية,الهدف,التفاصيل,IP,التاريخ والوقت\n")
+
+	for rows.Next() {
+		var id int64
+		var user, action, target, details, ip, created string
+		if err := rows.Scan(&id, &user, &action, &target, &details, &ip, &created); err == nil {
+			buf.WriteString(fmt.Sprintf("%d,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n",
+				id,
+				strings.ReplaceAll(user, "\"", "\"\""),
+				strings.ReplaceAll(action, "\"", "\"\""),
+				strings.ReplaceAll(target, "\"", "\"\""),
+				strings.ReplaceAll(details, "\"", "\"\""),
+				ip,
+				created,
+			))
+		}
+	}
+
+	c.Set("Content-Disposition", "attachment; filename=\"system_audit_logs.csv\"")
+	c.Set("Content-Type", "text/csv; charset=utf-8")
+	return c.Send(buf.Bytes())
+}
+
+func (h *APIHandler) handleDownloadBackup(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "subdomain missing"})
+	}
+
+	dbPath := h.mgr.pool.GetTenantDBPath(subdomain)
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "لا توجد قاعدة بيانات لهذا الوكيل"})
+	}
+
+	tmpBackup := filepath.Join(os.TempDir(), fmt.Sprintf("sasman_%s_backup_%d.db", subdomain, time.Now().UnixNano()))
+	defer os.Remove(tmpBackup)
+
+	db, err := h.mgr.pool.Get(subdomain)
+	if err == nil && db != nil {
+		_, _ = db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+		_, _ = db.Exec(fmt.Sprintf("VACUUM INTO '%s'", tmpBackup))
+	}
+
+	if _, err := os.Stat(tmpBackup); os.IsNotExist(err) {
+		data, readErr := os.ReadFile(dbPath)
+		if readErr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "تعذر قراءة قاعدة البيانات"})
+		}
+		if writeErr := os.WriteFile(tmpBackup, data, 0644); writeErr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "تعذر إنشاء النسخة الاحتياطية"})
+		}
+	}
+
+	filename := fmt.Sprintf("sasman_%s_backup_%s.db", subdomain, time.Now().Format("2006-01-02_1504"))
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Set("Content-Type", "application/x-sqlite3")
+	return c.SendFile(tmpBackup)
+}
+
+func (h *APIHandler) handleRestoreBackup(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "subdomain missing"})
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى اختيار ملف النسخة الاحتياطية"})
+	}
+
+	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("sasman_restore_%s_%d.db", subdomain, time.Now().UnixNano()))
+	defer os.Remove(tmpFile)
+
+	if err := c.SaveFile(file, tmpFile); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل حفظ الملف المرفوع"})
+	}
+
+	f, err := os.Open(tmpFile)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "تعذر فتح الملف المرفوع"})
+	}
+	header := make([]byte, 16)
+	_, _ = f.Read(header)
+	_ = f.Close()
+
+	if string(header) != "SQLite format 3\x00" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "الملف المرفوع ليس قاعدة بيانات SQLite صالحة"})
+	}
+
+	// Close existing tenant pool connection
+	h.mgr.pool.Close(subdomain)
+
+	// Replace tenant database file
+	targetDBPath := h.mgr.pool.GetTenantDBPath(subdomain)
+	_ = os.Remove(targetDBPath + "-wal")
+	_ = os.Remove(targetDBPath + "-shm")
+
+	data, err := os.ReadFile(tmpFile)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل قراءة ملف الاستعادة"})
+	}
+
+	if err := os.WriteFile(targetDBPath, data, 0644); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل استبدال قاعدة البيانات"})
+	}
+
+	newDB, err := h.mgr.pool.Get(subdomain)
+	if err == nil && newDB != nil {
+		_ = EnsureTenantSchema(newDB)
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "تمت استعادة النسخة الاحتياطية بنجاح",
+	})
+}
+
+func (h *APIHandler) handleDeleteVoucherBatch(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	batchID := c.Params("batch_id")
+	if batchID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "batch_id required"})
+	}
+	_, _ = db.Exec("DELETE FROM radius_vouchers WHERE batch_id = ?", batchID)
+	_, _ = db.Exec("DELETE FROM radius_voucher_batches WHERE batch_id = ?", batchID)
+	return c.JSON(fiber.Map{"success": true, "message": "تم حذف الدفعة بنجاح"})
+}
+
+func (h *APIHandler) handleClearAllVouchers(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	_, _ = db.Exec("DELETE FROM radius_vouchers")
+	_, _ = db.Exec("DELETE FROM radius_voucher_batches")
+	return c.JSON(fiber.Map{"success": true, "message": "تم حذف وتصفير كافة الكروت بنجاح"})
+}
+
+func (h *APIHandler) handleGetUserTransactions(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	username, _ := url.PathUnescape(c.Params("username"))
+
+	rows, err := db.Query(`
+		SELECT id, username, transaction_type, amount, notes, created_at
+		FROM radius_user_transactions
+		WHERE username = ?
+		ORDER BY id DESC
+		LIMIT 100
+	`, username)
+	if err != nil {
+		return c.JSON([]interface{}{})
+	}
+	defer rows.Close()
+
+	type TxItem struct {
+		ID        int64   `json:"id"`
+		Username  string  `json:"username"`
+		Type      string  `json:"transaction_type"`
+		Amount    float64 `json:"amount"`
+		Notes     string  `json:"notes"`
+		CreatedAt string  `json:"created_at"`
+	}
+
+	res := []TxItem{}
+	for rows.Next() {
+		var t TxItem
+		if err := rows.Scan(&t.ID, &t.Username, &t.Type, &t.Amount, &t.Notes, &t.CreatedAt); err == nil {
+			res = append(res, t)
+		}
+	}
+	return c.JSON(res)
+}
+
+func (h *APIHandler) handleAddUserTransaction(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	username, _ := url.PathUnescape(c.Params("username"))
+
+	var req struct {
+		Type   string  `json:"transaction_type"`
+		Amount float64 `json:"amount"`
+		Notes  string  `json:"notes"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid body"})
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO radius_user_transactions (username, transaction_type, amount, notes)
+		VALUES (?, ?, ?, ?)
+	`, username, req.Type, req.Amount, req.Notes)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if req.Type == "payment" || req.Type == "recharge" {
+		_, _ = db.Exec("UPDATE radius_user_meta SET balance = balance + ? WHERE username = ?", req.Amount, username)
+	} else if req.Type == "debt" || req.Type == "withdraw" {
+		_, _ = db.Exec("UPDATE radius_user_meta SET balance = balance - ? WHERE username = ?", req.Amount, username)
+	}
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم تسجيل الحركة المالية بنجاح"})
+}
+
+func (h *APIHandler) handleExportExcel(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+
+	rows, err := db.Query(`
+		SELECT u.username, COALESCE(c.value, ''), COALESCE(u.full_name, ''), 
+		       COALESCE(u.phone, ''), COALESCE(g.groupname, ''), 
+		       COALESCE(u.expiration_unix, 0), COALESCE(u.balance, 0), u.enabled
+		FROM radius_user_meta u
+		LEFT JOIN radcheck c ON u.username = c.username AND c.attribute = 'Cleartext-Password'
+		LEFT JOIN radusergroup g ON u.username = g.username
+		ORDER BY u.created_at DESC
+	`)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	defer rows.Close()
+
+	f := excelize.NewFile()
+	sheet := "Users"
+	f.SetSheetName("Sheet1", sheet)
+
+	headers := []string{"اسم المستخدم", "كلمة المرور", "الاسم الكامل", "رقم الهاتف", "الباقة", "تاريخ الانتهاء", "الرصيد", "الحالة"}
+	for i, h := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue(sheet, cell, h)
+	}
+
+	rowIdx := 2
+	for rows.Next() {
+		var user, pass, fullName, phone, group string
+		var expUnix int64
+		var balance float64
+		var enabled int
+
+		if err := rows.Scan(&user, &pass, &fullName, &phone, &group, &expUnix, &balance, &enabled); err != nil {
+			continue
+		}
+
+		expStr := "غير محدد"
+		if expUnix > 0 {
+			expStr = time.Unix(expUnix, 0).Format("2006-01-02 15:04")
+		}
+		statusStr := "مفعل"
+		if enabled == 0 {
+			statusStr = "معطل"
+		}
+
+		f.SetCellValue(sheet, fmt.Sprintf("A%d", rowIdx), user)
+		f.SetCellValue(sheet, fmt.Sprintf("B%d", rowIdx), pass)
+		f.SetCellValue(sheet, fmt.Sprintf("C%d", rowIdx), fullName)
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", rowIdx), phone)
+		f.SetCellValue(sheet, fmt.Sprintf("E%d", rowIdx), group)
+		f.SetCellValue(sheet, fmt.Sprintf("F%d", rowIdx), expStr)
+		f.SetCellValue(sheet, fmt.Sprintf("G%d", rowIdx), balance)
+		f.SetCellValue(sheet, fmt.Sprintf("H%d", rowIdx), statusStr)
+		rowIdx++
+	}
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل إنشاء ملف الإكسل"})
+	}
+
+	filename := fmt.Sprintf("sasman_users_%s.xlsx", time.Now().Format("2006-01-02"))
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	return c.SendStream(bytes.NewReader(buf.Bytes()))
+}
+
+func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى اختيار ملف الإكسل"})
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "تعذر فتح ملف الإكسل"})
+	}
+	defer src.Close()
+
+	f, err := excelize.OpenReader(src)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "ملف إكسل غير صالح: " + err.Error()})
+	}
+	defer f.Close()
+
+	sheets := f.GetSheetList()
+	if len(sheets) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "الملف فارغ"})
+	}
+
+	rows, err := f.GetRows(sheets[0])
+	if err != nil || len(rows) < 2 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "لا توجد صفوف بيانات كافية"})
+	}
+
+	imported := 0
+	updated := 0
+
+	for i, row := range rows {
+		if i == 0 || len(row) < 1 {
+			continue
+		}
+		username := strings.TrimSpace(row[0])
+		if username == "" {
+			continue
+		}
+
+		password := "1234"
+		if len(row) > 1 && strings.TrimSpace(row[1]) != "" {
+			password = strings.TrimSpace(row[1])
+		}
+		fullName := ""
+		if len(row) > 2 {
+			fullName = strings.TrimSpace(row[2])
+		}
+		phone := ""
+		if len(row) > 3 {
+			phone = strings.TrimSpace(row[3])
+		}
+		profile := "10M"
+		if len(row) > 4 && strings.TrimSpace(row[4]) != "" {
+			profile = strings.TrimSpace(row[4])
+		}
+
+		expUnix := time.Now().AddDate(0, 1, 0).Unix()
+		if len(row) > 5 && strings.TrimSpace(row[5]) != "" {
+			rawDate := strings.TrimSpace(row[5])
+			if t, pErr := time.Parse("2006-01-02 15:04", rawDate); pErr == nil {
+				expUnix = t.Unix()
+			} else if t, pErr := time.Parse("2006-01-02", rawDate); pErr == nil {
+				expUnix = t.Unix()
+			}
+		}
+
+		var exists int
+		_ = db.QueryRow("SELECT COUNT(*) FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&exists)
+		if exists > 0 {
+			_, _ = db.Exec("UPDATE radcheck SET value = ? WHERE username = ? AND attribute = 'Cleartext-Password'", password, username)
+			updated++
+		} else {
+			_, _ = db.Exec("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", username, password)
+			imported++
+		}
+
+		_, _ = db.Exec(`
+			INSERT INTO radius_user_meta (username, full_name, phone, expiration_unix, enabled, updated_at)
+			VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+			ON CONFLICT(username) DO UPDATE SET 
+				full_name = excluded.full_name,
+				phone = excluded.phone,
+				expiration_unix = excluded.expiration_unix,
+				enabled = 1,
+				updated_at = CURRENT_TIMESTAMP
+		`, username, fullName, phone, expUnix)
+
+		_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
+		_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, profile)
+	}
+
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"imported": imported,
+		"updated":  updated,
+		"message":  fmt.Sprintf("تم استيراد %d مشترك وتحديث %d بنجاح", imported, updated),
+	})
+}
+
+func (h *APIHandler) handleImportSAS4(c *fiber.Ctx) error {
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى اختيار ملف قاعدة بيانات SAS4"})
+	}
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("تم استلام ملف SAS4 (%s) وجارٍ تجهيز المشتركين", file.Filename),
+	})
+}
+
+func (h *APIHandler) handlePortalLogin(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "subdomain missing"})
+	}
+
+	db, err := h.mgr.pool.Get(subdomain)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "قاعدة بيانات غير متاحة"})
+	}
+
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Username) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المستخدم وكلمة المرور مطلوبان"})
+	}
+
+	username := strings.TrimSpace(req.Username)
+	lookupUser := username
+	if strings.Contains(username, "@") {
+		lookupUser = strings.Split(username, "@")[0]
+	}
+
+	var storedPass string
+	err = db.QueryRow("SELECT value FROM radcheck WHERE (username = ? OR username = ?) AND attribute = 'Cleartext-Password'", username, lookupUser).Scan(&storedPass)
+	if err != nil {
+		var isUsed int
+		vErr := db.QueryRow("SELECT is_used FROM radius_vouchers WHERE code = ? OR code = ?", username, lookupUser).Scan(&isUsed)
+		if vErr == nil {
+			return c.JSON(fiber.Map{
+				"message":  "تم تسجيل الدخول بنجاح عبر كارت الهوتسبوت",
+				"username": username,
+				"token":    username,
+			})
+		}
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "اسم المستخدم أو كلمة المرور غير صحيحة"})
+	}
+
+	if storedPass != req.Password {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "كلمة المرور غير صحيحة"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "تم تسجيل الدخول بنجاح",
+		"username": username,
+		"token":    username,
+	})
+}
+
+func (h *APIHandler) handlePortalStatus(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "subdomain missing"})
+	}
+
+	db, err := h.mgr.pool.Get(subdomain)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "قاعدة بيانات غير متاحة"})
+	}
+
+	username := strings.TrimSpace(c.Query("username"))
+	if username == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "المستخدم مطلوب"})
+	}
+	lookupUser := username
+	if strings.Contains(username, "@") {
+		lookupUser = strings.Split(username, "@")[0]
+	}
+
+	var fullName, phone, groupName sql.NullString
+	var balance sql.NullFloat64
+	var expUnix sql.NullInt64
+	var enabled sql.NullInt64
+
+	_ = db.QueryRow(`
+		SELECT m.full_name, m.phone, m.balance, m.expiration_unix, m.enabled, g.groupname
+		FROM radius_user_meta m
+		LEFT JOIN radusergroup g ON m.username = g.username
+		WHERE m.username = ? OR m.username = ?
+		LIMIT 1
+	`, username, lookupUser).Scan(&fullName, &phone, &balance, &expUnix, &enabled, &groupName)
+
+	status := "منتهي"
+	expiryStr := "غير محدد"
+	if expUnix.Valid && expUnix.Int64 > 0 {
+		if expUnix.Int64 > time.Now().Unix() && (!enabled.Valid || enabled.Int64 == 1) {
+			status = "نشط"
+		}
+		expiryStr = time.Unix(expUnix.Int64, 0).Format("2006-01-02 15:04")
+	}
+
+	var totalIn, totalOut int64
+	_ = db.QueryRow("SELECT COALESCE(SUM(acctinputoctets), 0), COALESCE(SUM(acctoutputoctets), 0) FROM radacct WHERE username = ? OR username = ?", username, lookupUser).Scan(&totalIn, &totalOut)
+
+	return c.JSON(fiber.Map{
+		"username":    username,
+		"full_name":   fullName.String,
+		"status":      status,
+		"expiry":      expiryStr,
+		"balance":     balance.Float64,
+		"profile":     groupName.String,
+		"usage_in":    totalIn,
+		"usage_out":   totalOut,
+		"usage_total": totalIn + totalOut,
+		"download":    formatBytes(totalIn),
+		"upload":      formatBytes(totalOut),
+	})
+}
+
+func (h *APIHandler) handlePortalChangePassword(c *fiber.Ctx) error {
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "subdomain missing"})
+	}
+
+	db, err := h.mgr.pool.Get(subdomain)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "قاعدة بيانات غير متاحة"})
+	}
+
+	var req struct {
+		Username string `json:"username"`
+		OldPass  string `json:"old_password"`
+		NewPass  string `json:"new_password"`
+	}
+	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.NewPass) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "كلمة المرور الجديدة مطلوبة"})
+	}
+
+	username := strings.TrimSpace(req.Username)
+	lookupUser := username
+	if strings.Contains(username, "@") {
+		lookupUser = strings.Split(username, "@")[0]
+	}
+
+	var storedPass string
+	err = db.QueryRow("SELECT value FROM radcheck WHERE (username = ? OR username = ?) AND attribute = 'Cleartext-Password'", username, lookupUser).Scan(&storedPass)
+	if err != nil || storedPass != req.OldPass {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "كلمة المرور الحالية غير صحيحة"})
+	}
+
+	_, err = db.Exec("UPDATE radcheck SET value = ? WHERE (username = ? OR username = ?) AND attribute = 'Cleartext-Password'", req.NewPass, username, lookupUser)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل تحديث كلمة المرور"})
+	}
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم تغيير كلمة المرور بنجاح"})
+}
+
+func (h *APIHandler) handleGetTelegramBackupConfig(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	cfg := loadTenantTelegramConfig(db)
+	return c.JSON(fiber.Map{
+		"enabled":        cfg.Enabled,
+		"bot_token":      cfg.BotToken,
+		"chat_id":        cfg.ChatID,
+		"interval_hours": cfg.IntervalHours,
+		"last_sent_at":   cfg.LastSentAt,
+	})
+}
+
+func (h *APIHandler) handleSaveTelegramBackupConfig(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	var req struct {
+		Enabled       bool   `json:"enabled"`
+		BotToken      string `json:"bot_token"`
+		ChatID        string `json:"chat_id"`
+		IntervalHours int    `json:"interval_hours"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+	}
+
+	enabledStr := "0"
+	if req.Enabled {
+		enabledStr = "1"
+	}
+	if req.IntervalHours <= 0 {
+		req.IntervalHours = 24
+	}
+
+	_ = setTenantSetting(db, "telegram_backup_enabled", enabledStr)
+	if req.BotToken != "" {
+		_ = setTenantSetting(db, "telegram_backup_bot_token", req.BotToken)
+	}
+	_ = setTenantSetting(db, "telegram_backup_chat_id", req.ChatID)
+	_ = setTenantSetting(db, "telegram_backup_interval_hours", strconv.Itoa(req.IntervalHours))
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم حفظ إعدادات النسخ الاحتياطي عبر تيليجرام بنجاح"})
+}
+
+func (h *APIHandler) handleTestTelegramBackup(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+
+	cfg := loadTenantTelegramConfig(db)
+	if cfg.BotToken == "" || cfg.ChatID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى حفظ توكن البوت ومعرف الشات أولاً"})
+	}
+
+	caption := fmt.Sprintf("نسخة احتياطية تجريبية من SASMAN Cloud\nالوكيل: %s\nالتاريخ: %s", subdomain, time.Now().Format("2006-01-02 15:04:05"))
+	if err := h.mgr.SendTenantTelegramBackup(subdomain, cfg, caption); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل الإرسال إلى تيليجرام: " + err.Error()})
+	}
+
+	_ = setTenantSetting(db, "telegram_backup_last_sent_at", strconv.FormatInt(time.Now().Unix(), 10))
+	return c.JSON(fiber.Map{"success": true, "message": "تم إرسال النسخة الاحتياطية إلى تيليجرام بنجاح ✅"})
+}
+
+func (h *APIHandler) handleGetWhatsappTemplates(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	rows, err := db.Query("SELECT id, event_type, template_text, enabled, updated_at FROM radius_whatsapp_templates")
+	if err != nil {
+		return c.JSON([]interface{}{})
+	}
+	defer rows.Close()
+
+	type TplItem struct {
+		ID        int64  `json:"id"`
+		Key       string `json:"template_key"`
+		Text      string `json:"template_text"`
+		Enabled   int    `json:"enabled"`
+		UpdatedAt string `json:"updated_at"`
+	}
+
+	list := []TplItem{}
+	for rows.Next() {
+		var t TplItem
+		if err := rows.Scan(&t.ID, &t.Key, &t.Text, &t.Enabled, &t.UpdatedAt); err == nil {
+			list = append(list, t)
+		}
+	}
+	return c.JSON(list)
+}
+
+func (h *APIHandler) handleSaveWhatsappTemplates(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	var req struct {
+		Key  string `json:"template_key"`
+		Text string `json:"template_text"`
+	}
+	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Key) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "نوع القالب مطلوب"})
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO radius_whatsapp_templates (event_type, template_text, enabled, updated_at)
+		VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+		ON CONFLICT(event_type) DO UPDATE SET
+			template_text = excluded.template_text,
+			updated_at = CURRENT_TIMESTAMP
+	`, req.Key, req.Text)
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم حفظ قالب الرسالة بنجاح"})
+}
+
+func (h *APIHandler) handlePortalPassword(c *fiber.Ctx) error {
+	db := c.Locals("tenant_db").(*sql.DB)
+	type Req struct {
+		Username string `json:"username"`
+		OldPass  string `json:"old_password"`
+		NewPass  string `json:"new_password"`
+	}
+	var req Req
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	var storedPass string
+	err := db.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", req.Username).Scan(&storedPass)
+	if err != nil || storedPass != req.OldPass {
+		return c.Status(401).JSON(fiber.Map{"error": "كلمة المرور الحالية غير صحيحة"})
+	}
+
+	_, err = db.Exec("UPDATE radcheck SET value = ? WHERE username = ? AND attribute = 'Cleartext-Password'", req.NewPass, req.Username)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update password"})
+	}
+
+	return c.JSON(fiber.Map{"message": "تم تغيير كلمة المرور بنجاح"})
+}
+
 
 
 

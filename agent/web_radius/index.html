@@ -1480,9 +1480,10 @@
         <div class="modal-card" style="width: min(100%, 1200px); height: calc(100% - 40px); display: flex; flex-direction: column; padding: 0; overflow: hidden; background: #f8fafc;">
             <div class="modal-header" style="padding: 15px 20px; background: white; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; margin-bottom:0;">
                 <h3 id="device-proxy-title">📡 واجهة برمجة وإدارة الجهاز</h3>
-                <div style="display:flex; gap:10px;">
-                    <button class="btn" onclick="document.getElementById('device-proxy-iframe').contentWindow.location.reload();" style="width:auto; padding:6px 12px; font-size:13px; background:var(--primary); color:white; border:none;">تحديث ↻</button>
-                    <button class="modal-close" onclick="closeDeviceModal()" style="position:static; padding:0 5px;">×</button>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button class="btn" onclick="const f=document.getElementById('device-proxy-iframe'); if(f) f.src=f.src;" style="width:auto; padding:6px 12px; font-size:13px; background:var(--primary); color:white; border:none; border-radius:6px;">تحديث ↻</button>
+                    <button class="btn btn-secondary" onclick="closeDeviceProxyModal()" style="width:auto; padding:6px 14px; font-size:13px; border-radius:6px;">إغلاق ✕</button>
+                    <button class="modal-close" onclick="closeDeviceProxyModal()" style="position:static; padding:0 8px; font-size:24px; cursor:pointer; line-height:1;">×</button>
                 </div>
             </div>
             <div id="device-proxy-loading" style="display:none; padding:20px; text-align:center; color:#64748b;">
@@ -2010,7 +2011,7 @@
         <div class="modal-card" style="width: min(100%, 780px); max-height: 90vh; overflow-y: auto;">
             <div class="modal-header">
                 <h3 id="device-modal-title"><i class="fa-solid fa-network-wired" style="color:var(--primary);"></i> إضافة واكتشاف جهاز شبكة جديد</h3>
-                <button class="modal-close" onclick="closeDeviceModal()">×</button>
+                <button class="modal-close" onclick="closeNetworkDeviceModal()">×</button>
             </div>
             <p class="field-hint" style="margin-bottom:15px; line-height:1.6; color:var(--text-muted);">
                 أدخل عنوان IP وبيانات الدخول للراوتر أو السويتش أو رابط البرج. يمكنك الضغط على <strong>"🔍 اختبار واكتشاف"</strong> ليقوم النظام تلقائياً بقراءة الموديل، المنافذ، ونظام التشغيل وتحديد نوع الجهاز تلقائياً.

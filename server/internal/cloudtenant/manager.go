@@ -40,11 +40,16 @@ var reservedSubdomains = map[string]bool{
 	"internal": true,
 }
 
+type RadSecDisconnector interface {
+	DisconnectUser(subdomainOrNAS string, username string, sessionID string, framedIP string) error
+}
+
 type Manager struct {
-	repo      *storage.SQLiteRepository
-	pool      *TenantDBPool
-	domain    string
-	jwtSecret []byte
+	repo         *storage.SQLiteRepository
+	pool         *TenantDBPool
+	domain       string
+	jwtSecret    []byte
+	disconnector RadSecDisconnector
 }
 
 func NewManager(repo *storage.SQLiteRepository, pool *TenantDBPool, domain string, jwtSecret []byte) *Manager {
@@ -54,12 +59,69 @@ func NewManager(repo *storage.SQLiteRepository, pool *TenantDBPool, domain strin
 	if domain == "" {
 		domain = "sas-man.net"
 	}
-	return &Manager{
+	mgr := &Manager{
 		repo:      repo,
 		pool:      pool,
 		domain:    domain,
 		jwtSecret: jwtSecret,
 	}
+	mgr.StartAllWinboxForwarders()
+	return mgr
+}
+
+func (m *Manager) StartAllWinboxForwarders() {
+	if m.repo == nil {
+		return
+	}
+	subNames, err := m.repo.ListAllSubdomains()
+	if err != nil {
+		return
+	}
+
+	usedPorts := make(map[int]bool)
+	var needPort []*storage.Subdomain
+
+	for _, name := range subNames {
+		subObj, err := m.repo.GetSubdomainByName(name)
+		if err == nil && subObj != nil {
+			if subObj.WinboxPort >= 10001 {
+				usedPorts[subObj.WinboxPort] = true
+			} else {
+				needPort = append(needPort, subObj)
+			}
+		}
+	}
+
+	// Allocate free ports for those with port <= 0
+	nextPort := 10001
+	for _, subObj := range needPort {
+		for usedPorts[nextPort] {
+			nextPort++
+		}
+		subObj.WinboxPort = nextPort
+		usedPorts[nextPort] = true
+		_ = m.repo.UpdateSubdomainStatus(subObj.Subdomain, subObj.Token, subObj.WinboxPort)
+		log.Printf("[Winbox-Cloud] 🏷️ Allocated dedicated Winbox Port %d for [%s]", subObj.WinboxPort, subObj.Subdomain)
+	}
+
+	// Start all listeners
+	for _, name := range subNames {
+		subObj, err := m.repo.GetSubdomainByName(name)
+		if err == nil && subObj != nil && subObj.WinboxPort > 0 {
+			_ = GetGlobalWinboxProxyMgr().StartForwarder(subObj.Subdomain, subObj.WinboxPort)
+		}
+	}
+}
+
+func (m *Manager) SetDisconnector(d RadSecDisconnector) {
+	m.disconnector = d
+}
+
+func (m *Manager) DisconnectCloudUser(subdomain string, username string, sessionID string, framedIP string) error {
+	if m.disconnector == nil {
+		return fmt.Errorf("disconnector not initialized")
+	}
+	return m.disconnector.DisconnectUser(subdomain, username, sessionID, framedIP)
 }
 
 func (m *Manager) GetPool() *TenantDBPool {
@@ -438,15 +500,17 @@ func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPaylo
 		return err
 	}
 
-	now := time.Now()
+	p.Username = strings.TrimSpace(p.Username)
+	now := time.Now().Format("2006-01-02 15:04:05")
+
 	switch p.StatusType {
 	case "Start":
 		_, err = tenantDB.Exec(`
 			INSERT INTO radacct (
-				acctsessionid, username, nasipaddress, acctstarttime, 
+				acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime,
 				framedipaddress, callingstationid, acctinputoctets, acctoutputoctets
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, p.SessionID, p.Username, p.NasIP, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, p.SessionID, p.Username, p.NasIP, now, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut)
 	case "Stop":
 		_, err = tenantDB.Exec(`
 			UPDATE radacct SET 
@@ -458,14 +522,26 @@ func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPaylo
 			WHERE acctsessionid = ? OR (username = ? AND acctstoptime IS NULL)
 		`, now, p.SessionTimeSec, p.BytesIn, p.BytesOut, p.TerminateCause, p.SessionID, p.Username)
 	case "Interim-Update":
-		_, err = tenantDB.Exec(`
+		res, err := tenantDB.Exec(`
 			UPDATE radacct SET 
 				acctupdatetime = ?,
 				acctsessiontime = ?,
 				acctinputoctets = ?,
-				acctoutputoctets = ?
+				acctoutputoctets = ?,
+				framedipaddress = CASE WHEN ? != '' THEN ? ELSE framedipaddress END,
+				callingstationid = CASE WHEN ? != '' THEN ? ELSE callingstationid END
 			WHERE acctsessionid = ? OR (username = ? AND acctstoptime IS NULL)
-		`, now, p.SessionTimeSec, p.BytesIn, p.BytesOut, p.SessionID, p.Username)
+		`, now, p.SessionTimeSec, p.BytesIn, p.BytesOut, p.UserIP, p.UserIP, p.UserMAC, p.UserMAC, p.SessionID, p.Username)
+		if err == nil {
+			if rows, _ := res.RowsAffected(); rows == 0 {
+				_, _ = tenantDB.Exec(`
+					INSERT INTO radacct (
+						acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime,
+						framedipaddress, callingstationid, acctinputoctets, acctoutputoctets, acctsessiontime
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`, p.SessionID, p.Username, p.NasIP, now, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut, p.SessionTimeSec)
+			}
+		}
 	}
 
 	return err
@@ -476,3 +552,108 @@ func generateRandomToken(length int) string {
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
+
+func (m *Manager) StartExpirationSweeper() {
+	go func() {
+		ticker := time.NewTicker(45 * time.Second)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			m.runExpirationSweep()
+		}
+	}()
+}
+
+func (m *Manager) runExpirationSweep() {
+	tenantsDir := m.pool.baseDir
+	entries, err := os.ReadDir(tenantsDir)
+	if err != nil {
+		return
+	}
+
+	nowUnix := time.Now().Unix()
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		subdomain := entry.Name()
+		db, err := m.pool.Get(subdomain)
+		if err != nil {
+			continue
+		}
+
+		rows, err := db.Query(`
+			SELECT username FROM radius_user_meta 
+			WHERE expiration_unix IS NOT NULL AND expiration_unix > 0 AND expiration_unix <= ?
+		`, nowUnix)
+		if err != nil {
+			continue
+		}
+
+		expiredUsers := []string{}
+		for rows.Next() {
+			var u string
+			if err := rows.Scan(&u); err == nil {
+				expiredUsers = append(expiredUsers, u)
+			}
+		}
+		rows.Close()
+
+		for _, username := range expiredUsers {
+			var sessionID, framedIP string
+			err := db.QueryRow("SELECT COALESCE(acctsessionid, ''), COALESCE(framedipaddress, '') FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessionID, &framedIP)
+			if err == nil && sessionID != "" {
+				nowStr := time.Now().Format("2006-01-02 15:04:05")
+				_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", nowStr, username)
+
+				_ = m.DisconnectCloudUser(subdomain, username, sessionID, framedIP)
+
+				tenantLogPath := filepath.Join(m.pool.GetTenantDir(subdomain), "radius.log")
+				line := fmt.Sprintf("[%s] RADIUS Disconnect-Request (Code 40) sent for expired user [%s] (Session: %s) ⏰\n",
+					time.Now().Format("2006-01-02 15:04:05"), username, sessionID)
+				f, err := os.OpenFile(tenantLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if err == nil {
+					_, _ = f.WriteString(line)
+					_ = f.Close()
+				}
+			}
+		}
+	}
+}
+func (m *Manager) DeleteTenant(subdomain string) error {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	if sub == "" {
+		return fmt.Errorf("empty subdomain")
+	}
+
+	log.Printf("[cloudtenant] 🗑️ Initiating complete deletion of tenant [%s]...", sub)
+
+	// 1. Stop and remove Docker container if running
+	containerName := fmt.Sprintf("sasman-cloud-%s", sub)
+	_ = exec.Command("docker", "rm", "-f", containerName).Run()
+
+	// 2. Close and remove DB connection from Pool
+	if m.pool != nil {
+		m.pool.Close(sub)
+	}
+
+	// 3. Remove Tenant Directory and SQLite database
+	tenantDir := m.pool.GetTenantDir(sub)
+	if err := os.RemoveAll(tenantDir); err != nil {
+		log.Printf("[cloudtenant] Warning removing tenant dir [%s]: %v", tenantDir, err)
+	}
+
+	// 4. Remove PKI certificates
+	_ = os.RemoveAll(filepath.Join("data", "pki", "agents", sub))
+	_ = os.RemoveAll(filepath.Join("/app/data", "pki", "agents", sub))
+
+	// 5. Delete from Central Repository (subdomains, licenses, customers)
+	if m.repo != nil {
+		_ = m.repo.DeleteSubdomain(sub)
+	}
+
+	log.Printf("[cloudtenant] ✅ Tenant [%s] and all associated data, databases, and subdomains have been permanently purged", sub)
+	return nil
+}
+
+

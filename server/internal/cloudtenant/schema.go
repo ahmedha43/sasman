@@ -110,9 +110,16 @@ func EnsureTenantSchema(db *sql.DB) error {
 
 		`CREATE TABLE IF NOT EXISTS radius_profile_meta (
 			groupname TEXT PRIMARY KEY,
-			validity_days INTEGER NOT NULL DEFAULT 0,
+			validity_days INTEGER NOT NULL DEFAULT 30,
 			price REAL NOT NULL DEFAULT 0,
-			admin_id INTEGER DEFAULT NULL,
+			agent_price REAL NOT NULL DEFAULT 0,
+			pool TEXT DEFAULT '',
+			mikrotik_group TEXT DEFAULT '',
+			nas_ip TEXT DEFAULT 'ALL',
+			simultaneous TEXT DEFAULT '1',
+			expired_pool TEXT DEFAULT '',
+			expired_profile TEXT DEFAULT '',
+			admin_id INTEGER DEFAULT 1,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);`,
 
@@ -185,12 +192,96 @@ func EnsureTenantSchema(db *sql.DB) error {
 
 		`CREATE TABLE IF NOT EXISTS radius_audit_log (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			admin_id INTEGER,
+			admin_id INTEGER DEFAULT 1,
+			admin_username TEXT DEFAULT 'المدير العام',
 			action TEXT NOT NULL,
+			action_type TEXT DEFAULT '',
 			target TEXT,
 			details TEXT,
 			ip TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE TABLE IF NOT EXISTS radius_voucher_batches (
+			batch_id TEXT PRIMARY KEY,
+			name TEXT NOT NULL DEFAULT '',
+			profile_name TEXT NOT NULL,
+			count INTEGER NOT NULL DEFAULT 0,
+			price REAL NOT NULL DEFAULT 0,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS radius_whatsapp_templates (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			event_type TEXT NOT NULL UNIQUE,
+			template_text TEXT NOT NULL,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS radius_settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL DEFAULT '',
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS radius_admin_transactions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			admin_id INTEGER NOT NULL,
+			performer_id INTEGER DEFAULT 1,
+			performer_name TEXT DEFAULT 'المدير العام',
+			type TEXT NOT NULL DEFAULT 'recharge',
+			transaction_type TEXT NOT NULL DEFAULT 'recharge',
+			amount REAL NOT NULL,
+			balance_after REAL NOT NULL,
+			notes TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS radius_streams (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			source TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'active',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS network_devices (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			ip TEXT NOT NULL,
+			vendor TEXT NOT NULL DEFAULT 'ubiquiti',
+			type TEXT NOT NULL DEFAULT 'cpe',
+			model TEXT DEFAULT '',
+			username TEXT DEFAULT 'ubnt',
+			password TEXT DEFAULT '',
+			port INTEGER DEFAULT 80,
+			protocol TEXT DEFAULT 'http',
+			auth_type TEXT DEFAULT 'web',
+			status TEXT NOT NULL DEFAULT 'online',
+			mac TEXT DEFAULT '',
+			signal_dbm INTEGER DEFAULT NULL,
+			ccq INTEGER DEFAULT NULL,
+			noise_floor INTEGER DEFAULT NULL,
+			tx_rate REAL DEFAULT NULL,
+			rx_rate REAL DEFAULT NULL,
+			frequency INTEGER DEFAULT NULL,
+			channel_width INTEGER DEFAULT NULL,
+			ssid TEXT DEFAULT '',
+			ap_mac TEXT DEFAULT '',
+			distance_km REAL DEFAULT NULL,
+			firmware TEXT DEFAULT '',
+			uptime INTEGER DEFAULT NULL,
+			cpu_usage INTEGER DEFAULT NULL,
+			memory_usage INTEGER DEFAULT NULL,
+			temperature REAL DEFAULT NULL,
+			voltage REAL DEFAULT NULL,
+			last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+			latitude REAL DEFAULT NULL,
+			longitude REAL DEFAULT NULL,
+			notes TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
 	}
 
@@ -199,6 +290,21 @@ func EnsureTenantSchema(db *sql.DB) error {
 			log.Printf("[cloudtenant] Warning executing schema query: %v", err)
 		}
 	}
+
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_name TEXT DEFAULT 'المدير العام'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN transaction_type TEXT DEFAULT 'recharge'")
+	_, _ = db.Exec("ALTER TABLE radius_audit_log ADD COLUMN admin_username TEXT DEFAULT 'المدير العام'")
+	_, _ = db.Exec("ALTER TABLE radius_audit_log ADD COLUMN action_type TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN agent_price REAL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN pool TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN mikrotik_group TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN nas_ip TEXT DEFAULT 'ALL'")
+	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN simultaneous TEXT DEFAULT '1'")
+	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN expired_pool TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_profile_meta ADD COLUMN expired_profile TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN local_relay INTEGER DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
 
 	// Seed default profile if none exists
 	var count int

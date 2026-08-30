@@ -1,15 +1,18 @@
 package tunnel
 
 import (
+	"bufio"
 	"bytes"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -404,6 +407,11 @@ func (s *Service) startWinboxTCPListener(session *AgentSession) {
 		}
 
 		if !session.Connected || session.Conn == nil {
+			targetIP := resolveTunnelIPForSubdomain(session.Subdomain)
+			if targetIP != "" {
+				go handleDirectWinboxProxy(conn, targetIP, session.Subdomain)
+				continue
+			}
 			conn.Close()
 			continue
 		}
@@ -526,6 +534,18 @@ func (s *Service) GetAgentBySubdomain(subdomain string) *AgentSession {
 		}
 	}
 	return nil
+}
+
+func (s *Service) IsAgentConnected(subdomain string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, session := range s.sessions {
+		if strings.EqualFold(session.Subdomain, subdomain) {
+			return session.Connected && session.Conn != nil
+		}
+	}
+	return false
 }
 
 func (s *Service) ListOnlineAgents() []string {
@@ -1111,4 +1131,101 @@ func (s *Service) SendTunnelMessage(subdomain string, msgType string, payload an
 	}
 
 	return agent.WriteJSON(msg)
+}
+
+func handleDirectWinboxProxy(clientConn net.Conn, targetIP string, subdomain string) {
+	defer clientConn.Close()
+
+	targetAddr := fmt.Sprintf("%s:8291", targetIP)
+	routerConn, err := net.DialTimeout("tcp", targetAddr, 6*time.Second)
+	if err != nil {
+		log.Printf("[Tunnel-Winbox] ❌ Failed to connect to MikroTik at %s for [%s]: %v", targetAddr, subdomain, err)
+		return
+	}
+	defer routerConn.Close()
+
+	if tcpConn, ok := routerConn.(*net.TCPConn); ok {
+		_ = tcpConn.SetNoDelay(true)
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
+	}
+
+	log.Printf("[Tunnel-Winbox] 🚀 Active Winbox session opened for [%s] -> %s", subdomain, targetAddr)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(routerConn, clientConn)
+		_ = routerConn.Close()
+	}()
+
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(clientConn, routerConn)
+		_ = clientConn.Close()
+	}()
+
+	wg.Wait()
+	log.Printf("[Tunnel-Winbox] 🏁 Winbox session closed for [%s]", subdomain)
+}
+
+func resolveTunnelIPForSubdomain(subdomain string) string {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	cnTarget := fmt.Sprintf("agent-%s-SASMAN", sub)
+
+	statusPaths := []string{
+		"/app/data/openvpn-status.log",
+		"/root/sasman-central/server/data/openvpn-status.log",
+		"data/openvpn-status.log",
+		"/etc/openvpn/openvpn-status.log",
+		"/run/openvpn/server.status",
+		"/tmp/openvpn-status.log",
+	}
+
+	for _, path := range statusPaths {
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		defer f.Close()
+
+		scanner := bufio.NewScanner(f)
+		isRoutingTable := false
+
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "ROUTING TABLE" {
+				isRoutingTable = true
+				continue
+			}
+			if line == "GLOBAL STATS" || line == "END" {
+				isRoutingTable = false
+			}
+
+			if isRoutingTable {
+				parts := strings.Split(line, ",")
+				if len(parts) >= 2 {
+					ip := strings.TrimSpace(parts[0])
+					cn := strings.TrimSpace(parts[1])
+					if strings.EqualFold(cn, cnTarget) {
+						return ip
+					}
+				}
+			}
+		}
+	}
+
+	// Dynamic probe active Winbox listeners on the /30 net30 range
+	candidates := []string{"10.250.0.6", "10.250.0.10", "10.250.0.14", "10.250.0.18", "10.250.0.2"}
+	for _, ip := range candidates {
+		conn, err := net.DialTimeout("tcp", ip+":8291", 400*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return ip
+		}
+	}
+
+	return "10.250.0.6"
 }

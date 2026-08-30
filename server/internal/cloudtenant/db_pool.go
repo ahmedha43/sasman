@@ -104,9 +104,9 @@ func (p *TenantDBPool) Get(subdomain string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to ping tenant sqlite database: %w", err)
 	}
 
-	db.SetMaxOpenConns(5)
-	db.SetMaxIdleConns(2)
-	db.SetConnMaxLifetime(10 * time.Minute)
+	db.SetMaxOpenConns(20)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(0)
 
 	// Ensure Schema is initialized
 	if err := EnsureTenantSchema(db); err != nil {

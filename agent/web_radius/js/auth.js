@@ -454,13 +454,13 @@ async function openAgentLogModal(id, username) {
     document.getElementById('agent-log-modal').classList.add('active');
     
     try {
-        const res = await apiFetch('/radius/api/auth/admins/transactions');
+        const res = await apiFetch(`/radius/api/auth/admins/transactions?admin_id=${encodeURIComponent(id)}`);
         if (!res.ok) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--danger);">تعذر تحميل سجل العمليات</td></tr>';
             return;
         }
         const list = await res.json();
-        const filtered = list.filter(tx => tx.admin_id == id);
+        const filtered = Array.isArray(list) ? list.filter(tx => tx.admin_id == id || !tx.admin_id) : [];
         
         if (!filtered.length) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد عمليات مسجلة لهذا الوكيل بعد</td></tr>';
@@ -469,12 +469,13 @@ async function openAgentLogModal(id, username) {
         
         tbody.innerHTML = filtered.map(tx => {
             const date = tx.created_at ? new Date(tx.created_at).toLocaleString('ar') : '';
-            const tTypeName = tx.transaction_type === 'recharge' ? 'شحن رصيد ➕' : 'سحب رصيد ➖';
-            const tTypeColor = tx.transaction_type === 'recharge' ? '#16a34a' : '#dc2626';
+            const isRecharge = (tx.transaction_type === 'recharge' || tx.type === 'recharge');
+            const tTypeName = isRecharge ? 'شحن رصيد ➕' : 'سحب رصيد ➖';
+            const tTypeColor = isRecharge ? '#16a34a' : '#dc2626';
             const amount = (tx.amount || 0).toLocaleString() + ' د.ع';
             return `<tr>
                 <td>${tx.id}</td>
-                <td>${escapeHtml(tx.performer_name)}</td>
+                <td>${escapeHtml(tx.performer_name || 'المدير العام')}</td>
                 <td><span style="font-weight:bold; color:${tTypeColor};">${tTypeName}</span></td>
                 <td style="font-weight:bold; color:${tTypeColor};">${amount}</td>
                 <td>${escapeHtml(tx.notes) || '-'}</td>
@@ -522,7 +523,11 @@ async function handleLicenseSubmit(e) {
 
 async function downloadBackup() {
     try {
-        const res = await fetch('/radius/api/auth/backup', { credentials: 'same-origin' });
+        const token = localStorage.getItem('radius_token') || '';
+        const res = await fetch('/radius/api/auth/backup', { 
+            credentials: 'same-origin',
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+        });
         if (res.status === 401) { window.location.href = '/radius/login.html'; return; }
         if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.error || 'تعذر التنزيل'); return; }
         const blob = await res.blob();
@@ -546,7 +551,13 @@ async function handleRestore(e) {
     const fd = new FormData();
     fd.append('file', file);
     try {
-        const res = await fetch('/radius/api/auth/restore', { method: 'POST', credentials: 'same-origin', body: fd });
+        const token = localStorage.getItem('radius_token') || '';
+        const res = await fetch('/radius/api/auth/restore', { 
+            method: 'POST', 
+            credentials: 'same-origin', 
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+            body: fd 
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { alert(data.error || 'فشل الاستعادة'); return; }
         alert((data.message || 'تمت الاستعادة') + '\nسيتم تحديث الصفحة.');

@@ -361,8 +361,20 @@ function openAddDeviceModal() {
     document.getElementById('device-modal').classList.add('active');
 }
 
+function closeNetworkDeviceModal() {
+    const modal = document.getElementById('device-modal');
+    if (modal) modal.classList.remove('active');
+}
+
 function closeDeviceModal() {
-    document.getElementById('device-modal').classList.remove('active');
+    closeNetworkDeviceModal();
+    if (typeof window.closeDeviceProxyModal === 'function') {
+        window.closeDeviceProxyModal();
+    }
+    const pModal = document.getElementById('device-proxy-modal');
+    if (pModal) pModal.classList.remove('active');
+    const pIframe = document.getElementById('device-proxy-iframe');
+    if (pIframe) pIframe.src = 'about:blank';
 }
 
 async function testDeviceConnection() {

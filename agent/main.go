@@ -1328,7 +1328,7 @@ func serveDeviceProxy(w http.ResponseWriter, r *http.Request, cleanIP string, ta
 
 	resp, err := deviceProxyDoRequest(r, sourceBody, cleanIP, &backendURL, transport, 0)
 	if err != nil {
-		http.Error(w, "Device proxy failed: "+err.Error(), http.StatusBadGateway)
+		renderFriendlyProxyError(w, cleanIP, err)
 		return
 	}
 	defer resp.Body.Close()
@@ -1536,6 +1536,159 @@ func rewriteDeviceProxyHTML(body string, cleanIP string) string {
 		`location.href='/`, `location.href='`+prefix+`/`,
 	)
 	return replacer.Replace(body)
+}
+
+func renderFriendlyProxyError(w http.ResponseWriter, cleanIP string, err error) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تعذر فتح واجهة الجهاز</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  body {
+    font-family: 'Tajawal', sans-serif;
+    background: #0f172a;
+    color: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  .card {
+    background: rgba(30, 41, 59, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 35px 30px;
+    max-width: 540px;
+    width: 100%%;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  }
+  .icon-wrapper {
+    width: 72px;
+    height: 72px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 2px solid rgba(239, 68, 68, 0.4);
+    border-radius: 50%%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    color: #ef4444;
+    font-size: 32px;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 10px;
+    color: #ffffff;
+  }
+  .ip-tag {
+    display: inline-block;
+    background: #1e293b;
+    border: 1px solid #334155;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-family: monospace;
+    font-size: 15px;
+    color: #38bdf8;
+    margin-bottom: 20px;
+    font-weight: bold;
+    direction: ltr;
+  }
+  .reasons {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: right;
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: #94a3b8;
+    margin-bottom: 25px;
+  }
+  .reasons li {
+    margin-bottom: 6px;
+  }
+  .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: none;
+  }
+  .btn-primary {
+    background: #3b82f6;
+    color: #ffffff;
+  }
+  .btn-primary:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+  }
+  .btn-secondary {
+    background: #334155;
+    color: #f1f5f9;
+  }
+  .btn-secondary:hover {
+    background: #475569;
+  }
+  .err-details {
+    font-size: 11px;
+    color: #64748b;
+    font-family: monospace;
+    margin-top: 20px;
+    direction: ltr;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon-wrapper">
+    <i class="fa-solid fa-satellite-dish"></i>
+  </div>
+  <h2>تعذر الوصول لواجهة الجهاز</h2>
+  <div class="ip-tag">%s</div>
+  <div class="reasons">
+    <div style="font-weight: 700; color: #cbd5e1; margin-bottom: 8px;"><i class="fa-solid fa-circle-info" style="color: #38bdf8;"></i> الأسباب المحتملة:</div>
+    <ul style="margin: 0; padding-right: 20px;">
+      <li>الجهاز غير متصل بالشبكة حالياً أو منطفئ (Offline).</li>
+      <li>منفذ إدارة الويب (HTTP / Port 80) مغلق على جهاز المشترك.</li>
+      <li>الجهاز يعمل على منفذ إدارة بديل (مثل 443 / 8080 / 81).</li>
+      <li>جدار الحماية في الراوتر يمنع طلبات الوصول المباشرة.</li>
+    </ul>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-primary" onclick="window.location.reload()"><i class="fa-solid fa-rotate-right"></i> إعادة المحاولة</button>
+    <a class="btn btn-secondary" href="/proxy/%s:8080/"><i class="fa-solid fa-network-wired"></i> تجربة منفذ 8080</a>
+    <a class="btn btn-secondary" href="/proxy/%s:81/"><i class="fa-solid fa-network-wired"></i> تجربة منفذ 81</a>
+  </div>
+  <div class="err-details">%s</div>
+</div>
+</body>
+</html>`, cleanIP, cleanIP, cleanIP, err.Error())
+	_, _ = w.Write([]byte(html))
 }
 
 // Global Auth Handlers (Managed here for simplicity in initial refactor)

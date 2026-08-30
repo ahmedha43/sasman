@@ -1782,8 +1782,8 @@
           </td>
           <td>${licHTML}</td>
           <td>
-            <span class="badge ${a.connected ? 'badge-online' : 'badge-offline'}">
-              ${a.connected ? '🟢 متصل' : '🔴 غير متصل'}
+            <span class="badge ${(a.connected || a.online || a.mode === 'cloud') ? 'badge-online' : 'badge-offline'}">
+              ${(a.connected || a.online || a.mode === 'cloud') ? (a.mode === 'cloud' ? '🟢 متصل (سحابي)' : '🟢 متصل') : '🔴 غير متصل'}
             </span>
           </td>
           <td>
