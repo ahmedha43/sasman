@@ -245,15 +245,23 @@ function renderLicenseGate(data) {
 let zcAgentDailyRate = 1000;
 
 async function fetchZcAgentPricing() {
-    try {
-        const res = await apiFetch('/radius/api/zaincash/pricing');
-        if (res.ok) {
-            const data = await res.json();
-            if (data.price_per_day_iqd) zcAgentDailyRate = data.price_per_day_iqd;
-            const el = document.getElementById('zcDailyRate');
-            if (el) el.innerText = `${zcAgentDailyRate.toLocaleString()} IQD`;
-        }
-    } catch(e){}
+    const endpoints = ['/api/admin/settings/pricing', '/radius/api/zaincash/pricing'];
+    for (const ep of endpoints) {
+        try {
+            const res = await fetch(ep);
+            if (res.ok) {
+                const text = await res.text();
+                let data = {};
+                try { data = JSON.parse(text); } catch(e){}
+                if (data && data.price_per_day_iqd) {
+                    zcAgentDailyRate = data.price_per_day_iqd;
+                    const el = document.getElementById('zcDailyRate');
+                    if (el) el.innerText = `${zcAgentDailyRate.toLocaleString()} IQD`;
+                    break;
+                }
+            }
+        } catch(e){}
+    }
 }
 
 function openZaincashRenewModal() {
@@ -283,23 +291,40 @@ async function startZaincashPayment() {
     const btn = document.getElementById('zcSubmitBtn');
     if (btn) { btn.disabled = true; btn.innerText = 'جاري تحضير رابط الدفع... ⏳'; }
 
-    try {
-        const res = await apiFetch('/radius/api/zaincash/initiate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ days: days })
-        });
-        const data = await res.json();
-        if (res.ok && data.payment_url) {
-            window.location.href = data.payment_url;
-        } else {
-          alert('فشل إنشاء عملية الدفع عبر زين كاش: ' + (data.error || 'خطأ غير معروف'));
-          if (btn) { btn.disabled = false; btn.innerText = 'الانتقال للدفع عبر زين كاش 🚀'; }
+    const sub = (typeof licenseState !== 'undefined' && licenseState.subdomain) ? licenseState.subdomain : '';
+    const payload = JSON.stringify({ days: days, subdomain: sub });
+
+    const endpoints = [
+        '/api/cloud/license/renew/initiate',
+        '/radius/api/zaincash/initiate'
+    ];
+
+    let lastError = 'فشل الاتصال بسيرفر الدفع';
+
+    for (const ep of endpoints) {
+        try {
+            const res = await fetch(ep, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload
+            });
+            const text = await res.text();
+            let data = {};
+            try { data = JSON.parse(text); } catch(e){}
+
+            if (res.ok && data.payment_url) {
+                window.location.href = data.payment_url;
+                return;
+            } else if (data.error) {
+                lastError = data.error;
+            }
+        } catch (e) {
+            lastError = e.message;
         }
-    } catch (e) {
-        alert('حدث خطأ في الاتصال: ' + e.message);
-        if (btn) { btn.disabled = false; btn.innerText = 'الانتقال للدفع عبر زين كاش 🚀'; }
     }
+
+    alert('فشل إنشاء عملية الدفع عبر زين كاش: ' + lastError);
+    if (btn) { btn.disabled = false; btn.innerText = 'الانتقال للدفع عبر زين كاش 🚀'; }
 }
 
 async function handleRouterConnect(e) {
