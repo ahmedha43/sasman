@@ -562,63 +562,71 @@ func main() {
 	})
 
 	// Subdomain Gateway & Routing Middleware (MUST be registered first)
+	// ─────────────────────────────────────────────────────────────────
+	// Priority order:
+	//   1. Local container agent with ACTIVE WebSocket tunnel → forward directly (always wins)
+	//   2. Cloud RadSec tenant (agent_mode = 'cloud' in DB) → cloud handlers
+	//   3. Local container agent with OFFLINE tunnel → waiting page (auto-refresh)
+	//   4. Unknown subdomain → fall through to normal routes
+	// ─────────────────────────────────────────────────────────────────
 	app.Use(func(c *fiber.Ctx) error {
 		host := c.Get("Host")
 		subdomain := tunnel.ExtractSubdomainForHost(host, centralDomain)
-		if subdomain != "" {
-			// 1. Container mode (Local MikroTik agent connected via WebSocket tunnel)
-			if svc.IsAgentConnected(subdomain) {
-				return svc.ForwardRequestToAgent(c, subdomain)
+		if subdomain == "" {
+			return c.Next()
+		}
+
+		// 1. Local container agent is connected via tunnel right now → forward directly
+		if svc.IsAgentConnected(subdomain) {
+			return svc.ForwardRequestToAgent(c, subdomain)
+		}
+
+		// 2. Cloud RadSec tenant (authoritative DB check)
+		if repo.IsCloudAgent(subdomain) {
+			c.Locals("subdomain", subdomain)
+			if c.Path() == "/" || c.Path() == "/admin" {
+				return c.Redirect("/radius")
 			}
+			return c.Next()
+		}
 
-			// 2. Cloud Tenant mode (Only if registered as central cloud tenant)
-			if cloudTenantMgr.HasTenant(subdomain) {
-				c.Locals("subdomain", subdomain)
-
-				// Redirect root or /admin to /radius
-				if c.Path() == "/" || c.Path() == "/admin" {
-					return c.Redirect("/radius")
-				}
-				return c.Next()
+		// 3. Local container agent — tunnel is temporarily offline / reconnecting
+		if repo.SubdomainExists(subdomain) {
+			// Return JSON error for API calls
+			if strings.HasPrefix(c.Path(), "/radius/api/") || strings.HasPrefix(c.Path(), "/api/") {
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+					"error":         "حاوية المايكروتك المحلية قيد إعادة الاتصال بالنفق السحابي. يرجى الانتظار بضع ثوانٍ.",
+					"agent_offline": true,
+				})
 			}
-
-			// 3. Local Tunnel Agent expected, but WebSocket tunnel is temporarily offline or reconnecting
-			if c.Path() == "/" || c.Path() == "/admin" || c.Path() == "/radius" || c.Path() == "/radius/" {
-				c.Set("Content-Type", "text/html; charset=utf-8")
-				c.Set("Refresh", "4") // Auto refresh every 4 seconds until tunnel reconnects
-				return c.Status(fiber.StatusServiceUnavailable).SendString(`<!DOCTYPE html>
+			// Return Arabic waiting page with auto-refresh for browser requests
+			c.Set("Content-Type", "text/html; charset=utf-8")
+			c.Set("Refresh", "4")
+			return c.Status(fiber.StatusServiceUnavailable).SendString(`<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>جاري الاتصال بالراوتر المحلي - SASMAN</title>
     <style>
-        body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .card { background: #1e293b; border: 1px solid #334155; padding: 36px 28px; border-radius: 20px; text-align: center; max-width: 440px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
-        .spinner { width: 48px; height: 48px; border: 4px solid #38bdf8; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px auto; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        h3 { margin: 0 0 10px 0; color: #38bdf8; font-size: 18px; }
-        p { font-size: 13.5px; color: #94a3b8; margin: 0 0 20px 0; line-height: 1.6; }
-        .badge { background: #0369a1; color: #e0f2fe; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: bold; font-family: monospace; }
+        body { font-family: system-ui,-apple-system,sans-serif; background:#0f172a; color:#f8fafc; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
+        .card { background:#1e293b; border:1px solid #334155; padding:36px 28px; border-radius:20px; text-align:center; max-width:440px; box-shadow:0 20px 40px rgba(0,0,0,.6); }
+        .spinner { width:48px; height:48px; border:4px solid #38bdf8; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; margin:0 auto 20px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        h3 { margin:0 0 10px; color:#38bdf8; font-size:18px; }
+        p { font-size:13.5px; color:#94a3b8; margin:0 0 20px; line-height:1.6; }
+        .badge { background:#0369a1; color:#e0f2fe; padding:6px 14px; border-radius:999px; font-size:12px; font-weight:bold; font-family:monospace; }
     </style>
 </head>
 <body>
     <div class="card">
         <div class="spinner"></div>
         <h3>جاري الربط بحاوية المايكروتك المحلية... 📡</h3>
-        <p>الراوتر المحلي في مرحلة الاتصال عبر نفق SASMAN المشفر. سيتم فتح لوحة تحكم شبكتك ومستثمريك تلقائياً فور اكتمال الربط.</p>
-        <span class="badge">النطاق: ` + subdomain + `</span>
+        <p>الراوتر المحلي في مرحلة الاتصال عبر نفق SASMAN المشفر.<br>سيتم فتح لوحة تحكم شبكتك ومشتركيك تلقائياً فور اكتمال الربط.</p>
+        <span class="badge">` + subdomain + `.` + centralDomain + `</span>
     </div>
 </body>
 </html>`)
-			}
-
-			if strings.HasPrefix(c.Path(), "/radius/api/") || strings.HasPrefix(c.Path(), "/api/") {
-				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-					"error": "حاوية المايكروتك المحلية قيد إعادة الاتصال بالنفق السحابي. يرجى الانتظار بضع ثوانٍ.",
-					"agent_offline": true,
-				})
-			}
 		}
 		return c.Next()
 	})
@@ -2031,6 +2039,9 @@ func main() {
 			subRecord.WinboxPort = agent.WinboxPort
 			_ = repo.SaveSubdomain(*subRecord)
 		}
+
+		// ✅ Explicitly mark as local container agent — prevents cloud routing fallback
+		_ = repo.SetAgentMode(sub, "local")
 
 		if payload.Name != "" || payload.Phone != "" {
 			_ = repo.UpdateSubdomainOwner(sub, payload.Name, payload.Phone, sub)

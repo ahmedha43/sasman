@@ -392,9 +392,12 @@ func (r *SQLiteRepository) CreateSchema() error {
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_arch TEXT NOT NULL DEFAULT ''")
 	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN credentials_json TEXT NOT NULL DEFAULT ''")
 	_, _ = r.db.Exec("ALTER TABLE agent_memory ADD COLUMN topology_profile_json TEXT NOT NULL DEFAULT '{}'")
+	// agent_mode: 'local' = MikroTik container (WebSocket tunnel), 'cloud' = cloud RadSec tenant (per-tenant DB on VPS)
+	_, _ = r.db.Exec("ALTER TABLE subdomains ADD COLUMN agent_mode TEXT NOT NULL DEFAULT 'local'")
 
-	// Create group_name index after migration
+	// Create group_name and agent_mode indexes after migration
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_group_name ON subdomains(group_name);")
+	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_agent_mode ON subdomains(agent_mode);")
 
 	// Create payment_transactions and system_settings tables
 	_, _ = r.db.Exec(`CREATE TABLE IF NOT EXISTS payment_transactions (
@@ -430,6 +433,48 @@ func (r *SQLiteRepository) IsSubdomainAvailable(subdomain string) (bool, error) 
 		return false, err
 	}
 	return count == 0, nil
+}
+
+// SubdomainExists returns true if the subdomain is registered in any mode (local or cloud).
+func (r *SQLiteRepository) SubdomainExists(subdomain string) bool {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	if subdomain == "" {
+		return false
+	}
+	var count int
+	err := r.db.QueryRow("SELECT COUNT(*) FROM subdomains WHERE LOWER(subdomain) = ?", subdomain).Scan(&count)
+	return err == nil && count > 0
+}
+
+// IsCloudAgent returns true ONLY if the subdomain is registered as a cloud RadSec tenant.
+// Local MikroTik container agents have agent_mode = 'local' (the default).
+func (r *SQLiteRepository) IsCloudAgent(subdomain string) bool {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	if subdomain == "" {
+		return false
+	}
+	var mode string
+	err := r.db.QueryRow(
+		"SELECT COALESCE(agent_mode, 'local') FROM subdomains WHERE LOWER(subdomain) = ?",
+		subdomain,
+	).Scan(&mode)
+	return err == nil && mode == "cloud"
+}
+
+// SetAgentMode sets the agent_mode for a subdomain ('local' or 'cloud').
+func (r *SQLiteRepository) SetAgentMode(subdomain, mode string) error {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	if subdomain == "" {
+		return fmt.Errorf("empty subdomain")
+	}
+	if mode != "local" && mode != "cloud" {
+		return fmt.Errorf("invalid agent_mode '%s': must be 'local' or 'cloud'", mode)
+	}
+	_, err := r.db.Exec(
+		"UPDATE subdomains SET agent_mode = ?, updated_at = ? WHERE LOWER(subdomain) = ?",
+		mode, time.Now().UTC().Format(time.RFC3339), subdomain,
+	)
+	return err
 }
 
 func (r *SQLiteRepository) SaveCustomer(c Customer) error {

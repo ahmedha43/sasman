@@ -128,16 +128,19 @@ func (m *Manager) GetPool() *TenantDBPool {
 	return m.pool
 }
 
-// HasTenant returns true ONLY if this subdomain is a CLOUD tenant with a local
-// radius.db database directory on the server. Local MikroTik container agents
-// are registered in the subdomains table too, but they do NOT have a tenant
-// directory – they forward via the WebSocket tunnel.
+// HasTenant returns true ONLY if this subdomain is a CLOUD tenant.
+// Primary check: agent_mode = 'cloud' in subdomains table (set at registration time).
+// Fallback: radius.db file exists on disk (for tenants registered before agent_mode was added).
 func (m *Manager) HasTenant(subdomain string) bool {
 	sub := strings.ToLower(strings.TrimSpace(subdomain))
 	if sub == "" {
 		return false
 	}
-	// The definitive check: a cloud tenant always has a radius.db in its tenant dir.
+	// Primary: authoritative DB check
+	if m.repo != nil && m.repo.IsCloudAgent(sub) {
+		return true
+	}
+	// Fallback: legacy cloud tenants registered before agent_mode column was added
 	dbPath := m.pool.GetTenantDBPath(sub)
 	_, err := os.Stat(dbPath)
 	return err == nil
@@ -271,6 +274,8 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 
 		_, _ = m.repo.CreateOrGetSubdomain(customerID, licenseID, sub)
 		_ = m.repo.UpdateSubdomainOwner(sub, req.OwnerName, req.Phone, sub)
+		// ✅ Mark as cloud tenant — critical for routing isolation
+		_ = m.repo.SetAgentMode(sub, "cloud")
 	}
 
 	tenant := &CloudTenant{
