@@ -400,7 +400,7 @@ func (r *SQLiteRepository) CreateSchema() error {
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_group_name ON subdomains(group_name);")
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_agent_mode ON subdomains(agent_mode);")
 
-	// Auto-classify existing cloud tenants on migration
+	// Auto-classify existing cloud tenants on migration ONLY if not explicitly 'local'
 	var tenantsBaseDir string
 	if _, err := os.Stat("/app/data/tenants"); err == nil {
 		tenantsBaseDir = "/app/data/tenants"
@@ -409,11 +409,11 @@ func (r *SQLiteRepository) CreateSchema() error {
 	}
 	if entries, err := os.ReadDir(tenantsBaseDir); err == nil {
 		for _, entry := range entries {
-			if entry.IsDir() {
+			if entry.IsDir() && !strings.Contains(entry.Name(), ".bak") {
 				sub := strings.ToLower(entry.Name())
 				dbPath := filepath.Join(tenantsBaseDir, sub, "radius.db")
 				if _, err := os.Stat(dbPath); err == nil {
-					_, _ = r.db.Exec("UPDATE subdomains SET agent_mode = 'cloud' WHERE LOWER(subdomain) = ?", sub)
+					_, _ = r.db.Exec("UPDATE subdomains SET agent_mode = 'cloud' WHERE LOWER(subdomain) = ? AND (agent_mode IS NULL OR agent_mode = '' OR agent_mode = 'cloud')", sub)
 				}
 			}
 		}
@@ -481,7 +481,10 @@ func (r *SQLiteRepository) IsCloudAgent(subdomain string) bool {
 	if err == nil && mode == "cloud" {
 		return true
 	}
-	// Fallback check: if tenant radius.db exists on disk, classify as cloud tenant & update DB
+	if err == nil && mode == "local" {
+		return false
+	}
+	// Fallback check ONLY for unclassified legacy subdomains
 	var baseDir string
 	if _, err := os.Stat("/app/data/tenants"); err == nil {
 		baseDir = "/app/data/tenants"
