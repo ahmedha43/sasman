@@ -204,11 +204,12 @@ function renderLicenseGate(data) {
 
     const expDisplay = data.expires ? data.expires : 'غير محدد';
     const daysDisplay = (data.days_remaining !== undefined && data.days_remaining !== null) ? `${data.days_remaining} يوم` : '-';
+    const serialDisplay = data.serial || (data.subdomain ? 'CLOUD-' + data.subdomain : 'CLOUD-1');
 
     const html = `
         <div style="margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <div style="font-size:15px;"><strong>حالة الترخيص:</strong> ${statusBadge}</div>
-            ${data.valid ? `<div style="font-size:13px; color:#16a34a; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> اللوحة تعمل بكامل الصلاحيات</div>` : `<div style="font-size:13px; color:#dc2626; font-weight:bold;"><i class="fa-solid fa-circle-exclamation"></i> يرجى التواصل مع الإدارة للتفعيل والتجديد</div>`}
+            ${data.valid ? `<div style="font-size:13px; color:#16a34a; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> اللوحة تعمل بكامل الصلاحيات</div>` : `<div style="font-size:13px; color:#dc2626; font-weight:bold;"><i class="fa-solid fa-circle-exclamation"></i> يرجى تمديد الترخيص للتفعيل والتجديد</div>`}
         </div>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; font-size:13px; background:#f8fafc; padding:14px; border-radius:8px; border:1px solid #e2e8f0;">
             <div>
@@ -219,12 +220,19 @@ function renderLicenseGate(data) {
                 <span style="color:#64748b; display:block; margin-bottom:2px;">⏳ الأيام المتبقية:</span>
                 <span style="font-size:14px; font-weight:bold; color:${data.days_remaining > 5 ? '#16a34a' : '#dc2626'};">${daysDisplay}</span>
             </div>
-            ${data.serial ? `<div>
+            <div>
                 <span style="color:#64748b; display:block; margin-bottom:2px;">📟 سيريال المايكروتك:</span>
-                <code style="font-size:12px; background:#e2e8f0; padding:2px 6px; border-radius:4px;">${data.serial}</code>
-            </div>` : ''}
+                <code style="font-size:12px; background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#0f172a; font-weight:bold;">${serialDisplay}</code>
+            </div>
         </div>
-        ${data.message ? `<div style="font-size:12px; color:#64748b; margin-top:8px;"><i class="fa-solid fa-info-circle"></i> ${data.message}</div>` : ''}
+        <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <span style="background:#0f172a; color:#38bdf8; padding:4px 10px; border-radius:6px; font-weight:bold; font-size:12px;">
+                <i class="fa-solid fa-cloud"></i> SASMAN Cloud Edition (RadSec RFC 6614)
+            </span>
+            <button onclick="openZaincashRenewModal()" class="btn" style="background:linear-gradient(135deg, #f59e0b, #d97706); color:#fff; font-weight:bold; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-credit-card"></i> تجديد وتمديد الترخيص (زين كاش ZainCash)
+            </button>
+        </div>
     `;
 
     document.querySelectorAll('#license-status-box').forEach(el => { el.innerHTML = html; });
@@ -232,6 +240,66 @@ function renderLicenseGate(data) {
     if (!gate || !main) return;
     if (data.valid) { gate.style.display = 'none'; main.style.display = ''; }
     else { gate.style.display = ''; main.style.display = 'none'; }
+}
+
+let zcAgentDailyRate = 1000;
+
+async function fetchZcAgentPricing() {
+    try {
+        const res = await apiFetch('/radius/api/zaincash/pricing');
+        if (res.ok) {
+            const data = await res.json();
+            if (data.price_per_day_iqd) zcAgentDailyRate = data.price_per_day_iqd;
+            const el = document.getElementById('zcDailyRate');
+            if (el) el.innerText = `${zcAgentDailyRate.toLocaleString()} IQD`;
+        }
+    } catch(e){}
+}
+
+function openZaincashRenewModal() {
+    fetchZcAgentPricing();
+    updateZcTotal();
+    const modal = document.getElementById('zaincashRenewModal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function selectZcDays(days) {
+    const input = document.getElementById('zcCustomDays');
+    if (input) input.value = days;
+    updateZcTotal();
+}
+
+function updateZcTotal() {
+    const input = document.getElementById('zcCustomDays');
+    const days = input ? (parseInt(input.value) || 1) : 30;
+    const total = days * zcAgentDailyRate;
+    const totalEl = document.getElementById('zcTotalPrice');
+    if (totalEl) totalEl.innerText = `${total.toLocaleString()} IQD`;
+}
+
+async function startZaincashPayment() {
+    const input = document.getElementById('zcCustomDays');
+    const days = input ? (parseInt(input.value) || 1) : 30;
+    const btn = document.getElementById('zcSubmitBtn');
+    if (btn) { btn.disabled = true; btn.innerText = 'جاري تحضير رابط الدفع... ⏳'; }
+
+    try {
+        const res = await apiFetch('/radius/api/zaincash/initiate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days: days })
+        });
+        const data = await res.json();
+        if (res.ok && data.payment_url) {
+            window.location.href = data.payment_url;
+        } else {
+          alert('فشل إنشاء عملية الدفع عبر زين كاش: ' + (data.error || 'خطأ غير معروف'));
+          if (btn) { btn.disabled = false; btn.innerText = 'الانتقال للدفع عبر زين كاش 🚀'; }
+        }
+    } catch (e) {
+        alert('حدث خطأ في الاتصال: ' + e.message);
+        if (btn) { btn.disabled = false; btn.innerText = 'الانتقال للدفع عبر زين كاش 🚀'; }
+    }
 }
 
 async function handleRouterConnect(e) {
