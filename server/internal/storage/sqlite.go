@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -399,6 +400,25 @@ func (r *SQLiteRepository) CreateSchema() error {
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_group_name ON subdomains(group_name);")
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_agent_mode ON subdomains(agent_mode);")
 
+	// Auto-classify existing cloud tenants on migration
+	var tenantsBaseDir string
+	if _, err := os.Stat("/app/data/tenants"); err == nil {
+		tenantsBaseDir = "/app/data/tenants"
+	} else {
+		tenantsBaseDir = "data/tenants"
+	}
+	if entries, err := os.ReadDir(tenantsBaseDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				sub := strings.ToLower(entry.Name())
+				dbPath := filepath.Join(tenantsBaseDir, sub, "radius.db")
+				if _, err := os.Stat(dbPath); err == nil {
+					_, _ = r.db.Exec("UPDATE subdomains SET agent_mode = 'cloud' WHERE LOWER(subdomain) = ?", sub)
+				}
+			}
+		}
+	}
+
 	// Create payment_transactions and system_settings tables
 	_, _ = r.db.Exec(`CREATE TABLE IF NOT EXISTS payment_transactions (
 		id TEXT PRIMARY KEY,
@@ -447,7 +467,7 @@ func (r *SQLiteRepository) SubdomainExists(subdomain string) bool {
 }
 
 // IsCloudAgent returns true ONLY if the subdomain is registered as a cloud RadSec tenant.
-// Local MikroTik container agents have agent_mode = 'local' (the default).
+// Local MikroTik container agents have agent_mode = 'local'.
 func (r *SQLiteRepository) IsCloudAgent(subdomain string) bool {
 	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
 	if subdomain == "" {
@@ -455,10 +475,25 @@ func (r *SQLiteRepository) IsCloudAgent(subdomain string) bool {
 	}
 	var mode string
 	err := r.db.QueryRow(
-		"SELECT COALESCE(agent_mode, 'local') FROM subdomains WHERE LOWER(subdomain) = ?",
+		"SELECT COALESCE(agent_mode, '') FROM subdomains WHERE LOWER(subdomain) = ?",
 		subdomain,
 	).Scan(&mode)
-	return err == nil && mode == "cloud"
+	if err == nil && mode == "cloud" {
+		return true
+	}
+	// Fallback check: if tenant radius.db exists on disk, classify as cloud tenant & update DB
+	var baseDir string
+	if _, err := os.Stat("/app/data/tenants"); err == nil {
+		baseDir = "/app/data/tenants"
+	} else {
+		baseDir = "data/tenants"
+	}
+	dbPath := filepath.Join(baseDir, subdomain, "radius.db")
+	if _, err := os.Stat(dbPath); err == nil {
+		_, _ = r.db.Exec("UPDATE subdomains SET agent_mode = 'cloud' WHERE LOWER(subdomain) = ?", subdomain)
+		return true
+	}
+	return false
 }
 
 // SetAgentMode sets the agent_mode for a subdomain ('local' or 'cloud').
