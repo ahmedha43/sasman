@@ -1,7 +1,9 @@
 package payment
 
 import (
+	"bytes"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -15,10 +17,12 @@ import (
 )
 
 type ZainCashConfig struct {
-	MerchantID string
-	Secret     string
-	MSISDN     string
-	BaseURL    string // e.g. https://api.zaincash.iq or https://test.zaincash.iq
+	MerchantID   string
+	Secret       string
+	ClientID     string
+	ClientSecret string
+	MSISDN       string
+	BaseURL      string // e.g. https://pg-api-uat.zaincash.iq or https://api.zaincash.iq
 }
 
 type ZainCashService struct {
@@ -30,11 +34,24 @@ func NewZainCashService(cfg ZainCashConfig) *ZainCashService {
 		cfg.BaseURL = "https://api.zaincash.iq"
 	}
 	cfg.BaseURL = strings.TrimSuffix(cfg.BaseURL, "/")
+	if cfg.ClientID == "" {
+		cfg.ClientID = cfg.MerchantID
+	}
+	if cfg.ClientSecret == "" {
+		cfg.ClientSecret = cfg.Secret
+	}
 	return &ZainCashService{cfg: cfg}
 }
 
-// GenerateJWT creates an HMAC-SHA256 JWT token for ZainCash
-// ZainCash expects: header.payload.signature (base64url, no padding)
+func generateUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// GenerateJWT creates an HMAC-SHA256 JWT token for ZainCash (v1)
 func (s *ZainCashService) GenerateJWT(claims map[string]interface{}) (string, error) {
 	header := map[string]string{
 		"alg": "HS256",
@@ -104,14 +121,141 @@ type CreateTransactionResponse struct {
 }
 
 // CreateTransaction initiates a ZainCash payment transaction.
-// ZainCash API docs: POST /transaction/create
-// Form fields: token (JWT), merchantId, lang
-// JWT claims: amount, serviceType, msisdn, orderId, redirectUrl, iat, exp
+// It attempts ZainCash API v2 (OAuth2 + /api/v2/payment-gateway/transaction/init) first,
+// and falls back to ZainCash v1 JWT flow if v2 is unavailable.
 func (s *ZainCashService) CreateTransaction(req CreateTransactionRequest) (*CreateTransactionResponse, error) {
 	if req.Amount < 250 {
 		req.Amount = 250
 	}
 
+	// -------------------------------------------------------------
+	// ATTEMPT 1: ZainCash API v2 (OAuth2 + JSON init)
+	// -------------------------------------------------------------
+	if res, err := s.createTransactionV2(req); err == nil && res != nil && res.PaymentURL != "" {
+		log.Printf("[ZainCash v2] ✅ Transaction created: id=%s paymentURL=%s", res.TransactionID, res.PaymentURL)
+		return res, nil
+	} else if err != nil {
+		log.Printf("[ZainCash v2] ℹ️ v2 attempt failed, trying v1 fallback: %v", err)
+	}
+
+	// -------------------------------------------------------------
+	// ATTEMPT 2: ZainCash API v1 (JWT + Form init)
+	// -------------------------------------------------------------
+	return s.createTransactionV1(req)
+}
+
+func (s *ZainCashService) createTransactionV2(req CreateTransactionRequest) (*CreateTransactionResponse, error) {
+	clientID := s.cfg.ClientID
+	clientSecret := s.cfg.ClientSecret
+	if clientID == "" || clientSecret == "" {
+		return nil, fmt.Errorf("missing client credentials for v2")
+	}
+
+	// Step 1: Get Access Token
+	tokenURL := fmt.Sprintf("%s/oauth2/token", s.cfg.BaseURL)
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	form.Set("client_id", clientID)
+	form.Set("client_secret", clientSecret)
+	form.Set("scope", "payment:read payment:write reverse:write")
+
+	httpReq, err := http.NewRequest("POST", tokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("v2 token request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("v2 token call: %w", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("v2 token HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenRes struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(body, &tokenRes); err != nil || tokenRes.AccessToken == "" {
+		return nil, fmt.Errorf("v2 parse token: %w", err)
+	}
+
+	// Step 2: Init Transaction
+	initURL := fmt.Sprintf("%s/api/v2/payment-gateway/transaction/init", s.cfg.BaseURL)
+	extRef := generateUUID()
+
+	payload := map[string]interface{}{
+		"language":            "ar",
+		"externalReferenceId": extRef,
+		"orderId":             req.OrderID,
+		"serviceType":         req.ServiceName,
+		"amount": map[string]interface{}{
+			"value":    req.Amount,
+			"currency": "IQD",
+		},
+		"redirectUrls": map[string]string{
+			"successUrl": req.RedirectURL,
+			"failureUrl": req.RedirectURL,
+		},
+	}
+	if s.cfg.MSISDN != "" {
+		payload["customer"] = map[string]string{"phone": s.cfg.MSISDN}
+	}
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("v2 marshal payload: %w", err)
+	}
+
+	pReq, err := http.NewRequest("POST", initURL, bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return nil, fmt.Errorf("v2 init request: %w", err)
+	}
+	pReq.Header.Set("Content-Type", "application/json")
+	pReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
+
+	pResp, err := client.Do(pReq)
+	if err != nil {
+		return nil, fmt.Errorf("v2 init call: %w", err)
+	}
+	pBody, _ := io.ReadAll(pResp.Body)
+	pResp.Body.Close()
+
+	if pResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("v2 init HTTP %d: %s", pResp.StatusCode, string(pBody))
+	}
+
+	var v2Res struct {
+		Status             string `json:"status"`
+		RedirectURL        string `json:"redirectUrl"`
+		TransactionDetails struct {
+			TransactionID string `json:"transactionId"`
+		} `json:"transactionDetails"`
+	}
+	if err := json.Unmarshal(pBody, &v2Res); err != nil {
+		return nil, fmt.Errorf("v2 parse init res: %w", err)
+	}
+
+	if v2Res.RedirectURL == "" {
+		return nil, fmt.Errorf("v2 empty redirectUrl: %s", string(pBody))
+	}
+
+	txID := v2Res.TransactionDetails.TransactionID
+	if txID == "" {
+		txID = extRef
+	}
+
+	return &CreateTransactionResponse{
+		TransactionID: txID,
+		PaymentURL:    v2Res.RedirectURL,
+	}, nil
+}
+
+func (s *ZainCashService) createTransactionV1(req CreateTransactionRequest) (*CreateTransactionResponse, error) {
 	now := time.Now().Unix()
 	claims := map[string]interface{}{
 		"amount":      req.Amount,
@@ -143,7 +287,7 @@ func (s *ZainCashService) CreateTransaction(req CreateTransactionRequest) (*Crea
 	var lastErr error
 
 	for _, apiEndpoint := range endpointsToTry {
-		log.Printf("[ZainCash] ▶ POST %s | merchantId=%s | amount=%d | orderId=%s | redirectUrl=%s",
+		log.Printf("[ZainCash v1] ▶ POST %s | merchantId=%s | amount=%d | orderId=%s | redirectUrl=%s",
 			apiEndpoint, s.cfg.MerchantID, req.Amount, req.OrderID, req.RedirectURL)
 
 		httpReq, err := http.NewRequest("POST", apiEndpoint, strings.NewReader(formValues.Encode()))
@@ -167,7 +311,7 @@ func (s *ZainCashService) CreateTransaction(req CreateTransactionRequest) (*Crea
 			continue
 		}
 
-		log.Printf("[ZainCash] ◀ HTTP %d | body: %s", res.StatusCode, string(body))
+		log.Printf("[ZainCash v1] ◀ HTTP %d | body: %s", res.StatusCode, string(body))
 		if res.StatusCode == http.StatusNotFound {
 			lastErr = fmt.Errorf("HTTP 404 at %s", apiEndpoint)
 			continue
@@ -213,7 +357,7 @@ func (s *ZainCashService) CreateTransaction(req CreateTransactionRequest) (*Crea
 	}
 
 	paymentURL := fmt.Sprintf("%s/transaction/pay?id=%s", s.cfg.BaseURL, zResp.ID)
-	log.Printf("[ZainCash] ✅ Transaction created: id=%s paymentURL=%s", zResp.ID, paymentURL)
+	log.Printf("[ZainCash v1] ✅ Transaction created: id=%s paymentURL=%s", zResp.ID, paymentURL)
 
 	return &CreateTransactionResponse{
 		TransactionID: zResp.ID,

@@ -2,6 +2,7 @@ package radius
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -16,6 +17,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 )
+
+func generateUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
 
 type ZainCashAgentConfig struct {
 	MerchantID string
@@ -122,9 +131,123 @@ type AgentCreateTxReq struct {
 
 // CreateTransaction calls ZainCash API POST /transaction/create
 func (s *AgentZainCashService) CreateTransaction(req AgentCreateTxReq) (string, error) {
-	if req.Amount < 250 {
-		req.Amount = 250
+	// -------------------------------------------------------------
+	// ATTEMPT 1: ZainCash API v2 (OAuth2 + JSON init)
+	// -------------------------------------------------------------
+	if url, err := s.createTransactionV2(req); err == nil && url != "" {
+		log.Printf("[AgentZainCash v2] ✅ Transaction created: paymentURL=%s", url)
+		return url, nil
+	} else if err != nil {
+		log.Printf("[AgentZainCash v2] ℹ️ v2 attempt failed, trying v1 fallback: %v", err)
 	}
+
+	// -------------------------------------------------------------
+	// ATTEMPT 2: ZainCash API v1 (JWT + Form init)
+	// -------------------------------------------------------------
+	return s.createTransactionV1(req)
+}
+
+func (s *AgentZainCashService) createTransactionV2(req AgentCreateTxReq) (string, error) {
+	clientID := s.cfg.MerchantID
+	clientSecret := s.cfg.Secret
+	if clientID == "" || clientSecret == "" {
+		return "", fmt.Errorf("missing client credentials for v2")
+	}
+
+	// Step 1: Get Access Token
+	tokenURL := fmt.Sprintf("%s/oauth2/token", s.cfg.BaseURL)
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	form.Set("client_id", clientID)
+	form.Set("client_secret", clientSecret)
+	form.Set("scope", "payment:read payment:write reverse:write")
+
+	httpReq, err := http.NewRequest("POST", tokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("v2 token request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("v2 token call: %w", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("v2 token HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenRes struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(body, &tokenRes); err != nil || tokenRes.AccessToken == "" {
+		return "", fmt.Errorf("v2 parse token: %w", err)
+	}
+
+	// Step 2: Init Transaction
+	initURL := fmt.Sprintf("%s/api/v2/payment-gateway/transaction/init", s.cfg.BaseURL)
+	extRef := generateUUID()
+
+	payload := map[string]interface{}{
+		"language":            "ar",
+		"externalReferenceId": extRef,
+		"orderId":             req.OrderID,
+		"serviceType":         req.ServiceName,
+		"amount": map[string]interface{}{
+			"value":    req.Amount,
+			"currency": "IQD",
+		},
+		"redirectUrls": map[string]string{
+			"successUrl": req.RedirectURL,
+			"failureUrl": req.RedirectURL,
+		},
+	}
+	if s.cfg.MSISDN != "" {
+		payload["customer"] = map[string]string{"phone": s.cfg.MSISDN}
+	}
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("v2 marshal payload: %w", err)
+	}
+
+	pReq, err := http.NewRequest("POST", initURL, strings.NewReader(string(jsonBytes)))
+	if err != nil {
+		return "", fmt.Errorf("v2 init request: %w", err)
+	}
+	pReq.Header.Set("Content-Type", "application/json")
+	pReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
+
+	pResp, err := client.Do(pReq)
+	if err != nil {
+		return "", fmt.Errorf("v2 init call: %w", err)
+	}
+	pBody, _ := io.ReadAll(pResp.Body)
+	pResp.Body.Close()
+
+	if pResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("v2 init HTTP %d: %s", pResp.StatusCode, string(pBody))
+	}
+
+	var v2Res struct {
+		Status      string `json:"status"`
+		RedirectURL string `json:"redirectUrl"`
+	}
+	if err := json.Unmarshal(pBody, &v2Res); err != nil {
+		return "", fmt.Errorf("v2 parse init res: %w", err)
+	}
+
+	if v2Res.RedirectURL == "" {
+		return "", fmt.Errorf("v2 empty redirectUrl: %s", string(pBody))
+	}
+
+	return v2Res.RedirectURL, nil
+}
+
+func (s *AgentZainCashService) createTransactionV1(req AgentCreateTxReq) (string, error) {
 
 	now := time.Now().Unix()
 	claims := map[string]interface{}{
