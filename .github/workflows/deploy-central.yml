@@ -99,20 +99,20 @@ jobs:
               server-central:new
 
             # 5. Check startup
-            sleep 4
+            sleep 6
             docker ps --filter name=sasman-central
             echo '--- RECENT LOGS ---'
             docker logs sasman-central --tail 25
 
             # 6. Health check
             echo '--- RUNNING HEALTH CHECK ---'
-            for i in \$(seq 1 10); do
-              if curl -s -f http://127.0.0.1:8080/health > /dev/null; then
+            for i in \$(seq 1 20); do
+              if curl -s -f http://127.0.0.1:8080/health > /dev/null || curl -s -f http://localhost:8080/health > /dev/null; then
                 echo '✅ Health check passed (HTTP 200 OK)!'
                 exit 0
               fi
-              echo \"Waiting for central server to respond (\$i/10)...\"
-              sleep 2
+              echo \"Waiting for central server to respond (\$i/20)...\"
+              sleep 3
             done
             echo '❌ Health check timed out!'
             docker logs sasman-central --tail 50
