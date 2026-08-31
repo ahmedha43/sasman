@@ -2434,3 +2434,23 @@ func (r *SQLiteRepository) ListPaymentTransactions(subdomain string) ([]PaymentT
 	return list, nil
 }
 
+// GetTenantZaincashPhone returns the last saved ZainCash wallet number for the given tenant subdomain.
+// Returns an empty string if none has been saved yet.
+func (r *SQLiteRepository) GetTenantZaincashPhone(subdomain string) string {
+	key := "zaincash_phone_" + strings.ToLower(subdomain)
+	var phone string
+	_ = r.db.QueryRow(`SELECT value_str FROM system_settings WHERE key_name = ?`, key).Scan(&phone)
+	return phone
+}
+
+// SetTenantZaincashPhone saves the customer's ZainCash wallet number for the given tenant.
+// Call this after every successful payment so future payments skip the phone-entry step.
+func (r *SQLiteRepository) SetTenantZaincashPhone(subdomain, phone string) error {
+	key := "zaincash_phone_" + strings.ToLower(subdomain)
+	_, err := r.db.Exec(`
+		INSERT INTO system_settings (key_name, value_str, updated_at)
+		VALUES (?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(key_name) DO UPDATE SET value_str = excluded.value_str, updated_at = excluded.updated_at
+	`, key, phone)
+	return err
+}

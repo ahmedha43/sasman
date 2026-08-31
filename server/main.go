@@ -732,11 +732,16 @@ func main() {
 			callbackURL = fmt.Sprintf("http://%s/api/payment/zaincash/callback", c.Hostname())
 		}
 
+		// Look up the last saved wallet number for this tenant (from a prior successful payment).
+		// Per ZainCash docs: pass it to skip the phone-entry page for returning customers.
+		savedPhone := repo.GetTenantZaincashPhone(req.Subdomain)
+
 		zResp, zErr := zaincashSvc.CreateTransaction(payment.CreateTransactionRequest{
-			Amount:      totalAmountIQD,
-			ServiceName: fmt.Sprintf("تجديد ترخيص ساسمان (%s - %d يوم)", req.Subdomain, req.Days),
-			OrderID:     orderID,
-			RedirectURL: callbackURL,
+			Amount:        totalAmountIQD,
+			ServiceName:   fmt.Sprintf("تجديد ترخيص ساسمان (%s - %d يوم)", req.Subdomain, req.Days),
+			OrderID:       orderID,
+			RedirectURL:   callbackURL,
+			CustomerPhone: savedPhone, // empty on first payment → ZainCash will ask the customer
 		})
 		if zErr != nil {
 			log.Printf("[ZainCash] ❌ CreateTransaction failed for [%s]: %v", req.Subdomain, zErr)
@@ -774,6 +779,7 @@ func main() {
 		orderID, _ := claims["orderId"].(string)
 		zaincashTransID, _ := claims["id"].(string)
 		msg, _ := claims["msg"].(string)
+		customerMsisdn := ""
 
 		// Support ZainCash API v2 nested payload format
 		if data, ok := claims["data"].(map[string]interface{}); ok {
@@ -789,6 +795,10 @@ func main() {
 			if errMsg, ok := data["errorMessage"].(string); ok && errMsg != "" {
 				msg = errMsg
 			}
+			// Extract and save customer wallet number per ZainCash docs recommendation
+			if msisdn, ok := data["customerMsisdn"].(string); ok && msisdn != "" {
+				customerMsisdn = msisdn
+			}
 		}
 
 		if (strings.ToLower(status) == "success" || strings.ToLower(status) == "completed") && orderID != "" {
@@ -799,6 +809,13 @@ func main() {
 				} else {
 					log.Printf("[ZainCash] 🎉 Payment SUCCESS for [%s]! Extended %d days (+%d IQD)",
 						tx.Subdomain, tx.DaysAdded, tx.AmountIQD)
+
+					// Save customer wallet number for future payments (skip phone-entry step)
+					if customerMsisdn != "" {
+						if saveErr := repo.SetTenantZaincashPhone(tx.Subdomain, customerMsisdn); saveErr == nil {
+							log.Printf("[ZainCash] 📱 Saved customer wallet [%s] for tenant [%s]", customerMsisdn, tx.Subdomain)
+						}
+					}
 
 					go func() {
 						tenantLogPath := filepath.Join(cloudTenantPool.GetTenantDir(tx.Subdomain), "radius.log")

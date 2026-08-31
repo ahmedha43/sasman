@@ -109,10 +109,11 @@ func (s *ZainCashService) VerifyJWT(tokenStr string) (map[string]interface{}, er
 }
 
 type CreateTransactionRequest struct {
-	Amount      int    // Amount in IQD (minimum 250)
-	ServiceName string // e.g. "SASMAN License Renewal"
-	OrderID     string // Unique order identifier
-	RedirectURL string // Callback URL after payment
+	Amount        int    // Amount in IQD (minimum 250)
+	ServiceName   string // e.g. "SASMAN License Renewal"
+	OrderID       string // Unique order identifier
+	RedirectURL   string // Callback URL after payment
+	CustomerPhone string // Optional: saved wallet number for returning customers
 }
 
 type CreateTransactionResponse struct {
@@ -202,8 +203,11 @@ func (s *ZainCashService) createTransactionV2(req CreateTransactionRequest) (*Cr
 			"failureUrl": req.RedirectURL,
 		},
 	}
-	if s.cfg.MSISDN != "" {
-		payload["customer"] = map[string]string{"phone": s.cfg.MSISDN}
+	// Only pass customer.phone if we have a saved wallet number for this customer.
+	// Per ZainCash docs: omit customer.phone on first payment → ZainCash prompts user to enter their wallet number.
+	// Pass it on subsequent payments → ZainCash skips the phone entry step.
+	if req.CustomerPhone != "" {
+		payload["customer"] = map[string]string{"phone": req.CustomerPhone}
 	}
 
 	jsonBytes, err := json.Marshal(payload)
