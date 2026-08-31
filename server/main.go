@@ -590,13 +590,15 @@ func main() {
 	// =========================================================================
 	// ZainCash Payment Gateway & Licensing Endpoints
 	// =========================================================================
-	app.Get("/api/admin/settings/pricing", func(c *fiber.Ctx) error {
+	getPricingHandler := func(c *fiber.Ctx) error {
 		price, _ := repo.GetDailyPriceIQD()
 		return c.JSON(fiber.Map{
 			"price_per_day_iqd": price,
 			"currency":          "IQD",
 		})
-	})
+	}
+	app.Get("/api/admin/settings/pricing", getPricingHandler)
+	app.Get("/radius/api/zaincash/pricing", getPricingHandler)
 
 	app.Post("/api/admin/settings/pricing", func(c *fiber.Ctx) error {
 		var body struct {
@@ -615,7 +617,7 @@ func main() {
 		})
 	})
 
-	app.Post("/api/cloud/license/renew/initiate", func(c *fiber.Ctx) error {
+	initiatePaymentHandler := func(c *fiber.Ctx) error {
 		var req struct {
 			Subdomain string `json:"subdomain"`
 			Days      int    `json:"days"`
@@ -627,6 +629,13 @@ func main() {
 		if req.Subdomain == "" {
 			if sub, ok := c.Locals("subdomain").(string); ok {
 				req.Subdomain = sub
+			}
+		}
+		if req.Subdomain == "" {
+			host := c.Hostname()
+			parts := strings.Split(host, ".")
+			if len(parts) >= 2 && parts[0] != "sas-man" && parts[0] != "www" && parts[0] != "zerotier" {
+				req.Subdomain = parts[0]
 			}
 		}
 		req.Subdomain = strings.ToLower(strings.TrimSpace(req.Subdomain))
@@ -686,7 +695,10 @@ func main() {
 			"days":        req.Days,
 			"payment_url": zResp.PaymentURL,
 		})
-	})
+	}
+
+	app.Post("/api/cloud/license/renew/initiate", initiatePaymentHandler)
+	app.Post("/radius/api/zaincash/initiate", initiatePaymentHandler)
 
 	app.Get("/api/payment/zaincash/callback", func(c *fiber.Ctx) error {
 		tokenStr := c.Query("token")
