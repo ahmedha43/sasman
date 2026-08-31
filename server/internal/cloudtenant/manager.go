@@ -128,6 +128,24 @@ func (m *Manager) GetPool() *TenantDBPool {
 	return m.pool
 }
 
+func (m *Manager) HasTenant(subdomain string) bool {
+	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	if sub == "" {
+		return false
+	}
+	if m.repo != nil {
+		available, err := m.repo.IsSubdomainAvailable(sub)
+		if err == nil && !available {
+			return true
+		}
+	}
+	tenantDir := m.pool.GetTenantDir(sub)
+	if _, err := os.Stat(tenantDir); err == nil {
+		return true
+	}
+	return false
+}
+
 func (m *Manager) IsSubdomainAvailable(subdomain string) (bool, string) {
 	sub := strings.ToLower(strings.TrimSpace(subdomain))
 	if len(sub) < 3 {
