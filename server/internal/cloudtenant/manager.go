@@ -335,13 +335,22 @@ func (m *Manager) SpawnTenantAgent(subdomain, token string) error {
 	for _, bin := range agentBins {
 		if _, err := os.Stat(bin); err == nil {
 			cmd := exec.Command(bin)
-			cmd.Env = append(os.Environ(),
+			env := []string{}
+			for _, e := range os.Environ() {
+				if !strings.HasPrefix(e, "ADDR=") && !strings.HasPrefix(e, "PORT=") {
+					env = append(env, e)
+				}
+			}
+			env = append(env,
 				fmt.Sprintf("SASMAN_SUBDOMAIN=%s", sub),
 				fmt.Sprintf("SASMAN_TUNNEL_TOKEN=%s", token),
 				"SASMAN_CENTRAL_URL=ws://127.0.0.1:8080/api/tunnel/ws",
 				"CLOUD_MODE=true",
+				"ADDR=",
+				"PORT=",
 				fmt.Sprintf("SQLITE_DB_PATH=%s", m.pool.GetTenantDBPath(sub)),
 			)
+			cmd.Env = env
 			if err := cmd.Start(); err == nil {
 				log.Printf("[cloudtenant] 🚀 Successfully spawned cloud agent process for [%s] using [%s]", sub, bin)
 				return nil
