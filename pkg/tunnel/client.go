@@ -174,11 +174,9 @@ func createResilientDialer(targetURL string, timeout time.Duration) *websocket.D
 		},
 	}
 
-	var tlsConfig *tls.Config
-	if hostname != "" {
-		tlsConfig = &tls.Config{
-			ServerName: hostname,
-		}
+	tlsConfig := &tls.Config{
+		ServerName:         hostname,
+		InsecureSkipVerify: true, // Allow custom domain certs, proxies, and SNI certs
 	}
 
 	return &websocket.Dialer{
