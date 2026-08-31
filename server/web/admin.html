@@ -4706,7 +4706,8 @@ ${setupCmd}`;
       try {
         const res = await fetch('/api/cloud/license/invoices');
         if (res.ok) {
-          const txs = await res.json();
+          const data = await res.json();
+          const txs = Array.isArray(data) ? data : (data.transactions || []);
           if (!txs || txs.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">لا توجد معاملات دفع مسجلة حتى الآن</td></tr>';
             return;
@@ -4722,9 +4723,11 @@ ${setupCmd}`;
               <td style="font-size:12px; color:var(--text-muted);">${escapeHtml(tx.created_at || '-')}</td>
             </tr>
           `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--danger);">خطأ في جلب سجلات الدفع (HTTP ' + res.status + ')</td></tr>';
         }
       } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--danger);">خطأ في جلب سجلات الدفع</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--danger);">خطأ في جلب سجلات الدفع: ' + escapeHtml(err.message) + '</td></tr>';
       }
     }
 
