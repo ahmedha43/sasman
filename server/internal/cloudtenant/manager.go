@@ -307,6 +307,8 @@ func (m *Manager) SpawnTenantAgent(subdomain, token string) error {
 			"-e", fmt.Sprintf("SASMAN_TUNNEL_TOKEN=%s", token),
 			"-e", fmt.Sprintf("SASMAN_CENTRAL_URL=%s", centralURL),
 			"-e", "CLOUD_MODE=true",
+			"-e", "ADDR=",
+			"-e", "PORT=",
 			"-e", "SQLITE_DB_PATH=/app/data/radius.db",
 			"-v", fmt.Sprintf("%s:/app/data", dataDir),
 			imageName,

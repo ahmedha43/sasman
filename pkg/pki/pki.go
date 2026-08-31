@@ -128,7 +128,7 @@ func InitPKI() error {
 			return fmt.Errorf("failed to generate Server Certificate: %w", err)
 		}
 	}
-	SyncOpenVPNCerts()
+	syncOpenVPNCertsLocked()
 	return nil
 }
 
@@ -384,7 +384,10 @@ func GetCACertPEM() []byte {
 func SyncOpenVPNCerts() {
 	pkiMu.RLock()
 	defer pkiMu.RUnlock()
+	syncOpenVPNCertsLocked()
+}
 
+func syncOpenVPNCertsLocked() {
 	ovpnCertDir := "/etc/openvpn/certs"
 	if _, err := os.Stat(ovpnCertDir); err == nil {
 		if len(caCertPEM) > 0 {
