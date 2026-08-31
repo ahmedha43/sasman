@@ -147,34 +147,62 @@ func (s *AgentZainCashService) CreateTransaction(req AgentCreateTxReq) (string, 
 	formValues.Set("merchantId", s.cfg.MerchantID)
 	formValues.Set("lang", "ar")
 
-	apiEndpoint := fmt.Sprintf("%s/transaction/create", s.cfg.BaseURL)
-	log.Printf("[AgentZainCash] ▶ POST %s | merchantId=%s | amount=%d | orderId=%s | redirectUrl=%s",
-		apiEndpoint, s.cfg.MerchantID, req.Amount, req.OrderID, req.RedirectURL)
-
-	httpReq, err := http.NewRequest("POST", apiEndpoint, strings.NewReader(formValues.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("create http request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	httpReq.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 20 * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return "", fmt.Errorf("zaincash api request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read response body: %w", err)
+	endpointsToTry := []string{
+		fmt.Sprintf("%s/transaction/init", s.cfg.BaseURL),
+		fmt.Sprintf("%s/transaction/create", s.cfg.BaseURL),
 	}
 
-	log.Printf("[AgentZainCash] ◀ HTTP %d | body: %s", resp.StatusCode, string(bodyBytes))
+	var resp *http.Response
+	var bodyBytes []byte
+	var lastErr error
 
-	// ZainCash may return HTML on error (e.g., Cloudflare block or 5xx)
-	if resp.StatusCode != http.StatusOK || (len(bodyBytes) > 0 && bodyBytes[0] == '<') {
-		return "", fmt.Errorf("zaincash returned non-JSON response (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	for _, apiEndpoint := range endpointsToTry {
+		log.Printf("[AgentZainCash] ▶ POST %s | merchantId=%s | amount=%d | orderId=%s | redirectUrl=%s",
+			apiEndpoint, s.cfg.MerchantID, req.Amount, req.OrderID, req.RedirectURL)
+
+		httpReq, err := http.NewRequest("POST", apiEndpoint, strings.NewReader(formValues.Encode()))
+		if err != nil {
+			lastErr = fmt.Errorf("create http request: %w", err)
+			continue
+		}
+		httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		httpReq.Header.Set("Accept", "application/json")
+
+		client := &http.Client{Timeout: 20 * time.Second}
+		res, err := client.Do(httpReq)
+		if err != nil {
+			lastErr = fmt.Errorf("zaincash api request failed: %w", err)
+			continue
+		}
+		body, err := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("read response body: %w", err)
+			continue
+		}
+
+		log.Printf("[AgentZainCash] ◀ HTTP %d | body: %s", res.StatusCode, string(body))
+		if res.StatusCode == http.StatusNotFound {
+			lastErr = fmt.Errorf("HTTP 404 at %s", apiEndpoint)
+			continue
+		}
+
+		resp = res
+		bodyBytes = body
+		lastErr = nil
+		break
+	}
+
+	if lastErr != nil && len(bodyBytes) == 0 {
+		return "", lastErr
+	}
+
+	if resp == nil || resp.StatusCode != http.StatusOK || (len(bodyBytes) > 0 && bodyBytes[0] == '<') {
+		code := 0
+		if resp != nil {
+			code = resp.StatusCode
+		}
+		return "", fmt.Errorf("zaincash returned non-JSON response (HTTP %d): %s", code, string(bodyBytes))
 	}
 
 	var zResp struct {
