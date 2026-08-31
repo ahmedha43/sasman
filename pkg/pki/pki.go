@@ -1,9 +1,8 @@
 package pki
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -22,7 +21,7 @@ var (
 	pkiMu     sync.RWMutex
 	pkiDir    = "data/pki"
 	caCert    *x509.Certificate
-	caKey     *ecdsa.PrivateKey
+	caKey     *rsa.PrivateKey
 	caCertPEM []byte
 	caKeyPEM  []byte
 
@@ -54,7 +53,7 @@ func InitPKI() error {
 	caCertPath := filepath.Join(pkiDir, "ca.crt")
 	caKeyPath := filepath.Join(pkiDir, "ca.key")
 
-	// 1. Check if Root CA already exists, or generate a new one
+	// 1. Check if Root CA already exists, or generate a new RSA-2048 CA
 	if fileExists(caCertPath) && fileExists(caKeyPath) {
 		certBytes, err := os.ReadFile(caCertPath)
 		if err != nil {
@@ -78,16 +77,28 @@ func InitPKI() error {
 		if keyBlock == nil {
 			return fmt.Errorf("failed to decode CA key PEM")
 		}
-		parsedKey, err := x509.ParseECPrivateKey(keyBlock.Bytes)
+		parsedKey, err := x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
 		if err != nil {
-			return fmt.Errorf("failed to parse CA key: %w", err)
+			if parsedInterface, pErr := x509.ParsePKCS8PrivateKey(keyBlock.Bytes); pErr == nil {
+				if rKey, ok := parsedInterface.(*rsa.PrivateKey); ok {
+					parsedKey = rKey
+					err = nil
+				}
+			}
 		}
 
-		caCert = parsedCert
-		caKey = parsedKey
-		caCertPEM = certBytes
-		caKeyPEM = keyBytes
-		log.Printf("[pki] Loaded existing Root CA: CN=%s, Expires=%s", caCert.Subject.CommonName, caCert.NotAfter.Format("2006-01-02"))
+		if err != nil || parsedKey == nil {
+			log.Printf("[pki] Existing Root CA key is non-RSA or outdated, regenerating Root CA with RSA-2048...")
+			if err := generateRootCA(); err != nil {
+				return err
+			}
+		} else {
+			caCert = parsedCert
+			caKey = parsedKey
+			caCertPEM = certBytes
+			caKeyPEM = keyBytes
+			log.Printf("[pki] Loaded existing Root CA: CN=%s, Expires=%s", caCert.Subject.CommonName, caCert.NotAfter.Format("2006-01-02"))
+		}
 	} else {
 		// Generate new Root CA (valid for 10 years)
 		if err := generateRootCA(); err != nil {
@@ -122,7 +133,7 @@ func InitPKI() error {
 }
 
 func generateRootCA() error {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return err
 	}
@@ -155,8 +166,8 @@ func generateRootCA() error {
 	caKey = priv
 
 	certPEMBlock := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	privDER, _ := x509.MarshalECPrivateKey(priv)
-	keyPEMBlock := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privDER})
+	privDER := x509.MarshalPKCS1PrivateKey(priv)
+	keyPEMBlock := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: privDER})
 
 	caCertPEM = certPEMBlock
 	caKeyPEM = keyPEMBlock
@@ -164,12 +175,12 @@ func generateRootCA() error {
 	_ = os.WriteFile(filepath.Join(pkiDir, "ca.crt"), certPEMBlock, 0644)
 	_ = os.WriteFile(filepath.Join(pkiDir, "ca.key"), keyPEMBlock, 0600)
 
-	log.Printf("[pki] Generated new Root CA successfully (Valid for 10 years)")
+	log.Printf("[pki] Generated new RSA-2048 Root CA successfully (Valid for 10 years)")
 	return nil
 }
 
 func generateServerCert() error {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return err
 	}
@@ -227,8 +238,8 @@ func generateServerCert() error {
 	}
 
 	certPEMBlock := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	privDER, _ := x509.MarshalECPrivateKey(priv)
-	keyPEMBlock := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privDER})
+	privDER := x509.MarshalPKCS1PrivateKey(priv)
+	keyPEMBlock := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: privDER})
 
 	serverCertPEM = certPEMBlock
 	serverKeyPEM = keyPEMBlock
@@ -242,7 +253,7 @@ func generateServerCert() error {
 	_ = os.WriteFile(filepath.Join(pkiDir, "server.crt"), certPEMBlock, 0644)
 	_ = os.WriteFile(filepath.Join(pkiDir, "server.key"), keyPEMBlock, 0600)
 
-	log.Printf("[pki] Generated RadSec Server certificate successfully (Valid for 5 years)")
+	log.Printf("[pki] Generated RadSec Server RSA-2048 certificate successfully (Valid for 5 years)")
 	return nil
 }
 
@@ -259,7 +270,7 @@ func GenerateClientCertificate(commonName string, validityDays int) (*CertBundle
 		validityDays = 365 * 2 // Default 2 years
 	}
 
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key: %w", err)
 	}
@@ -291,15 +302,15 @@ func GenerateClientCertificate(commonName string, validityDays int) (*CertBundle
 		return nil, fmt.Errorf("failed to sign client certificate: %w", err)
 	}
 
-	certPEMBlock := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	privDER, _ := x509.MarshalECPrivateKey(priv)
-	keyPEMBlock := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privDER})
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	privDER := x509.MarshalPKCS1PrivateKey(priv)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: privDER})
 
 	bundle := &CertBundle{
 		CommonName:   commonName,
-		SerialNumber: serialNumber.Text(16),
-		CertPEM:      string(certPEMBlock),
-		KeyPEM:       string(keyPEMBlock),
+		SerialNumber: fmt.Sprintf("%X", serialNumber),
+		CertPEM:      string(certPEM),
+		KeyPEM:       string(keyPEM),
 		CAPEM:        string(caCertPEM),
 		CreatedAt:    now,
 		ExpiresAt:    expiresAt,
