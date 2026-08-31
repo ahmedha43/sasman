@@ -136,11 +136,11 @@ func (m *Manager) HasTenant(subdomain string) bool {
 	if sub == "" {
 		return false
 	}
-	// Primary: authoritative DB check
-	if m.repo != nil && m.repo.IsCloudAgent(sub) {
-		return true
+	// When repository is available, agent_mode in DB is the sole authority
+	if m.repo != nil {
+		return m.repo.IsCloudAgent(sub)
 	}
-	// Fallback: legacy cloud tenants registered before agent_mode column was added
+	// Fallback only if repository handle is nil
 	dbPath := m.pool.GetTenantDBPath(sub)
 	_, err := os.Stat(dbPath)
 	return err == nil
