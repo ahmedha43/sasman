@@ -428,6 +428,9 @@
       <button class="tab-btn" onclick="switchTab('global-hotspot', this)">
         <i class="fa-solid fa-ticket"></i> 🎫 كروت HotSpot الموحدة
       </button>
+      <button class="tab-btn" onclick="switchTab('payments', this)">
+        <i class="fa-solid fa-credit-card"></i> 💳 التسعير وسجلات الدفع (زين كاش)
+      </button>
       <button class="tab-btn" onclick="openAICopilot()" style="background:linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25)); color:#d8b4fe; border:1px solid #7e22ce; font-weight:bold;">
         <i class="fa-solid fa-wand-magic-sparkles" style="color:#c084fc;"></i> 🤖 المساعد الذكي (AI Copilot)
       </button>
@@ -764,6 +767,69 @@
             <tbody id="global-vouchers-tbody">
               <tr>
                 <td colspan="10" style="text-align:center; padding:30px; color:#94a3b8;">جاري تحميل الكروت...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB: PAYMENTS & PRICING ================= -->
+    <div id="tab-payments" class="tab-pane">
+      <div class="card" style="border-right: 4px solid #f59e0b;">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-coins" style="color:#f59e0b;"></i>
+            <span>تحديد سعر الترخيص اليومي (زين كاش IQD)</span>
+          </div>
+          <button class="btn btn-primary" onclick="loadPricingSettings()">
+            <i class="fa-solid fa-rotate"></i> تحديث
+          </button>
+        </div>
+
+        <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; max-width:650px;">
+          <div style="flex:1; min-width:220px;">
+            <label style="display:block; font-size:12px; font-weight:bold; color:var(--text-muted); margin-bottom:6px;">
+              سعر الترخيص لليوم الواحد بالدينار العراقي (IQD):
+            </label>
+            <input type="number" id="adminDailyPriceInput" value="1000" min="100" max="100000" style="width:100%; font-size:16px; font-weight:bold; font-family:monospace; color:#f59e0b; background:#090d16; border:1px solid #f59e0b; padding:10px; border-radius:8px;">
+          </div>
+          <button class="btn btn-success" onclick="savePricingSettings()" style="height:44px; padding:0 24px; background:linear-gradient(135deg, #22c55e, #16a34a); font-weight:bold; border:none; border-radius:8px; cursor:pointer;">
+            <i class="fa-solid fa-floppy-disk"></i> حفظ سعر اليوم
+          </button>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:12px;">
+          ℹ️ يُحسب السعر التلقائي عند تجديد ترخيص الوكلاء والمستأجرين السحابيين بناءً على قيمة هذا الحقل (عدد الأيام المطلوبة × سعر اليوم).
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-receipt" style="color:var(--primary);"></i>
+            <span>سجل المعاملات والمدفوعات الإلكترونية (زين كاش ZainCash Audit Log)</span>
+          </div>
+          <button class="btn btn-secondary" onclick="loadPaymentAuditLogs()">
+            <i class="fa-solid fa-rotate"></i> تحديث السجل
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table" style="width:100%;">
+            <thead>
+              <tr>
+                <th>رقم المعاملة (Order ID)</th>
+                <th>المستأجر / النطاق الفرعي</th>
+                <th>المبلغ الإجمالي (IQD)</th>
+                <th>الأيام المضافة</th>
+                <th>رقم حركة زين كاش (Trans ID)</th>
+                <th>حالة المعاملة</th>
+                <th>تاريخ المعاملة</th>
+              </tr>
+            </thead>
+            <tbody id="payment-audit-tbody">
+              <tr>
+                <td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">جاري تحميل سجلات الدفع...</td>
               </tr>
             </tbody>
           </table>
@@ -1644,6 +1710,7 @@
       if (tabId === 'broadcasts') loadBroadcasts();
       if (tabId === 'ota') loadOTAReleases();
       if (tabId === 'global-hotspot') loadGlobalVouchers();
+      if (tabId === 'payments') { loadPricingSettings(); loadPaymentAuditLogs(); }
     }
 
     // ─── AGENTS MANAGEMENT ──────────────────────────────────────────────────
@@ -4573,6 +4640,67 @@ ${setupCmd}`;
       if (!confirm('هل تريد تسجيل الخروج؟')) return;
       await fetch('/api/logout', { method: 'POST' });
       window.location.href = '/login';
+    }
+
+    // ─── PAYMENTS & PRICING MANAGEMENT ─────────────────────────────────────
+
+    async function loadPricingSettings() {
+      try {
+        const res = await fetch('/api/admin/settings/pricing');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.price_per_day_iqd) {
+            document.getElementById('adminDailyPriceInput').value = data.price_per_day_iqd;
+          }
+        }
+      } catch (err) {}
+    }
+
+    async function savePricingSettings() {
+      const price = parseInt(document.getElementById('adminDailyPriceInput').value) || 1000;
+      try {
+        const res = await fetch('/api/admin/settings/pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ price_per_day_iqd: price })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ تم حفظ وتحديث سعر الترخيص اليومي بنجاح: ' + price.toLocaleString() + ' IQD');
+        } else {
+          alert('❌ فشل الحفظ: ' + (data.error || 'خطأ غير معروف'));
+        }
+      } catch (err) {
+        alert('❌ خطأ في الاتصال بالسيرفر: ' + err.message);
+      }
+    }
+
+    async function loadPaymentAuditLogs() {
+      const tbody = document.getElementById('payment-audit-tbody');
+      if (!tbody) return;
+      try {
+        const res = await fetch('/api/cloud/license/invoices');
+        if (res.ok) {
+          const txs = await res.json();
+          if (!txs || txs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">لا توجد معاملات دفع مسجلة حتى الآن</td></tr>';
+            return;
+          }
+          tbody.innerHTML = txs.map(tx => `
+            <tr>
+              <td><code style="font-family:monospace; color:#38bdf8;">${escapeHtml(tx.order_id)}</code></td>
+              <td><strong style="color:#e2e8f0;">${escapeHtml(tx.subdomain)}</strong></td>
+              <td><strong style="color:#f59e0b; font-family:monospace;">${(tx.amount_iqd || 0).toLocaleString()} IQD</strong></td>
+              <td><span style="background:#065f46; color:#a7f3d0; padding:2px 8px; border-radius:6px; font-weight:bold;">+${tx.days_added} يوم</span></td>
+              <td><code style="font-family:monospace;">${escapeHtml(tx.zaincash_trans_id || '-')}</code></td>
+              <td>${tx.status === 'completed' ? '<span style="background:#14532d; color:#86efac; padding:3px 8px; border-radius:6px; font-weight:bold;">🟢 مكتملة</span>' : '<span style="background:#7f1d1d; color:#fee2e2; padding:3px 8px; border-radius:6px; font-weight:bold;">⏳ قيد الانتظار</span>'}</td>
+              <td style="font-size:12px; color:var(--text-muted);">${escapeHtml(tx.created_at || '-')}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--danger);">خطأ في جلب سجلات الدفع</td></tr>';
+      }
     }
 
     // Initial Load
