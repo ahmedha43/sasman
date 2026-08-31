@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"mikrotik-manager/server/internal/backup"
 	"mikrotik-manager/server/internal/cloudtenant"
 	otainternal "mikrotik-manager/server/internal/ota"
+	"mikrotik-manager/server/internal/payment"
 	"mikrotik-manager/server/internal/radsec"
 	relayinternal "mikrotik-manager/server/internal/relay"
 	"mikrotik-manager/server/internal/storage"
@@ -353,6 +355,31 @@ func main() {
 	cloudTenantPool := cloudtenant.NewTenantDBPool("")
 	cloudTenantMgr := cloudtenant.NewManager(repo, cloudTenantPool, centralDomain, []byte("SASMAN_CLOUD_SECRET_KEY_9977_SECURE"))
 
+	// Initialize ZainCash Payment Gateway Service
+	zaincashMerchantID := os.Getenv("ZAINCASH_MERCHANT_ID")
+	if zaincashMerchantID == "" {
+		zaincashMerchantID = "9f0937eeaa4a44068f703c09cf4669a6"
+	}
+	zaincashMSISDN := os.Getenv("ZAINCASH_MSISDN")
+	if zaincashMSISDN == "" {
+		zaincashMSISDN = "9647819597948"
+	}
+	zaincashSecret := os.Getenv("ZAINCASH_SECRET")
+	if zaincashSecret == "" {
+		zaincashSecret = "m82U5S7FIbRZ1sqB2LSg2ukyyyf9x26a"
+	}
+	zaincashBaseURL := os.Getenv("ZAINCASH_BASE_URL")
+	if zaincashBaseURL == "" {
+		zaincashBaseURL = "https://api.zaincash.iq"
+	}
+
+	zaincashSvc := payment.NewZainCashService(payment.ZainCashConfig{
+		MerchantID: zaincashMerchantID,
+		Secret:     zaincashSecret,
+		MSISDN:     zaincashMSISDN,
+		BaseURL:    zaincashBaseURL,
+	})
+
 	// Initialize and Start Central RadSec Server on port 2083 (RFC 6614 mTLS)
 	centralRadSec := radsec.NewCentralRadSecServer(
 		func(subdomain string, req tunnel.GlobalAuthRequestPayload) tunnel.GlobalAuthResponsePayload {
@@ -559,6 +586,168 @@ func main() {
 	otaAPI.RegisterRoutes(app)
 	aiAPI.RegisterRoutes(app)
 	cloudtenant.NewAPIHandler(cloudTenantMgr).RegisterRoutes(app)
+
+	// =========================================================================
+	// ZainCash Payment Gateway & Licensing Endpoints
+	// =========================================================================
+	app.Get("/api/admin/settings/pricing", func(c *fiber.Ctx) error {
+		price, _ := repo.GetDailyPriceIQD()
+		return c.JSON(fiber.Map{
+			"price_per_day_iqd": price,
+			"currency":          "IQD",
+		})
+	})
+
+	app.Post("/api/admin/settings/pricing", func(c *fiber.Ctx) error {
+		var body struct {
+			PricePerDayIQD int `json:"price_per_day_iqd"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.PricePerDayIQD <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "سعر اليوم يجب أن يكون أرقاماً أكبر من صفر"})
+		}
+		if err := repo.SetDailyPriceIQD(body.PricePerDayIQD); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل حفظ سعر اليوم: " + err.Error()})
+		}
+		return c.JSON(fiber.Map{
+			"success":           true,
+			"message":           "تم تحديث سعر الترخيص اليومي بنجاح",
+			"price_per_day_iqd": body.PricePerDayIQD,
+		})
+	})
+
+	app.Post("/api/cloud/license/renew/initiate", func(c *fiber.Ctx) error {
+		var req struct {
+			Subdomain string `json:"subdomain"`
+			Days      int    `json:"days"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "بيانات غير صالحة"})
+		}
+
+		if req.Subdomain == "" {
+			if sub, ok := c.Locals("subdomain").(string); ok {
+				req.Subdomain = sub
+			}
+		}
+		req.Subdomain = strings.ToLower(strings.TrimSpace(req.Subdomain))
+
+		if req.Subdomain == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى تحديد اسم المستأجر الفرعي"})
+		}
+		if req.Days <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى اختيار عدد أيام صالحة"})
+		}
+
+		pricePerDay, _ := repo.GetDailyPriceIQD()
+		totalAmountIQD := req.Days * pricePerDay
+		if totalAmountIQD < 250 {
+			totalAmountIQD = 250
+		}
+
+		orderID := fmt.Sprintf("ord_%s_%d_%d", req.Subdomain, time.Now().Unix(), req.Days)
+		txID := fmt.Sprintf("tx_%d", time.Now().UnixNano())
+
+		err := repo.CreatePaymentTransaction(storage.PaymentTransaction{
+			ID:        txID,
+			OrderID:   orderID,
+			Subdomain: req.Subdomain,
+			Gateway:   "zaincash",
+			AmountIQD: totalAmountIQD,
+			DaysAdded: req.Days,
+			Status:    "pending",
+		})
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل تسجيل طلب الدفع: " + err.Error()})
+		}
+
+		callbackURL := fmt.Sprintf("https://%s/api/payment/zaincash/callback", centralDomain)
+		if strings.Contains(c.Hostname(), "localhost") || strings.Contains(c.Hostname(), "127.0.0.1") {
+			callbackURL = fmt.Sprintf("http://%s/api/payment/zaincash/callback", c.Hostname())
+		}
+
+		zResp, zErr := zaincashSvc.CreateTransaction(payment.CreateTransactionRequest{
+			Amount:      totalAmountIQD,
+			ServiceName: fmt.Sprintf("تجديد ترخيص ساسمان (%s - %d يوم)", req.Subdomain, req.Days),
+			OrderID:     orderID,
+			RedirectURL: callbackURL,
+		})
+		if zErr != nil {
+			log.Printf("[ZainCash] ❌ CreateTransaction failed for [%s]: %v", req.Subdomain, zErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل إنشاء عملية زين كاش: " + zErr.Error()})
+		}
+
+		log.Printf("[ZainCash] 💳 Initiate transaction for [%s] (Days=%d, Total=%d IQD, OrderID=%s, TransID=%s)",
+			req.Subdomain, req.Days, totalAmountIQD, orderID, zResp.TransactionID)
+
+		return c.JSON(fiber.Map{
+			"success":     true,
+			"order_id":    orderID,
+			"amount_iqd":  totalAmountIQD,
+			"days":        req.Days,
+			"payment_url": zResp.PaymentURL,
+		})
+	})
+
+	app.Get("/api/payment/zaincash/callback", func(c *fiber.Ctx) error {
+		tokenStr := c.Query("token")
+		if tokenStr == "" {
+			return c.Redirect("/cloud/dashboard?payment=failed&reason=missing_token")
+		}
+
+		claims, err := zaincashSvc.VerifyJWT(tokenStr)
+		if err != nil {
+			log.Printf("[ZainCash] ❌ Callback JWT verification failed: %v", err)
+			return c.Redirect("/cloud/dashboard?payment=failed&reason=invalid_token")
+		}
+
+		status, _ := claims["status"].(string)
+		orderID, _ := claims["orderId"].(string)
+		zaincashTransID, _ := claims["id"].(string)
+		msg, _ := claims["msg"].(string)
+
+		if strings.ToLower(status) == "success" && orderID != "" {
+			tx, err := repo.CompletePaymentTransaction(orderID, zaincashTransID)
+			if err == nil && tx != nil {
+				if extErr := repo.ExtendLicenseDays(tx.Subdomain, tx.DaysAdded); extErr != nil {
+					log.Printf("[ZainCash] ⚠️ Failed to extend license days for [%s]: %v", tx.Subdomain, extErr)
+				} else {
+					log.Printf("[ZainCash] 🎉 Payment SUCCESS for [%s]! Extended %d days (+%d IQD)",
+						tx.Subdomain, tx.DaysAdded, tx.AmountIQD)
+
+					go func() {
+						tenantLogPath := filepath.Join(cloudTenantPool.GetTenantDir(tx.Subdomain), "radius.log")
+						line := fmt.Sprintf("[%s] 💳 ZainCash Payment Success! Extended %d days (+%d IQD) (Order: %s, Trans: %s) 🎉\n",
+							time.Now().Format("2006-01-02 15:04:05"), tx.DaysAdded, tx.AmountIQD, orderID, zaincashTransID)
+						f, fErr := os.OpenFile(tenantLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+						if fErr == nil {
+							_, _ = f.WriteString(line)
+							_ = f.Close()
+						}
+					}()
+				}
+				redirectTarget := fmt.Sprintf("https://%s.%s/radius/#/license?payment=success&days=%d&amount=%d",
+					tx.Subdomain, centralDomain, tx.DaysAdded, tx.AmountIQD)
+				return c.Redirect(redirectTarget)
+			}
+		}
+
+		log.Printf("[ZainCash] ⚠️ Payment callback rejected: Status=%s, OrderID=%s, Msg=%s", status, orderID, msg)
+		return c.Redirect(fmt.Sprintf("/cloud/dashboard?payment=failed&reason=%s", url.QueryEscape(msg)))
+	})
+
+	app.Get("/api/cloud/license/invoices", func(c *fiber.Ctx) error {
+		sub := c.Query("subdomain")
+		if sub == "" {
+			if s, ok := c.Locals("subdomain").(string); ok {
+				sub = s
+			}
+		}
+		list, err := repo.ListPaymentTransactions(sub)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"transactions": list})
+	})
 
 	// Cloud Edition Public Web Pages
 	app.Get("/cloud", func(c *fiber.Ctx) error {

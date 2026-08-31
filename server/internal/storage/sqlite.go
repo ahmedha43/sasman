@@ -68,6 +68,19 @@ type AgentLicenseInfo struct {
 	LastRenewedAt *time.Time `json:"last_renewed_at"`
 }
 
+type PaymentTransaction struct {
+	ID              string    `json:"id"`
+	OrderID         string    `json:"order_id"`
+	Subdomain       string    `json:"subdomain"`
+	Gateway         string    `json:"gateway"`
+	AmountIQD       int       `json:"amount_iqd"`
+	DaysAdded       int       `json:"days_added"`
+	Status          string    `json:"status"` // 'pending', 'completed', 'failed'
+	ZainCashTransID string    `json:"zaincash_trans_id"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
 type Broadcast struct {
 	ID                string     `json:"id"`
 	Title             string     `json:"title"`
@@ -382,6 +395,26 @@ func (r *SQLiteRepository) CreateSchema() error {
 
 	// Create group_name index after migration
 	_, _ = r.db.Exec("CREATE INDEX IF NOT EXISTS idx_subdomains_group_name ON subdomains(group_name);")
+
+	// Create payment_transactions and system_settings tables
+	_, _ = r.db.Exec(`CREATE TABLE IF NOT EXISTS payment_transactions (
+		id TEXT PRIMARY KEY,
+		order_id TEXT NOT NULL UNIQUE,
+		subdomain TEXT NOT NULL,
+		gateway TEXT NOT NULL DEFAULT 'zaincash',
+		amount_iqd INTEGER NOT NULL,
+		days_added INTEGER NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		zaincash_trans_id TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);`)
+	_, _ = r.db.Exec(`CREATE INDEX IF NOT EXISTS idx_payment_trans_subdomain ON payment_transactions(subdomain);`)
+	_, _ = r.db.Exec(`CREATE TABLE IF NOT EXISTS system_settings (
+		key_name TEXT PRIMARY KEY,
+		value_str TEXT NOT NULL DEFAULT '',
+		updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);`)
 
 	return nil
 }
@@ -2138,6 +2171,165 @@ func (r *SQLiteRepository) GetGlobalHotspotSessions(limit int) ([]GlobalHotspotS
 			}
 		}
 		list = append(list, s)
+	}
+	return list, nil
+}
+
+// GetDailyPriceIQD returns the daily license price in IQD (default 1000 IQD/day)
+func (r *SQLiteRepository) GetDailyPriceIQD() (int, error) {
+	var valStr string
+	err := r.db.QueryRow("SELECT value_str FROM system_settings WHERE key_name = 'zaincash_price_per_day_iqd'").Scan(&valStr)
+	if err != nil || valStr == "" {
+		return 1000, nil // Default 1000 IQD per day
+	}
+	var price int
+	if _, pErr := fmt.Sscanf(valStr, "%d", &price); pErr == nil && price > 0 {
+		return price, nil
+	}
+	return 1000, nil
+}
+
+// SetDailyPriceIQD updates the daily license price in IQD
+func (r *SQLiteRepository) SetDailyPriceIQD(price int) error {
+	if price <= 0 {
+		price = 1000
+	}
+	valStr := fmt.Sprintf("%d", price)
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.Exec(`
+		INSERT INTO system_settings (key_name, value_str, updated_at)
+		VALUES ('zaincash_price_per_day_iqd', ?, ?)
+		ON CONFLICT(key_name) DO UPDATE SET
+			value_str = excluded.value_str,
+			updated_at = excluded.updated_at
+	`, valStr, nowStr)
+	return err
+}
+
+// CreatePaymentTransaction records a new pending payment transaction
+func (r *SQLiteRepository) CreatePaymentTransaction(tx PaymentTransaction) error {
+	if tx.CreatedAt.IsZero() {
+		tx.CreatedAt = time.Now()
+	}
+	if tx.UpdatedAt.IsZero() {
+		tx.UpdatedAt = time.Now()
+	}
+	if tx.Gateway == "" {
+		tx.Gateway = "zaincash"
+	}
+	if tx.Status == "" {
+		tx.Status = "pending"
+	}
+
+	_, err := r.db.Exec(`
+		INSERT INTO payment_transactions (
+			id, order_id, subdomain, gateway, amount_iqd, days_added, status, zaincash_trans_id, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, tx.ID, tx.OrderID, tx.Subdomain, tx.Gateway, tx.AmountIQD, tx.DaysAdded, tx.Status, tx.ZainCashTransID, tx.CreatedAt.UTC().Format(time.RFC3339), tx.UpdatedAt.UTC().Format(time.RFC3339))
+	return err
+}
+
+// GetPaymentTransactionByOrderID retrieves a transaction by order ID
+func (r *SQLiteRepository) GetPaymentTransactionByOrderID(orderID string) (*PaymentTransaction, error) {
+	row := r.db.QueryRow(`
+		SELECT id, order_id, subdomain, gateway, amount_iqd, days_added, status, zaincash_trans_id, created_at, updated_at
+		FROM payment_transactions WHERE order_id = ?
+	`, orderID)
+
+	var tx PaymentTransaction
+	var createdStr, updatedStr string
+	err := row.Scan(&tx.ID, &tx.OrderID, &tx.Subdomain, &tx.Gateway, &tx.AmountIQD, &tx.DaysAdded, &tx.Status, &tx.ZainCashTransID, &createdStr, &updatedStr)
+	if err != nil {
+		return nil, err
+	}
+	tx.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+	tx.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+	return &tx, nil
+}
+
+// CompletePaymentTransaction marks transaction as completed
+func (r *SQLiteRepository) CompletePaymentTransaction(orderID string, zaincashTransID string) (*PaymentTransaction, error) {
+	tx, err := r.GetPaymentTransactionByOrderID(orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	_, err = r.db.Exec(`
+		UPDATE payment_transactions
+		SET status = 'completed', zaincash_trans_id = ?, updated_at = ?
+		WHERE order_id = ?
+	`, zaincashTransID, nowStr, orderID)
+	if err != nil {
+		return nil, err
+	}
+	tx.Status = "completed"
+	tx.ZainCashTransID = zaincashTransID
+	return tx, nil
+}
+
+// ExtendLicenseDays extends tenant license expiration date by N days
+func (r *SQLiteRepository) ExtendLicenseDays(subdomain string, days int) error {
+	if days <= 0 {
+		return fmt.Errorf("invalid days count")
+	}
+
+	licInfo, err := r.GetAgentLicenseInfo(subdomain)
+	if err != nil || licInfo == nil || licInfo.LicenseID == "" {
+		return fmt.Errorf("license info not found for subdomain [%s]", subdomain)
+	}
+
+	now := time.Now().UTC()
+	var newExp time.Time
+
+	if licInfo.ExpiresAt != nil && licInfo.ExpiresAt.After(now) {
+		newExp = licInfo.ExpiresAt.AddDate(0, 0, days)
+	} else {
+		newExp = now.AddDate(0, 0, days)
+	}
+
+	newExpStr := newExp.Format(time.RFC3339)
+	nowStr := now.Format(time.RFC3339)
+
+	_, err = r.db.Exec(`
+		UPDATE licenses
+		SET status = 'active', expires_at = ?, updated_at = ?
+		WHERE id = ?
+	`, newExpStr, nowStr, licInfo.LicenseID)
+	return err
+}
+
+// ListPaymentTransactions returns all payment transactions for a tenant or all tenants if empty
+func (r *SQLiteRepository) ListPaymentTransactions(subdomain string) ([]PaymentTransaction, error) {
+	var rows *sql.Rows
+	var err error
+
+	if subdomain != "" {
+		rows, err = r.db.Query(`
+			SELECT id, order_id, subdomain, gateway, amount_iqd, days_added, status, zaincash_trans_id, created_at, updated_at
+			FROM payment_transactions WHERE LOWER(subdomain) = LOWER(?)
+			ORDER BY created_at DESC
+		`, subdomain)
+	} else {
+		rows, err = r.db.Query(`
+			SELECT id, order_id, subdomain, gateway, amount_iqd, days_added, status, zaincash_trans_id, created_at, updated_at
+			FROM payment_transactions ORDER BY created_at DESC LIMIT 100
+		`)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []PaymentTransaction
+	for rows.Next() {
+		var tx PaymentTransaction
+		var createdStr, updatedStr string
+		if err := rows.Scan(&tx.ID, &tx.OrderID, &tx.Subdomain, &tx.Gateway, &tx.AmountIQD, &tx.DaysAdded, &tx.Status, &tx.ZainCashTransID, &createdStr, &updatedStr); err == nil {
+			tx.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+			tx.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
+			list = append(list, tx)
+		}
 	}
 	return list, nil
 }
