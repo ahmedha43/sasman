@@ -349,24 +349,44 @@ func (h *APIHandler) handleGetInstallScript(c *fiber.Ctx) error {
 # Central Host: %[2]s
 # ==============================================================================
 
-:put "[*] Downloading SASMAN mTLS Security Certificates for %[1]s..."
-/tool fetch url="https://%[2]s/pki/cert/%[1]s/ca.crt" dst-path="sasman-ca.crt" mode=https
-/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.crt" dst-path="sasman-agent.crt" mode=https
-/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.key" dst-path="sasman-agent.key" mode=https
+:put "[*] Cleaning Up Old Certificates & RADIUS Configs..."
+/radius remove [find address="%[2]s"]
+/radius remove [find comment~"SASMAN"]
+/interface ovpn-client remove [find name="ovpn-sasman"]
 
+:foreach c in=[/certificate find where name~"ca.crt" or name~"agent.crt" or name~"sasman" or common-name~"SASMAN" or common-name~"agent-"] do={
+    :do { /certificate remove $c } on-error={}
+}
+:foreach f in=[/file find where name~"ca.crt" or name~"agent.crt" or name~"agent.key" or name~"sasman"] do={
+    :do { /file remove $f } on-error={}
+}
+:delay 1s
+
+:put "[*] Downloading Fresh RSA Security Certificates for %[1]s..."
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/ca.crt" dst-path="sasman-ca.crt" mode=https
 :delay 2s
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.crt" dst-path="sasman-agent.crt" mode=https
+:delay 2s
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.key" dst-path="sasman-agent.key" mode=https
+:delay 2s
+
 :put "[*] Importing Certificates into RouterOS Security Store..."
 /certificate import file-name="sasman-ca.crt" passphrase=""
-/certificate import file-name="sasman-agent.crt" passphrase=""
-/certificate import file-name="sasman-agent.key" passphrase=""
-
 :delay 1s
-:put "[*] Configuring High-Speed RadSec RFC 6614 Client..."
-/radius remove [find comment="SASMAN_CLOUD"]
+/certificate import file-name="sasman-agent.crt" passphrase=""
+:delay 1s
+/certificate import file-name="sasman-agent.key" passphrase=""
+:delay 1s
 
+:local certName ""
+:foreach c in=[/certificate find where common-name~"agent-%[1]s-SASMAN" or common-name~"agent-.*" or name~"sasman-agent"] do={
+    :set certName [/certificate get $c name]
+}
+
+:put "[*] Configuring High-Speed RadSec RFC 6614 Client..."
 /radius add address=%[2]s protocol=radsec authentication-port=2083 accounting-port=2083 \
     service=hotspot,ppp,login,wireless \
-    certificate="agent-%[1]s-SASMAN" \
+    certificate=$certName \
     secret="radsec" \
     timeout=3000ms \
     comment="SASMAN_CLOUD"
@@ -375,6 +395,12 @@ func (h *APIHandler) handleGetInstallScript(c *fiber.Ctx) error {
 /radius incoming set accept=yes port=3799
 /ppp aaa set use-radius=yes interim-update=2m
 /ip hotspot profile set [find] use-radius=yes radius-interim-update=2m
+
+/file remove [find name="sasman-ca.crt"]
+/file remove [find name="sasman-agent.crt"]
+/file remove [find name="sasman-agent.key"]
+/file remove [find name="sasman_cloud.rsc"]
+/file remove [find name="radsec.rsc"]
 
 :put "[SUCCESS] ✅ SASMAN Cloud Edition is now actively connected to %[2]s!"
 `, sub, h.mgr.domain)

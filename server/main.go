@@ -3,8 +3,10 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/x509"
 	"embed"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"os"
@@ -812,7 +814,13 @@ func main() {
 				cB, _ := os.ReadFile(certPath)
 				kB, _ := os.ReadFile(keyPath)
 				if len(cB) > 0 && len(kB) > 0 {
-					return string(cB), string(kB), string(caBytes), nil
+					block, _ := pem.Decode(cB)
+					if block != nil {
+						parsedCert, err := x509.ParseCertificate(block.Bytes)
+						if err == nil && parsedCert.PublicKeyAlgorithm == x509.RSA {
+							return string(cB), string(kB), string(caBytes), nil
+						}
+					}
 				}
 			}
 		}
@@ -869,7 +877,7 @@ func main() {
 			subdomain = "default"
 		}
 
-		// Ensure certificate bundle exists
+		// Ensure certificate bundle exists & is RSA
 		_, _, _, _ = ensureAgentCertificate(subdomain)
 
 		domain := centralDomain
@@ -884,77 +892,79 @@ func main() {
 # =========================================================
 
 :put "=================================================="
-:put "  [1/4] Downloading SASMAN PKI Certificates..."
+:put "  [1/5] Cleaning Up Old Certificates & RADIUS Configs..."
 :put "=================================================="
 
-/tool fetch url="https://%[2]s/pki/cert/%[1]s/ca.crt" dst-path="ca.crt" mode=https
-:delay 2s
-/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.crt" dst-path="agent.crt" mode=https
-:delay 2s
-/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.key" dst-path="agent.key" mode=https
-:delay 2s
+/radius remove [find address="167.86.73.203"]
+/radius remove [find comment~"SASMAN"]
+/interface ovpn-client remove [find name="ovpn-sasman"]
 
-:put "=================================================="
-:put "  [2/4] Importing Certificates into RouterOS..."
-:put "=================================================="
-
-/certificate import file-name="ca.crt" passphrase=""
-:delay 1s
-/certificate import file-name="agent.crt" passphrase=""
-:delay 1s
-/certificate import file-name="agent.key" passphrase=""
+:foreach c in=[/certificate find where name~"ca.crt" or name~"agent.crt" or name~"sasman" or common-name~"SASMAN" or common-name~"agent-"] do={
+    :do { /certificate remove $c } on-error={}
+}
+:foreach f in=[/file find where name~"ca.crt" or name~"agent.crt" or name~"agent.key" or name~"sasman"] do={
+    :do { /file remove $f } on-error={}
+}
 :delay 1s
 
 :put "=================================================="
-:put "  [3/4] Configuring High-Speed RadSec Client..."
+:put "  [2/5] Downloading Fresh RSA Certificates..."
 :put "=================================================="
 
-:local certName "agent.crt_0"
-:local caName "ca.crt_0"
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/ca.crt" dst-path="sasman-ca.crt" mode=https
+:delay 2s
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.crt" dst-path="sasman-agent.crt" mode=https
+:delay 2s
+/tool fetch url="https://%[2]s/pki/cert/%[1]s/agent.key" dst-path="sasman-agent.key" mode=https
+:delay 2s
 
-:foreach c in=[/certificate find where common-name~"agent-.*"] do={
+:put "=================================================="
+:put "  [3/5] Importing Certificates into RouterOS..."
+:put "=================================================="
+
+/certificate import file-name="sasman-ca.crt" passphrase=""
+:delay 1s
+/certificate import file-name="sasman-agent.crt" passphrase=""
+:delay 1s
+/certificate import file-name="sasman-agent.key" passphrase=""
+:delay 1s
+
+:put "=================================================="
+:put "  [4/5] Binding High-Speed RadSec Client..."
+:put "=================================================="
+
+:local certName ""
+:foreach c in=[/certificate find where common-name~"agent-%[1]s-SASMAN" or common-name~"agent-.*" or name~"sasman-agent"] do={
     :set certName [/certificate get $c name]
 }
-:foreach c in=[/certificate find where common-name~"SASMAN.*"] do={
-    :set caName [/certificate get $c name]
-}
 
-# Remove existing central server RADIUS entries to avoid duplicates
-/radius remove [find address="167.86.73.203"]
-
-# Add RadSec client connected to Central Server IP with mTLS certificates
 /radius add address=167.86.73.203 protocol=radsec certificate=$certName service=ppp,login,hotspot,wireless secret=radsec authentication-port=2083 accounting-port=2083 timeout=3s require-message-auth=yes-for-request-resp comment="SASMAN Central RadSec (%[1]s)"
 
-# Enable Disconnect Messages & CoA
-/radius incoming set accept=yes port=3799
-
-# Enable RADIUS in Services
 /user aaa set use-radius=yes default-group=read
 /ppp aaa set use-radius=yes accounting=yes interim-update=1m
 /ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
 
-# Configure Secure Device Tunnel using the exact same certificate (Port 1194 TLS)
-/interface ovpn-client remove [find name="ovpn-sasman"]
 /interface ovpn-client add name="ovpn-sasman" connect-to=167.86.73.203 port=1194 mode=ip protocol=tcp user="%[1]s" password="" certificate=$certName auth=sha256 cipher=aes256-gcm verify-server-certificate=yes add-default-route=no disabled=no comment="SASMAN Cloud Device Tunnel (%[1]s)"
 
-# Configure Firewall & NAT for Cloud Device Access Automatically
 /ip firewall filter remove [find comment="Allow SASMAN Tunnel"]
 /ip firewall filter add chain=input in-interface=ovpn-sasman action=accept place-before=0 comment="Allow SASMAN Tunnel"
 /ip firewall nat remove [find comment="SASMAN LAN Access"]
 /ip firewall nat add chain=srcnat out-interface=!ovpn-sasman src-address=10.250.0.0/24 action=masquerade comment="SASMAN LAN Access"
 
 :put "=================================================="
-:put "  [4/4] Cleaning Up Temporary Files..."
+:put "  [5/5] Cleaning Up Temporary Files..."
 :put "=================================================="
 
-/file remove [find name="ca.crt"]
-/file remove [find name="agent.crt"]
-/file remove [find name="agent.key"]
+/file remove [find name="sasman-ca.crt"]
+/file remove [find name="sasman-agent.crt"]
+/file remove [find name="sasman-agent.key"]
+/file remove [find name="sasman_cloud.rsc"]
 /file remove [find name="radsec.rsc"]
 
 :put "=================================================="
-:put "  [SUCCESS] SASMAN RadSec Provisioned Successfully!"
+:put "  [SUCCESS] ✅ SASMAN RadSec Provisioned Successfully!"
 :put "  Agent: %[1]s"
+:put "  Certificate Bound: $certName"
 :put "  Server: 167.86.73.203:2083 (RFC 6614 mTLS)"
 :put "=================================================="
 `, subdomain, domain)
