@@ -820,6 +820,7 @@ func (s *Service) RequestBackup(subdomain string) ([]byte, string, error) {
 }
 
 func (s *Service) WebSocketHandler(c *fiber.Ctx) error {
+	log.Printf("[Tunnel WS] Incoming WS request: path=%s host=%s ip=%s", c.Path(), c.Hostname(), c.IP())
 	if websocket.IsWebSocketUpgrade(c) {
 		return c.Next()
 	}
@@ -836,6 +837,7 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 				if boundSession.Conn == conn {
 					boundSession.Conn = nil
 					boundSession.Connected = false
+					log.Printf("[Tunnel WS] 🔴 Agent disconnected: subdomain=%s", boundSession.Subdomain)
 				}
 				boundSession.writeMu.Unlock()
 			}
@@ -860,6 +862,8 @@ func (s *Service) WebSocketUpgrade(c *fiber.Ctx) error {
 				if regSub == "" {
 					regSub = generateDefaultSubdomain()
 				}
+				log.Printf("[Tunnel WS] 🟢 Agent registering: subdomain=%s token=%s ver=%s arch=%s remote=%s",
+					regSub, reg.Token, reg.Version, reg.Arch, conn.RemoteAddr().String())
 
 				var session *AgentSession
 				s.mu.Lock()
