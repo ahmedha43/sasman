@@ -52,7 +52,7 @@ func NewAgentZainCashService() *AgentZainCashService {
 	}
 	baseURL := os.Getenv("ZAINCASH_BASE_URL")
 	if baseURL == "" {
-		baseURL = "https://api.zaincash.iq"
+		baseURL = "https://pg-api.zaincash.iq"
 	}
 
 	return &AgentZainCashService{

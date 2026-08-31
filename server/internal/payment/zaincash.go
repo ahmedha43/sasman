@@ -22,7 +22,7 @@ type ZainCashConfig struct {
 	ClientID     string
 	ClientSecret string
 	MSISDN       string
-	BaseURL      string // e.g. https://pg-api-uat.zaincash.iq or https://api.zaincash.iq
+	BaseURL      string // e.g. https://pg-api-uat.zaincash.iq or https://pg-api.zaincash.iq
 }
 
 type ZainCashService struct {
@@ -31,7 +31,7 @@ type ZainCashService struct {
 
 func NewZainCashService(cfg ZainCashConfig) *ZainCashService {
 	if cfg.BaseURL == "" {
-		cfg.BaseURL = "https://api.zaincash.iq"
+		cfg.BaseURL = "https://pg-api.zaincash.iq"
 	}
 	cfg.BaseURL = strings.TrimSuffix(cfg.BaseURL, "/")
 	if cfg.ClientID == "" {

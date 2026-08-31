@@ -379,7 +379,7 @@ func main() {
 	}
 	zaincashBaseURL := os.Getenv("ZAINCASH_BASE_URL")
 	if zaincashBaseURL == "" {
-		zaincashBaseURL = "https://api.zaincash.iq"
+		zaincashBaseURL = "https://pg-api.zaincash.iq"
 	}
 
 	zaincashSvc := payment.NewZainCashService(payment.ZainCashConfig{
