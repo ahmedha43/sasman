@@ -515,6 +515,23 @@ func (r *SQLiteRepository) SetAgentMode(subdomain, mode string) error {
 	return err
 }
 
+// GetAgentMode returns the agent_mode for a subdomain ('local' or 'cloud').
+func (r *SQLiteRepository) GetAgentMode(subdomain string) string {
+	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
+	if subdomain == "" {
+		return "local"
+	}
+	var mode string
+	err := r.db.QueryRow(
+		"SELECT COALESCE(agent_mode, 'local') FROM subdomains WHERE LOWER(subdomain) = ?",
+		subdomain,
+	).Scan(&mode)
+	if err != nil || mode == "" {
+		return "local"
+	}
+	return mode
+}
+
 func (r *SQLiteRepository) SaveCustomer(c Customer) error {
 	_, err := r.db.Exec(`
         INSERT INTO customers (id, name, phone, email, company_name, status, created_at, updated_at)

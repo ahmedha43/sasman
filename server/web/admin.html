@@ -1849,9 +1849,15 @@
           </td>
           <td>${licHTML}</td>
           <td>
-            <span class="badge ${(a.connected || a.online || a.mode === 'cloud') ? 'badge-online' : 'badge-offline'}">
-              ${(a.connected || a.online || a.mode === 'cloud') ? (a.mode === 'cloud' ? '🟢 متصل (سحابي)' : '🟢 متصل') : '🔴 غير متصل'}
+            <span class="badge ${(a.connected || a.online || a.agent_mode === 'cloud') ? 'badge-online' : 'badge-offline'}">
+              ${(a.connected || a.online || a.agent_mode === 'cloud') ? (a.agent_mode === 'cloud' ? '🟢 متصل (سحابي)' : '🟢 متصل (محلي)') : '🔴 غير متصل'}
             </span>
+            <div style="margin-top:5px;">
+              ${a.agent_mode === 'cloud' ? 
+                `<button class="btn btn-xs" style="background:#581c87; color:#e9d5ff; border:1px solid #9333ea; padding:2px 8px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="toggleAgentMode('${escapeHtml(a.subdomain)}', 'local')" title="اضغط للتحويل إلى وكيل محلي (Local Container Agent)">☁️ سحابي (Cloud)</button>` : 
+                `<button class="btn btn-xs" style="background:#0e7490; color:#cffafe; border:1px solid #0891b2; padding:2px 8px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="toggleAgentMode('${escapeHtml(a.subdomain)}', 'cloud')" title="اضغط للتحويل إلى وكيل سحابي (Cloud Tenant Agent)">🖥️ محلي (Local)</button>`
+              }
+            </div>
           </td>
           <td>
             <span class="badge badge-group" onclick="editAgentGroup('${escapeHtml(a.subdomain)}', '${escapeHtml(a.group_name || 'default')}')">
@@ -1995,6 +2001,25 @@
         if (res.ok) loadAgents();
         else { const d = await res.json(); alert(d.error || 'فشل تعديل المجموعة'); }
       } catch (e) { alert('خطأ في الاتصال'); }
+    }
+
+    async function toggleAgentMode(subdomain, newMode) {
+      const label = newMode === 'cloud' ? 'سحابي (Cloud Tenant)' : 'محلي (Local Container)';
+      if (!confirm(`هل أنت محقق وتأكد من تغيير نوع الوكيل [${subdomain}] إلى (${label})؟`)) return;
+      try {
+        const res = await fetch(`/api/admin/agents/${encodeURIComponent(subdomain)}/agent-mode`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_mode: newMode })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ ${data.message}`);
+          loadAgents();
+        } else {
+          alert(`❌ ${data.error || 'فشل تغيير نوع الوكيل'}`);
+        }
+      } catch (e) { alert('❌ حدث خطأ في الاتصال بالسيرفر'); }
     }
 
     function openRegisterAgentModal() {

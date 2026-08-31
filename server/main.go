@@ -1742,17 +1742,19 @@ func main() {
 				agent["ota_status"] = "idle"
 			}
 
-			// Detect Cloud Tenant status and mark as online
-			if cloudTenantMgr != nil {
-				if _, err := os.Stat(cloudTenantMgr.GetPool().GetTenantDBPath(subdomain)); err == nil {
-					agent["online"] = true
-					agent["connected"] = true
-					agent["mode"] = "cloud"
-					agent["agent_version"] = "Cloud Edition"
-					if agent["last_seen"] == nil || agent["last_seen"] == "" || agent["last_seen"] == "-" {
-						agent["last_seen"] = time.Now().Format(time.RFC3339)
-					}
+			// Determine agent_mode from DB authoritative source
+			agentMode := repo.GetAgentMode(subdomain)
+			agent["agent_mode"] = agentMode
+			if agentMode == "cloud" {
+				agent["mode"] = "cloud"
+				agent["online"] = true
+				agent["connected"] = true
+				agent["agent_version"] = "Cloud Edition"
+				if agent["last_seen"] == nil || agent["last_seen"] == "" || agent["last_seen"] == "-" {
+					agent["last_seen"] = time.Now().Format(time.RFC3339)
 				}
+			} else {
+				agent["mode"] = "local"
 			}
 		}
 
@@ -1872,6 +1874,42 @@ func main() {
 			"status":  info.Status,
 			"license": info,
 			"message": "تم فك التجميد واستعادة اشتراك الوكيل",
+		})
+	})
+
+	app.Post("/api/admin/agents/:subdomain/agent-mode", func(c *fiber.Ctx) error {
+		subdomain := strings.ToLower(strings.TrimSpace(c.Params("subdomain")))
+		var req struct {
+			AgentMode string `json:"agent_mode"`
+		}
+		if err := c.BodyParser(&req); err != nil || (req.AgentMode != "local" && req.AgentMode != "cloud") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "نوع الوكيل غير صالح، يجب أن يكون 'local' أو 'cloud'"})
+		}
+
+		if err := repo.SetAgentMode(subdomain, req.AgentMode); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		// If switching to local, safely backup any leftover cloud tenant directory
+		if req.AgentMode == "local" && cloudTenantMgr != nil {
+			tenantDir := cloudTenantMgr.GetPool().GetTenantDir(subdomain)
+			if _, err := os.Stat(tenantDir); err == nil {
+				backupDir := tenantDir + ".bak_local"
+				_ = os.RemoveAll(backupDir)
+				_ = os.Rename(tenantDir, backupDir)
+			}
+		}
+
+		label := "سحابي (Cloud Tenant)"
+		if req.AgentMode == "local" {
+			label = "محلي (Local Container)"
+		}
+
+		return c.JSON(fiber.Map{
+			"success":    true,
+			"subdomain":  subdomain,
+			"agent_mode": req.AgentMode,
+			"message":    fmt.Sprintf("تم تغيير نوع الوكيل %s بنجاح إلى [%s]", subdomain, label),
 		})
 	})
 
