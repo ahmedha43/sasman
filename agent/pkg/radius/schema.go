@@ -290,6 +290,11 @@ func EnsureSchema() {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_nas_certs_common_name ON nas_certificates(common_name)`,
 		`CREATE INDEX IF NOT EXISTS idx_nas_certs_nas_id ON nas_certificates(nas_id)`,
+
+		`CREATE TABLE IF NOT EXISTS radius_settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL DEFAULT ''
+		)`,
 	}
 
 	for _, stmt := range tables {

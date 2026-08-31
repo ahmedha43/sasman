@@ -186,11 +186,13 @@ func (s *AgentZainCashService) CreateTransaction(req AgentCreateTxReq) (string, 
 var AgentZainCashSvc = NewAgentZainCashService()
 
 func AgentGetPricingHandler(c *fiber.Ctx) error {
-	var priceStr string
-	err := DB.QueryRow("SELECT value FROM radius_settings WHERE key = 'daily_price_iqd'").Scan(&priceStr)
 	price := 1000
-	if err == nil && priceStr != "" {
-		_, _ = fmt.Sscanf(priceStr, "%d", &price)
+	if DB != nil {
+		var priceStr string
+		err := DB.QueryRow("SELECT value FROM radius_settings WHERE key = 'daily_price_iqd'").Scan(&priceStr)
+		if err == nil && priceStr != "" {
+			_, _ = fmt.Sscanf(priceStr, "%d", &price)
+		}
 	}
 	return c.JSON(fiber.Map{
 		"price_per_day_iqd": price,
@@ -205,13 +207,15 @@ func AgentSetPricingHandler(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil || body.PricePerDayIQD <= 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid daily price"})
 	}
-	priceStr := fmt.Sprintf("%d", body.PricePerDayIQD)
-	_, err := DB.Exec(`
-		INSERT INTO radius_settings (key, value) VALUES ('daily_price_iqd', ?)
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value
-	`, priceStr)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	if DB != nil {
+		priceStr := fmt.Sprintf("%d", body.PricePerDayIQD)
+		_, err := DB.Exec(`
+			INSERT INTO radius_settings (key, value) VALUES ('daily_price_iqd', ?)
+			ON CONFLICT(key) DO UPDATE SET value = excluded.value
+		`, priceStr)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
 	}
 	return c.JSON(fiber.Map{"success": true, "price_per_day_iqd": body.PricePerDayIQD})
 }
@@ -225,11 +229,13 @@ func AgentInitiatePaymentHandler(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid days count"})
 	}
 
-	var priceStr string
-	_ = DB.QueryRow("SELECT value FROM radius_settings WHERE key = 'daily_price_iqd'").Scan(&priceStr)
 	pricePerDay := 1000
-	if priceStr != "" {
-		_, _ = fmt.Sscanf(priceStr, "%d", &pricePerDay)
+	if DB != nil {
+		var priceStr string
+		err := DB.QueryRow("SELECT value FROM radius_settings WHERE key = 'daily_price_iqd'").Scan(&priceStr)
+		if err == nil && priceStr != "" {
+			_, _ = fmt.Sscanf(priceStr, "%d", &pricePerDay)
+		}
 	}
 
 	totalAmountIQD := req.Days * pricePerDay
