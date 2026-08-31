@@ -561,6 +561,12 @@ func main() {
 	radiusAPI.Post("/router/connect", radius.RouterConnectHandler)
 	radiusAPI.Post("/vouchers/redeem", radius.RedeemVoucher)
 
+	// Agent ZainCash Payment Gateway Endpoints
+	radiusAPI.Get("/zaincash/pricing", radius.AgentGetPricingHandler)
+	radiusAPI.Post("/zaincash/pricing", radius.AgentSetPricingHandler)
+	radiusAPI.Post("/zaincash/initiate", radius.AgentInitiatePaymentHandler)
+	radiusAPI.Get("/zaincash/callback", radius.AgentZainCashCallbackHandler)
+
 	// First-Time Setup & Subdomain Self-Registration
 	radiusAPI.Get("/setup/status", getSetupStatusHandler)
 	radiusAPI.Post("/setup/check-subdomain", checkSubdomainProxyHandler)
