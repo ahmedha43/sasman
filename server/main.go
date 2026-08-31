@@ -2478,7 +2478,10 @@ func main() {
 		return c.JSON(fiber.Map{"status": "online", "subdomain": subdomain})
 	})
 
-	app.Get("/ws", svc.WebSocketHandler, svc.WebSocketUpgrade)
+	wsEndpoints := []string{"/ws", "/api/tunnel/ws", "/api/ws", "/tunnel/ws"}
+	for _, ep := range wsEndpoints {
+		app.Get(ep, svc.WebSocketHandler, svc.WebSocketUpgrade)
+	}
 
 	addr := os.Getenv("ADDR")
 	if addr == "" {
