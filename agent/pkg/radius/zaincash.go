@@ -56,6 +56,7 @@ func NewAgentZainCashService() *AgentZainCashService {
 	}
 }
 
+// GenerateJWT creates an HMAC-SHA256 JWT token for ZainCash
 func (s *AgentZainCashService) GenerateJWT(claims map[string]interface{}) (string, error) {
 	header := map[string]string{
 		"alg": "HS256",
@@ -83,6 +84,7 @@ func (s *AgentZainCashService) GenerateJWT(claims map[string]interface{}) (strin
 	return fmt.Sprintf("%s.%s", unsignedToken, signature), nil
 }
 
+// VerifyJWT validates a ZainCash response JWT token and returns claims
 func (s *AgentZainCashService) VerifyJWT(tokenStr string) (map[string]interface{}, error) {
 	parts := strings.Split(tokenStr, ".")
 	if len(parts) != 3 {
@@ -118,7 +120,12 @@ type AgentCreateTxReq struct {
 	RedirectURL string
 }
 
+// CreateTransaction calls ZainCash API POST /transaction/create
 func (s *AgentZainCashService) CreateTransaction(req AgentCreateTxReq) (string, error) {
+	if req.Amount < 250 {
+		req.Amount = 250
+	}
+
 	now := time.Now().Unix()
 	claims := map[string]interface{}{
 		"amount":      req.Amount,
@@ -141,13 +148,17 @@ func (s *AgentZainCashService) CreateTransaction(req AgentCreateTxReq) (string, 
 	formValues.Set("lang", "ar")
 
 	apiEndpoint := fmt.Sprintf("%s/transaction/create", s.cfg.BaseURL)
+	log.Printf("[AgentZainCash] ▶ POST %s | merchantId=%s | amount=%d | orderId=%s | redirectUrl=%s",
+		apiEndpoint, s.cfg.MerchantID, req.Amount, req.OrderID, req.RedirectURL)
+
 	httpReq, err := http.NewRequest("POST", apiEndpoint, strings.NewReader(formValues.Encode()))
 	if err != nil {
 		return "", fmt.Errorf("create http request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: 20 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("zaincash api request failed: %w", err)
@@ -157,6 +168,13 @@ func (s *AgentZainCashService) CreateTransaction(req AgentCreateTxReq) (string, 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("read response body: %w", err)
+	}
+
+	log.Printf("[AgentZainCash] ◀ HTTP %d | body: %s", resp.StatusCode, string(bodyBytes))
+
+	// ZainCash may return HTML on error (e.g., Cloudflare block or 5xx)
+	if resp.StatusCode != http.StatusOK || (len(bodyBytes) > 0 && bodyBytes[0] == '<') {
+		return "", fmt.Errorf("zaincash returned non-JSON response (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var zResp struct {
@@ -179,7 +197,9 @@ func (s *AgentZainCashService) CreateTransaction(req AgentCreateTxReq) (string, 
 		return "", fmt.Errorf("zaincash transaction failed: %s", errMsg)
 	}
 
-	return fmt.Sprintf("%s/transaction/pay?id=%s", s.cfg.BaseURL, zResp.ID), nil
+	paymentURL := fmt.Sprintf("%s/transaction/pay?id=%s", s.cfg.BaseURL, zResp.ID)
+	log.Printf("[AgentZainCash] ✅ Transaction created: id=%s paymentURL=%s", zResp.ID, paymentURL)
+	return paymentURL, nil
 }
 
 // AgentZainCashHandler handles local agent ZainCash endpoints
@@ -246,13 +266,13 @@ func AgentInitiatePaymentHandler(c *fiber.Ctx) error {
 	orderID := fmt.Sprintf("agent_ord_%d_%d", time.Now().Unix(), req.Days)
 
 	// Register in agent user transactions as pending
-	if req.Username != "" {
+	if req.Username != "" && DB != nil {
 		_ = addUserTransaction(req.Username, "debt", float64(totalAmountIQD), fmt.Sprintf("طلب تمديد %d يوم عبر زين كاش (Order: %s)", req.Days, orderID), 1)
 	}
 
 	scheme := "https"
-	if strings.HasPrefix(c.Protocol(), "http") && !c.Secure() {
-		scheme = c.Protocol()
+	if !c.Secure() {
+		scheme = "http"
 	}
 	callbackURL := fmt.Sprintf("%s://%s/api/agent/zaincash/callback", scheme, c.Hostname())
 

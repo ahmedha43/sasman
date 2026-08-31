@@ -128,22 +128,19 @@ func (m *Manager) GetPool() *TenantDBPool {
 	return m.pool
 }
 
+// HasTenant returns true ONLY if this subdomain is a CLOUD tenant with a local
+// radius.db database directory on the server. Local MikroTik container agents
+// are registered in the subdomains table too, but they do NOT have a tenant
+// directory – they forward via the WebSocket tunnel.
 func (m *Manager) HasTenant(subdomain string) bool {
 	sub := strings.ToLower(strings.TrimSpace(subdomain))
 	if sub == "" {
 		return false
 	}
-	if m.repo != nil {
-		available, err := m.repo.IsSubdomainAvailable(sub)
-		if err == nil && !available {
-			return true
-		}
-	}
-	tenantDir := m.pool.GetTenantDir(sub)
-	if _, err := os.Stat(tenantDir); err == nil {
-		return true
-	}
-	return false
+	// The definitive check: a cloud tenant always has a radius.db in its tenant dir.
+	dbPath := m.pool.GetTenantDBPath(sub)
+	_, err := os.Stat(dbPath)
+	return err == nil
 }
 
 func (m *Manager) IsSubdomainAvailable(subdomain string) (bool, string) {
