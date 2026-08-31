@@ -414,7 +414,7 @@ func AgentInitiatePaymentHandler(c *fiber.Ctx) error {
 		totalAmountIQD = 250
 	}
 
-	orderID := fmt.Sprintf("agent_ord_%d_%d", time.Now().Unix(), req.Days)
+	orderID := fmt.Sprintf("agent_ord_%d_%s", time.Now().UnixNano(), generateUUID()[:8])
 
 	// Register in agent user transactions as pending
 	if req.Username != "" && DB != nil {
@@ -462,7 +462,20 @@ func AgentZainCashCallbackHandler(c *fiber.Ctx) error {
 	orderID, _ := claims["orderId"].(string)
 	zTransID, _ := claims["id"].(string)
 
-	if strings.ToLower(status) == "success" {
+	if data, ok := claims["data"].(map[string]interface{}); ok {
+		if currStatus, ok := data["currentStatus"].(string); ok && currStatus != "" {
+			status = currStatus
+		}
+		if ord, ok := data["orderId"].(string); ok && ord != "" {
+			orderID = ord
+		}
+		if txID, ok := data["transactionId"].(string); ok && txID != "" {
+			zTransID = txID
+		}
+	}
+
+	stLower := strings.ToLower(status)
+	if stLower == "success" || stLower == "completed" {
 		log.Printf("[AgentZainCash] 🎉 Payment success for Order [%s] Trans [%s]", orderID, zTransID)
 		return c.Redirect(fmt.Sprintf("/#/license?payment=success&order=%s", orderID))
 	}

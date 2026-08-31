@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/rand"
 	"crypto/x509"
 	"embed"
 	"encoding/json"
@@ -31,6 +32,14 @@ import (
 	relayinternal "mikrotik-manager/server/internal/relay"
 	"mikrotik-manager/server/internal/storage"
 )
+
+func generateUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
 
 //go:embed index.html
 var landingHTML string
@@ -702,8 +711,8 @@ func main() {
 			totalAmountIQD = 250
 		}
 
-		orderID := fmt.Sprintf("ord_%s_%d_%d", req.Subdomain, time.Now().Unix(), req.Days)
-		txID := fmt.Sprintf("tx_%d", time.Now().UnixNano())
+		orderID := fmt.Sprintf("ord_%s_%d_%s", req.Subdomain, time.Now().UnixNano(), generateUUID()[:8])
+		txID := fmt.Sprintf("tx_%d_%s", time.Now().UnixNano(), generateUUID()[:8])
 
 		err := repo.CreatePaymentTransaction(storage.PaymentTransaction{
 			ID:        txID,
@@ -766,7 +775,23 @@ func main() {
 		zaincashTransID, _ := claims["id"].(string)
 		msg, _ := claims["msg"].(string)
 
-		if strings.ToLower(status) == "success" && orderID != "" {
+		// Support ZainCash API v2 nested payload format
+		if data, ok := claims["data"].(map[string]interface{}); ok {
+			if currStatus, ok := data["currentStatus"].(string); ok && currStatus != "" {
+				status = currStatus
+			}
+			if ord, ok := data["orderId"].(string); ok && ord != "" {
+				orderID = ord
+			}
+			if txID, ok := data["transactionId"].(string); ok && txID != "" {
+				zaincashTransID = txID
+			}
+			if errMsg, ok := data["errorMessage"].(string); ok && errMsg != "" {
+				msg = errMsg
+			}
+		}
+
+		if (strings.ToLower(status) == "success" || strings.ToLower(status) == "completed") && orderID != "" {
 			tx, err := repo.CompletePaymentTransaction(orderID, zaincashTransID)
 			if err == nil && tx != nil {
 				if extErr := repo.ExtendLicenseDays(tx.Subdomain, tx.DaysAdded); extErr != nil {
