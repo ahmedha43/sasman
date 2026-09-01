@@ -1,0 +1,1230 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Al-Qaseh e-commerce Payment gateway API",
+    "description": "",
+    "termsOfService": "http://swagger.io/terms/",
+    "contact": {
+      "name": "Qaseh Development Team",
+      "url": "https://alqaseh.iq/",
+      "email": "dev@alqaseh.com"
+    },
+    "version": "2.0"
+  },
+  "externalDocs": {
+    "url": "https://docs.alqaseh.com/"
+  },
+  "servers": [
+    {
+      "url": "https://api-test.alqaseh.com/v1/"
+    },
+    {
+      "url": "http://api-test.alqaseh.com/v1/"
+    }
+  ],
+  "paths": {
+    "/egw/payments/create": {
+      "post": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Create Payment",
+        "description": "Create new payment context to prepare for payment process",
+        "requestBody": {
+          "description": "Create Payment Context Params",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/pgb_service.CreatePaymentContextParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/dto.CreatePaymentContextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ],
+        "x-codegen-request-body-name": "paymentContext"
+      }
+    },
+    "/egw/payments/history": {
+      "get": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Get Payment History",
+        "description": "List Merchant Payment History",
+        "parameters": [
+          {
+            "name": "amount",
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "approval",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "en"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "order_field",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "payment_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "payment_status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "prepared",
+                "revoked",
+                "failed",
+                "retried",
+                "succeeded",
+                "expired",
+                "duplicated",
+                "declined",
+                "unknown"
+              ]
+            }
+          },
+          {
+            "name": "rc",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rrn",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transaction_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Retail",
+                "Authorization",
+                "Reversal",
+                "CompleteSales"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/qaseh_services.GetPaymentContextResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
+    "/egw/payments/history/download": {
+      "get": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Get Payment History as csv",
+        "description": "List Merchant Payment History as csv",
+        "parameters": [
+          {
+            "name": "amount",
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "approval",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "en"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "order_field",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "payment_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "payment_status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "prepared",
+                "revoked",
+                "failed",
+                "retried",
+                "succeeded",
+                "expired",
+                "duplicated",
+                "declined",
+                "unknown"
+              ]
+            }
+          },
+          {
+            "name": "rc",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rrn",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transaction_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Retail",
+                "Authorization",
+                "Reversal",
+                "CompleteSales"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
+    "/egw/payments/info/{token}": {
+      "get": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Get Payment info By Token",
+        "description": "Get the essential payment details such as(amount,currency and description)",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Payment Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/dto.LimitPaymentInfoResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
+    "/egw/payments/process-reversal/{token}": {
+      "post": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Process Reversal Payment",
+        "description": "Process Reversal tokenized payment with expire period",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Payment Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
+    "/egw/payments/process/{token}": {
+      "post": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Process Payment",
+        "description": "Process tokenized payment with expire period",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Payment Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "required": [
+                  "CardNumber",
+                  "Cvv",
+                  "EXPMon",
+                  "EXPYear"
+                ],
+                "type": "object",
+                "properties": {
+                  "CardNumber": {
+                    "type": "string"
+                  },
+                  "Cvv": {
+                    "type": "string"
+                  },
+                  "EXPMon": {
+                    "type": "string"
+                  },
+                  "EXPYear": {
+                    "type": "string"
+                  },
+                  "EvervaultSessionId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
+    "/egw/payments/retry": {
+      "post": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Retry Payment",
+        "description": "Retry payment creation when payment process is failed or expiring the payment creation",
+        "requestBody": {
+          "description": "Update Status Params",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/pgb_service.UpdateStatusParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/dto.RetryPaymentContextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ],
+        "x-codegen-request-body-name": "updateStatusParams"
+      }
+    },
+    "/egw/payments/revoke": {
+      "post": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Revoke Payment",
+        "description": "Revoke the creation of payment context before making process payment",
+        "requestBody": {
+          "description": "Update Status Params",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/pgb_service.UpdateStatusParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/dto.RevokePaymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ],
+        "x-codegen-request-body-name": "updateStatusParams"
+      }
+    },
+    "/egw/payments/{id}": {
+      "get": {
+        "tags": [
+          "Payment Gateway Service"
+        ],
+        "summary": "Get Payment Context",
+        "description": "Get the details of payment context",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Payment Context Retrieval Params",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/dto.GetPaymentContextResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/coerr.StringError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "coerr.StringError": {
+        "type": "object",
+        "properties": {
+          "err": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "reference_code": {
+            "type": "string"
+          }
+        }
+      },
+      "dto.CreatePaymentContextResponse": {
+        "type": "object",
+        "properties": {
+          "payment_id": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "dto.GetPaymentContextResponse": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "approval_code": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "custom_data": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "deleted_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "gmt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "merchant_email": {
+            "type": "string"
+          },
+          "merchant_id": {
+            "type": "integer"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "p_sign": {
+            "type": "string"
+          },
+          "payment_id": {
+            "type": "string"
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "revoked",
+              "failed",
+              "retried",
+              "succeeded",
+              "expired",
+              "duplicated",
+              "declined",
+              "unknown"
+            ]
+          },
+          "payment_status_histories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/dto.PaymentContextStatusResponse"
+            }
+          },
+          "rc": {
+            "type": "string"
+          },
+          "redirect_url": {
+            "type": "string"
+          },
+          "rrn": {
+            "type": "string"
+          },
+          "terminal_id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "transaction_type": {
+            "type": "string",
+            "enum": [
+              "Retail",
+              "Authorization",
+              "Reversal",
+              "CompleteSales"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "webhook_url": {
+            "type": "string"
+          }
+        }
+      },
+      "dto.LimitPaymentInfoResponse": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "revoked",
+              "failed",
+              "retried",
+              "succeeded",
+              "expired",
+              "duplicated",
+              "declined",
+              "unknown"
+            ]
+          }
+        }
+      },
+      "dto.RetryPaymentContextResponse": {
+        "type": "object",
+        "properties": {
+          "payment_id": {
+            "type": "string"
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "revoked",
+              "failed",
+              "retried",
+              "succeeded",
+              "expired",
+              "duplicated",
+              "declined",
+              "unknown"
+            ]
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "dto.RevokePaymentResponse": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "custom_data": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "payment_id": {
+            "type": "string"
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "revoked",
+              "failed",
+              "retried",
+              "succeeded",
+              "expired",
+              "duplicated",
+              "declined",
+              "unknown"
+            ]
+          }
+        }
+      },
+      "pgb_service.CreatePaymentContextParams": {
+        "required": [
+          "amount",
+          "currency",
+          "description",
+          "order_id",
+          "redirect_url",
+          "transaction_type"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "country": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "custom_data": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "nonce": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "order_id": {
+            "maxLength": 250,
+            "type": "string"
+          },
+          "p_sing": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "redirect_url": {
+            "type": "string"
+          },
+          "token_expiry_in_hour": {
+            "type": "integer"
+          },
+          "transaction_type": {
+            "type": "string",
+            "enum": [
+              "Retail",
+              "Authorization",
+              "Reversal",
+              "CompleteSales"
+            ]
+          },
+          "webhook_url": {
+            "type": "string"
+          }
+        }
+      },
+      "pgb_service.UpdateStatusParams": {
+        "required": [
+          "payment_id"
+        ],
+        "type": "object",
+        "properties": {
+          "details": {
+            "type": "string"
+          },
+          "payment_id": {
+            "maxLength": 250,
+            "type": "string"
+          }
+        }
+      },
+      "qaseh_services.GetPaymentContextResponse": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "approval_code": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "custom_data": {
+            "$ref": "#/components/schemas/datatypes.JSONMap"
+          },
+          "deleted_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "gmt": {
+            "type": "string"
+          },
+          "merchant_email": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "p_sign": {
+            "type": "string"
+          },
+          "payment_id": {
+            "type": "string"
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "revoked",
+              "failed",
+              "retried",
+              "succeeded",
+              "expired",
+              "duplicated",
+              "declined",
+              "unknown"
+            ]
+          },
+          "rc": {
+            "type": "string"
+          },
+          "redirect_url": {
+            "type": "string"
+          },
+          "rrn": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "transaction_type": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/pgb.TransactionType"
+              }
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "webhook_url": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "BasicAuth": {
+        "type": "http",
+        "scheme": "basic"
+      }
+    }
+  },
+  "x-original-swagger-version": "2.0"
+}

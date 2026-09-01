@@ -567,10 +567,18 @@ func main() {
 	radiusAPI.Post("/zaincash/initiate", radius.AgentInitiatePaymentHandler)
 	radiusAPI.Get("/zaincash/callback", radius.AgentZainCashCallbackHandler)
 
+	// Agent Al-Qaseh Payment Gateway Endpoints
+	radiusAPI.Get("/alqaseh/pricing", radius.AgentGetPricingHandler)
+	radiusAPI.Post("/alqaseh/pricing", radius.AgentSetPricingHandler)
+	radiusAPI.Post("/alqaseh/initiate", radius.AgentAlQasehInitiatePaymentHandler)
+	radiusAPI.Get("/alqaseh/callback", radius.AgentAlQasehCallbackHandler)
+
 	app.Get("/api/admin/settings/pricing", radius.AgentGetPricingHandler)
 	app.Post("/api/admin/settings/pricing", radius.AgentSetPricingHandler)
 	app.Post("/api/cloud/license/renew/initiate", radius.AgentInitiatePaymentHandler)
 	app.Get("/api/payment/zaincash/callback", radius.AgentZainCashCallbackHandler)
+	app.Get("/api/payment/alqaseh/callback", radius.AgentAlQasehCallbackHandler)
+	app.Get("/api/agent/alqaseh/callback", radius.AgentAlQasehCallbackHandler)
 
 	// First-Time Setup & Subdomain Self-Registration
 	radiusAPI.Get("/setup/status", getSetupStatusHandler)

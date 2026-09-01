@@ -389,6 +389,40 @@ func main() {
 		BaseURL:    zaincashBaseURL,
 	})
 
+	// Initialize Al-Qaseh Payment Gateway Service
+	alqasehClientID := os.Getenv("ALQASEH_CLIENT_ID")
+	if alqasehClientID == "" {
+		alqasehClientID = os.Getenv("ALQASEH_API_CLIENT")
+	}
+	if alqasehClientID == "" {
+		alqasehClientID = "NjE3MDAyMA==@SASMAN"
+	}
+
+	alqasehClientSecret := os.Getenv("ALQASEH_CLIENT_SECRET")
+	if alqasehClientSecret == "" {
+		alqasehClientSecret = os.Getenv("ALQASEH_API_SECRET")
+	}
+	if alqasehClientSecret == "" {
+		alqasehClientSecret = "iJ3qAeqdnMJolduGwmlsGKwTpyGwOnCd"
+	}
+
+	alqasehBaseURL := os.Getenv("ALQASEH_BASE_URL")
+	if alqasehBaseURL == "" {
+		alqasehBaseURL = "https://api.alqaseh.com/v1"
+	}
+
+	alqasehPayURL := os.Getenv("ALQASEH_PAY_URL")
+	if alqasehPayURL == "" {
+		alqasehPayURL = "https://pay.alqaseh.com/pay"
+	}
+
+	alqasehSvc := payment.NewAlQasehService(payment.AlQasehConfig{
+		ClientID:     alqasehClientID,
+		ClientSecret: alqasehClientSecret,
+		BaseURL:      alqasehBaseURL,
+		PayURL:       alqasehPayURL,
+	})
+
 	// Initialize and Start Central RadSec Server on port 2083 (RFC 6614 mTLS)
 	centralRadSec := radsec.NewCentralRadSecServer(
 		func(subdomain string, req tunnel.GlobalAuthRequestPayload) tunnel.GlobalAuthResponsePayload {
@@ -679,6 +713,7 @@ func main() {
 		var req struct {
 			Subdomain string `json:"subdomain"`
 			Days      int    `json:"days"`
+			Gateway   string `json:"gateway"` // "zaincash" or "alqaseh"
 		}
 		if err := c.BodyParser(&req); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "بيانات غير صالحة"})
@@ -713,6 +748,59 @@ func main() {
 
 		orderID := fmt.Sprintf("ord_%s_%d_%s", req.Subdomain, time.Now().UnixNano(), generateUUID()[:8])
 		txID := fmt.Sprintf("tx_%d_%s", time.Now().UnixNano(), generateUUID()[:8])
+
+		gateway := strings.ToLower(strings.TrimSpace(req.Gateway))
+		if gateway == "" {
+			gateway = "zaincash"
+		}
+
+		if gateway == "alqaseh" || gateway == "qaseh" {
+			err := repo.CreatePaymentTransaction(storage.PaymentTransaction{
+				ID:        txID,
+				OrderID:   orderID,
+				Subdomain: req.Subdomain,
+				Gateway:   "alqaseh",
+				AmountIQD: totalAmountIQD,
+				DaysAdded: req.Days,
+				Status:    "pending",
+			})
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل تسجيل طلب الدفع: " + err.Error()})
+			}
+
+			callbackURL := fmt.Sprintf("https://%s/api/payment/alqaseh/callback", centralDomain)
+			webhookURL := fmt.Sprintf("https://%s/api/payment/alqaseh/webhook", centralDomain)
+			if strings.Contains(c.Hostname(), "localhost") || strings.Contains(c.Hostname(), "127.0.0.1") {
+				callbackURL = fmt.Sprintf("http://%s/api/payment/alqaseh/callback", c.Hostname())
+				webhookURL = fmt.Sprintf("http://%s/api/payment/alqaseh/webhook", c.Hostname())
+			}
+
+			qResp, qErr := alqasehSvc.CreatePayment(payment.CreateAlQasehPaymentRequest{
+				Amount:          totalAmountIQD,
+				Currency:        "IQD",
+				Description:     fmt.Sprintf("تجديد ترخيص ساسمان (%s - %d يوم)", req.Subdomain, req.Days),
+				OrderID:         orderID,
+				RedirectURL:     callbackURL,
+				WebhookURL:      webhookURL,
+				TransactionType: "Retail",
+			})
+			if qErr != nil {
+				log.Printf("[AlQaseh] ❌ CreatePayment failed for [%s]: %v", req.Subdomain, qErr)
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل إنشاء عملية القاصة: " + qErr.Error()})
+			}
+
+			log.Printf("[AlQaseh] 💳 Initiate transaction for [%s] (Days=%d, Total=%d IQD, OrderID=%s, TransID=%s)",
+				req.Subdomain, req.Days, totalAmountIQD, orderID, qResp.PaymentID)
+
+			return c.JSON(fiber.Map{
+				"success":     true,
+				"order_id":    orderID,
+				"amount_iqd":  totalAmountIQD,
+				"days":        req.Days,
+				"gateway":     "alqaseh",
+				"payment_url": qResp.PaymentURL,
+			})
+		}
 
 		err := repo.CreatePaymentTransaction(storage.PaymentTransaction{
 			ID:        txID,
@@ -756,12 +844,15 @@ func main() {
 			"order_id":    orderID,
 			"amount_iqd":  totalAmountIQD,
 			"days":        req.Days,
+			"gateway":     "zaincash",
 			"payment_url": zResp.PaymentURL,
 		})
 	}
 
 	app.Post("/api/cloud/license/renew/initiate", initiatePaymentHandler)
 	app.Post("/radius/api/zaincash/initiate", initiatePaymentHandler)
+	app.Post("/radius/api/alqaseh/initiate", initiatePaymentHandler)
+	app.Get("/radius/api/alqaseh/pricing", getPricingHandler)
 
 	app.Get("/api/payment/zaincash/callback", func(c *fiber.Ctx) error {
 		tokenStr := c.Query("token")
@@ -828,7 +919,7 @@ func main() {
 						}
 					}()
 				}
-				redirectTarget := fmt.Sprintf("https://%s.%s/radius/#/license?payment=success&days=%d&amount=%d",
+				redirectTarget := fmt.Sprintf("https://%s.%s/radius/#/license?payment=success&gateway=zaincash&days=%d&amount=%d",
 					tx.Subdomain, centralDomain, tx.DaysAdded, tx.AmountIQD)
 				return c.Redirect(redirectTarget)
 			}
@@ -836,6 +927,108 @@ func main() {
 
 		log.Printf("[ZainCash] ⚠️ Payment callback rejected: Status=%s, OrderID=%s, Msg=%s", status, orderID, msg)
 		return c.Redirect(fmt.Sprintf("/cloud/dashboard?payment=failed&reason=%s", url.QueryEscape(msg)))
+	})
+
+	// Al-Qaseh Payment Gateway Callback
+	app.Get("/api/payment/alqaseh/callback", func(c *fiber.Ctx) error {
+		paymentID := c.Query("payment_id")
+		if paymentID == "" {
+			paymentID = c.Query("id")
+		}
+		tokenStr := c.Query("token")
+		orderID := c.Query("order_id")
+
+		log.Printf("[AlQaseh] 💳 Callback received: payment_id=%s token=%s order_id=%s", paymentID, tokenStr, orderID)
+
+		var details *payment.AlQasehPaymentDetails
+		var err error
+
+		if paymentID != "" {
+			details, err = alqasehSvc.GetPaymentStatus(paymentID)
+		} else if tokenStr != "" {
+			details, err = alqasehSvc.GetPaymentInfoByToken(tokenStr)
+		}
+
+		if err != nil || details == nil {
+			log.Printf("[AlQaseh] ❌ Payment status verification failed: %v", err)
+			return c.Redirect("/cloud/dashboard?payment=failed&gateway=alqaseh&reason=verification_failed")
+		}
+
+		if orderID == "" {
+			orderID = details.OrderID
+		}
+		if paymentID == "" {
+			paymentID = details.PaymentID
+		}
+
+		status := strings.ToLower(details.PaymentStatus)
+		if status == "succeeded" || status == "success" || status == "completed" {
+			tx, err := repo.CompletePaymentTransaction(orderID, paymentID)
+			if err == nil && tx != nil {
+				if extErr := repo.ExtendLicenseDays(tx.Subdomain, tx.DaysAdded); extErr != nil {
+					log.Printf("[AlQaseh] ⚠️ Failed to extend license days for [%s]: %v", tx.Subdomain, extErr)
+				} else {
+					log.Printf("[AlQaseh] 🎉 Payment SUCCESS for [%s]! Extended %d days (+%d IQD)",
+						tx.Subdomain, tx.DaysAdded, tx.AmountIQD)
+
+					go func() {
+						tenantLogPath := filepath.Join(cloudTenantPool.GetTenantDir(tx.Subdomain), "radius.log")
+						line := fmt.Sprintf("[%s] 💳 Al-Qaseh Payment Success! Extended %d days (+%d IQD) (Order: %s, Trans: %s) 🎉\n",
+							time.Now().Format("2006-01-02 15:04:05"), tx.DaysAdded, tx.AmountIQD, orderID, paymentID)
+						f, fErr := os.OpenFile(tenantLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+						if fErr == nil {
+							_, _ = f.WriteString(line)
+							_ = f.Close()
+						}
+					}()
+				}
+				redirectTarget := fmt.Sprintf("https://%s.%s/radius/#/license?payment=success&gateway=alqaseh&days=%d&amount=%d",
+					tx.Subdomain, centralDomain, tx.DaysAdded, tx.AmountIQD)
+				return c.Redirect(redirectTarget)
+			}
+		}
+
+		log.Printf("[AlQaseh] ⚠️ Payment rejected or incomplete: Status=%s, OrderID=%s", details.PaymentStatus, orderID)
+		return c.Redirect(fmt.Sprintf("/cloud/dashboard?payment=failed&gateway=alqaseh&reason=%s", url.QueryEscape(details.PaymentStatus)))
+	})
+
+	// Al-Qaseh Payment Gateway Webhook
+	app.Post("/api/payment/alqaseh/webhook", func(c *fiber.Ctx) error {
+		var body struct {
+			PaymentID     string `json:"payment_id"`
+			OrderID       string `json:"order_id"`
+			PaymentStatus string `json:"payment_status"`
+			Token         string `json:"token"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			log.Printf("[AlQaseh Webhook] ⚠️ Failed to parse body: %v", err)
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+		}
+
+		log.Printf("[AlQaseh Webhook] 📥 Webhook event: payment_id=%s order_id=%s status=%s",
+			body.PaymentID, body.OrderID, body.PaymentStatus)
+
+		// Verify status directly from AlQaseh API
+		if body.PaymentID != "" {
+			details, err := alqasehSvc.GetPaymentStatus(body.PaymentID)
+			if err == nil && details != nil {
+				body.PaymentStatus = details.PaymentStatus
+				if body.OrderID == "" {
+					body.OrderID = details.OrderID
+				}
+			}
+		}
+
+		stLower := strings.ToLower(body.PaymentStatus)
+		if (stLower == "succeeded" || stLower == "success" || stLower == "completed") && body.OrderID != "" {
+			tx, err := repo.CompletePaymentTransaction(body.OrderID, body.PaymentID)
+			if err == nil && tx != nil {
+				_ = repo.ExtendLicenseDays(tx.Subdomain, tx.DaysAdded)
+				log.Printf("[AlQaseh Webhook] ✅ Processed payment for [%s], extended %d days", tx.Subdomain, tx.DaysAdded)
+			}
+		}
+
+		return c.JSON(fiber.Map{"status": "received"})
 	})
 
 	app.Get("/api/cloud/license/invoices", func(c *fiber.Ctx) error {

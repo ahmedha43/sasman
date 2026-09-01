@@ -395,9 +395,15 @@ func AgentInitiatePaymentHandler(c *fiber.Ctx) error {
 	var req struct {
 		Days     int    `json:"days"`
 		Username string `json:"username"`
+		Gateway  string `json:"gateway"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.Days <= 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid days count"})
+	}
+
+	gateway := strings.ToLower(strings.TrimSpace(req.Gateway))
+	if gateway == "alqaseh" || gateway == "qaseh" {
+		return AgentAlQasehInitiatePaymentHandler(c)
 	}
 
 	pricePerDay := 1000
@@ -442,6 +448,7 @@ func AgentInitiatePaymentHandler(c *fiber.Ctx) error {
 		"success":     true,
 		"order_id":    orderID,
 		"amount_iqd":  totalAmountIQD,
+		"gateway":     "zaincash",
 		"payment_url": paymentURL,
 	})
 }

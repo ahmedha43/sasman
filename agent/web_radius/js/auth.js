@@ -229,8 +229,8 @@ function renderLicenseGate(data) {
             <span style="background:#0f172a; color:#38bdf8; padding:4px 10px; border-radius:6px; font-weight:bold; font-size:12px;">
                 <i class="fa-solid fa-cloud"></i> SASMAN Cloud Edition (RadSec RFC 6614)
             </span>
-            <button onclick="openZaincashRenewModal()" class="btn" style="background:linear-gradient(135deg, #f59e0b, #d97706); color:#fff; font-weight:bold; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
-                <i class="fa-solid fa-credit-card"></i> تجديد وتمديد الترخيص (زين كاش ZainCash)
+            <button onclick="openZaincashRenewModal()" class="btn" style="background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; font-weight:bold; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-credit-card"></i> تجديد وتمديد الترخيص (دفع إلكتروني)
             </button>
         </div>
     `;
@@ -243,9 +243,30 @@ function renderLicenseGate(data) {
 }
 
 let zcAgentDailyRate = 1000;
+let selectedAgentGateway = 'zaincash';
+
+function selectAgentPaymentGateway(gw) {
+    selectedAgentGateway = gw;
+    const btnZc = document.getElementById('agentGwBtnZc');
+    const btnAq = document.getElementById('agentGwBtnAq');
+    const submitText = document.getElementById('agentSubmitBtnText');
+    const submitBtn = document.getElementById('zcSubmitBtn');
+
+    if (gw === 'alqaseh') {
+        if (btnAq) { btnAq.style.background = '#042f2e'; btnAq.style.border = '2px solid #2dd4bf'; }
+        if (btnZc) { btnZc.style.background = '#1e293b'; btnZc.style.border = '1px solid #334155'; }
+        if (submitText) submitText.innerText = 'الانتقال للدفع عبر القاصة 🚀';
+        if (submitBtn) submitBtn.style.background = 'linear-gradient(135deg, #0d9488, #059669)';
+    } else {
+        if (btnZc) { btnZc.style.background = '#b45309'; btnZc.style.border = '2px solid #fbbf24'; }
+        if (btnAq) { btnAq.style.background = '#1e293b'; btnAq.style.border = '1px solid #334155'; }
+        if (submitText) submitText.innerText = 'الانتقال للدفع عبر زين كاش 🚀';
+        if (submitBtn) submitBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+    }
+}
 
 async function fetchZcAgentPricing() {
-    const endpoints = ['/api/admin/settings/pricing', '/radius/api/zaincash/pricing'];
+    const endpoints = ['/api/admin/settings/pricing', '/radius/api/zaincash/pricing', '/radius/api/alqaseh/pricing'];
     for (const ep of endpoints) {
         try {
             const res = await fetch(ep);
@@ -266,6 +287,7 @@ async function fetchZcAgentPricing() {
 
 function openZaincashRenewModal() {
     fetchZcAgentPricing();
+    selectAgentPaymentGateway('zaincash');
     updateZcTotal();
     const modal = document.getElementById('zaincashRenewModal');
     if (modal) modal.style.display = 'flex';
@@ -292,12 +314,11 @@ async function startZaincashPayment() {
     if (btn) { btn.disabled = true; btn.innerText = 'جاري تحضير رابط الدفع... ⏳'; }
 
     const sub = (typeof licenseState !== 'undefined' && licenseState.subdomain) ? licenseState.subdomain : '';
-    const payload = JSON.stringify({ days: days, subdomain: sub });
+    const payload = JSON.stringify({ days: days, subdomain: sub, gateway: selectedAgentGateway });
 
-    const endpoints = [
-        '/api/cloud/license/renew/initiate',
-        '/radius/api/zaincash/initiate'
-    ];
+    const endpoints = selectedAgentGateway === 'alqaseh' 
+        ? ['/radius/api/alqaseh/initiate', '/api/cloud/license/renew/initiate']
+        : ['/radius/api/zaincash/initiate', '/api/cloud/license/renew/initiate'];
 
     let lastError = 'فشل الاتصال بسيرفر الدفع';
 
@@ -323,8 +344,11 @@ async function startZaincashPayment() {
         }
     }
 
-    alert('فشل إنشاء عملية الدفع عبر زين كاش: ' + lastError);
-    if (btn) { btn.disabled = false; btn.innerText = 'الانتقال للدفع عبر زين كاش 🚀'; }
+    alert('فشل إنشاء عملية الدفع: ' + lastError);
+    if (btn) {
+        btn.disabled = false;
+        selectAgentPaymentGateway(selectedAgentGateway);
+    }
 }
 
 async function handleRouterConnect(e) {
