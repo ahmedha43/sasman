@@ -249,29 +249,25 @@ function selectAgentPaymentGateway(gw) {
     selectedAgentGateway = gw;
     const btnZc = document.getElementById('agentGwBtnZc');
     const btnAq = document.getElementById('agentGwBtnAq');
-    const container = document.getElementById('agentSubmitBtnContainer');
+    const submitBtn = document.getElementById('zcSubmitBtn');
+    const submitText = document.getElementById('agentSubmitBtnText');
 
     if (gw === 'alqaseh') {
         if (btnAq) { btnAq.style.background = '#042f2e'; btnAq.style.border = '2px solid #2dd4bf'; }
-        if (btnZc) { btnZc.style.background = '#0f172a'; btnZc.style.border = '1px solid #334155'; }
-        if (container) {
-            container.innerHTML = `
-                <button type="button" onclick="startZaincashPayment()" id="zcSubmitBtn" class="btn" style="width:220px; height:50px; padding:12px 20px; background:linear-gradient(135deg, #0d9488, #0f766e); color:#fff; font-weight:bold; border-radius:25px; border:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:10px; font-size:14px; box-shadow:0 4px 14px rgba(13,148,136,0.35); transition:transform 0.15s ease;">
-                    <img src="/radius/qasa.png" alt="القاصة" style="height:26px; width:26px; border-radius:4px; object-fit:contain;">
-                    <span>الدفع عبر القاصة</span>
-                </button>
-            `;
+        if (btnZc) { btnZc.style.background = '#020617'; btnZc.style.border = '1px solid #334155'; }
+        if (submitBtn) {
+            submitBtn.style.background = 'linear-gradient(135deg, #0d9488, #0f766e)';
+            submitBtn.style.boxShadow = '0 4px 14px rgba(13,148,136,0.35)';
         }
+        if (submitText) submitText.innerText = 'ادفع الآن عبر القاصة 🚀';
     } else {
         if (btnZc) { btnZc.style.background = '#1e1b4b'; btnZc.style.border = '2px solid #818cf8'; }
-        if (btnAq) { btnAq.style.background = '#0f172a'; btnAq.style.border = '1px solid #334155'; }
-        if (container) {
-            container.innerHTML = `
-                <button type="button" onclick="startZaincashPayment()" id="zcSubmitBtn" style="width:220px; height:50px; padding:0; background:transparent; border:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:transform 0.15s ease;">
-                    <img src="/radius/Pay_with_ZainCash_AR.svg" alt="الدفع عن طريق زين كاش" style="width:220px; height:50px; border-radius:25px; object-fit:contain;">
-                </button>
-            `;
+        if (btnAq) { btnAq.style.background = '#020617'; btnAq.style.border = '1px solid #334155'; }
+        if (submitBtn) {
+            submitBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+            submitBtn.style.boxShadow = '0 4px 14px rgba(245,158,11,0.35)';
         }
+        if (submitText) submitText.innerText = 'ادفع الآن عبر زين كاش 🚀';
     }
 }
 

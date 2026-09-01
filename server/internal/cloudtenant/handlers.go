@@ -535,6 +535,27 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 	}
 }
 
+func (h *APIHandler) getTenantDB(c *fiber.Ctx) (*sql.DB, error) {
+	if db, ok := c.Locals("tenant_db").(*sql.DB); ok && db != nil {
+		return db, nil
+	}
+	subdomain := ""
+	if sub, ok := c.Locals("subdomain").(string); ok && sub != "" {
+		subdomain = sub
+	} else {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	if subdomain == "" {
+		return nil, fmt.Errorf("missing tenant subdomain")
+	}
+	db, err := h.mgr.pool.Get(subdomain)
+	if err == nil && db != nil {
+		c.Locals("tenant_db", db)
+		c.Locals("subdomain", subdomain)
+	}
+	return db, err
+}
+
 func (h *APIHandler) hasPermission(c *fiber.Ctx, perm string) bool {
 	role, _ := c.Locals("role").(string)
 	if role == "superadmin" {
@@ -834,7 +855,10 @@ func (h *APIHandler) handleGetStats(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
-	db := c.Locals("tenant_db").(*sql.DB)
+	db, err := h.getTenantDB(c)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
+	}
 
 	rows, err := db.Query(`
 		SELECT rc.username, rc.value, COALESCE(rum.full_name, ''), COALESCE(rum.phone, ''), 
@@ -1397,7 +1421,10 @@ func (h *APIHandler) handleDisconnectUser(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleListProfiles(c *fiber.Ctx) error {
-	db := c.Locals("tenant_db").(*sql.DB)
+	db, err := h.getTenantDB(c)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
+	}
 
 	rows, err := db.Query(`
 		SELECT groupname, validity_days, price, COALESCE(agent_price, 0),
