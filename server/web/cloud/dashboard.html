@@ -427,7 +427,13 @@
     // Modal controls
     function openAddUserModal() { document.getElementById('addUserModal').classList.remove('hidden'); }
     function openGenVoucherModal() { document.getElementById('genVoucherModal').classList.remove('hidden'); }
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function closeModal(id) { 
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add('hidden');
+        el.style.display = 'none';
+      }
+    }
 
     // Actions
     async function deleteUser(username) {
@@ -496,7 +502,7 @@
     }
 
   <!-- MODAL: ELECTRONIC PAYMENT RENEWAL (ZainCash & Al-Qaseh) -->
-  <div id="zaincashRenewModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+  <div id="zaincashRenewModal" onclick="if(event.target===this) closeModal('zaincashRenewModal')" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
     <div class="glass max-w-md w-full rounded-3xl p-6 border-indigo-500/30 space-y-5 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3">
         <div class="flex items-center gap-2.5">
@@ -506,7 +512,7 @@
             <p class="text-[11px] text-slate-400">اختر بوابة الدفع ومدة التجديد لتفعيل الترخيص فوراً</p>
           </div>
         </div>
-        <button onclick="closeModal('zaincashRenewModal')" class="text-slate-400 hover:text-white text-xl font-bold">✕</button>
+        <button type="button" onclick="closeModal('zaincashRenewModal')" class="text-slate-400 hover:text-white text-xl font-bold p-1">✕</button>
       </div>
 
       <div class="space-y-4 text-xs">
@@ -514,15 +520,16 @@
         <div class="space-y-1.5">
           <label class="block text-slate-300 font-bold">اختر بوابة الدفع المعتمدة:</label>
           <div class="grid grid-cols-2 gap-2.5">
-            <button type="button" id="gwBtnZaincash" onclick="selectPaymentGateway('zaincash')" class="p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition text-center bg-amber-500/15 border-amber-500 text-amber-300 shadow-md shadow-amber-500/10">
-              <div class="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-300 font-black text-sm">Z</div>
-              <span class="font-bold text-xs">زين كاش (ZainCash)</span>
-              <span class="text-[10px] text-amber-400/80">محفظة زين كاش</span>
+            <button type="button" id="gwBtnZaincash" onclick="selectPaymentGateway('zaincash')" class="p-3 rounded-2xl border-2 border-indigo-500 bg-indigo-950/40 flex flex-col items-center justify-center gap-1.5 transition text-center shadow-lg shadow-indigo-500/20">
+              <img src="/cloud/Pay_with_ZainCash_AR.svg" alt="زين كاش" class="h-8 max-w-full object-contain">
+              <span class="text-[10px] text-indigo-300">محفظة زين كاش</span>
             </button>
-            <button type="button" id="gwBtnAlqaseh" onclick="selectPaymentGateway('alqaseh')" class="p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition text-center bg-slate-900 border-slate-800 text-slate-400 hover:border-emerald-500/50 hover:text-slate-200">
-              <div class="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-black text-sm">Q</div>
-              <span class="font-bold text-xs">القاصة (Al-Qaseh)</span>
-              <span class="text-[10px] text-emerald-400/80">بوابة القاصة الإلكترونية</span>
+            <button type="button" id="gwBtnAlqaseh" onclick="selectPaymentGateway('alqaseh')" class="p-3 rounded-2xl border border-slate-800 bg-slate-900 text-slate-400 hover:border-teal-500/50 flex flex-col items-center justify-center gap-1.5 transition text-center">
+              <div class="flex items-center gap-2">
+                <img src="/cloud/qasa.png" alt="القاصة" class="h-6 w-6 rounded object-contain">
+                <span class="font-bold text-xs text-teal-300">بوابة القاصة</span>
+              </div>
+              <span class="text-[10px] text-teal-400/80">الدفع الإلكتروني</span>
             </button>
           </div>
         </div>
@@ -561,11 +568,13 @@
         </div>
       </div>
 
-      <div class="flex gap-3 pt-2">
-        <button onclick="closeModal('zaincashRenewModal')" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-3 rounded-xl transition">إلغاء</button>
-        <button onclick="startGatewayPayment()" id="zcSubmitBtn" class="w-2/3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs py-3 rounded-xl transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
-          <span id="zcSubmitBtnText">الانتقال للدفع عبر زين كاش 🚀</span>
-        </button>
+      <div class="flex justify-between items-center gap-3 pt-2">
+        <button type="button" onclick="closeModal('zaincashRenewModal')" class="w-[90px] bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-3.5 rounded-xl transition">إلغاء</button>
+        <div id="zcSubmitBtnContainer" class="flex justify-end">
+          <button type="button" onclick="startGatewayPayment()" id="zcSubmitBtn" class="w-[220px] h-[50px] p-0 bg-transparent border-0 cursor-pointer flex items-center justify-center transition active:scale-95">
+            <img src="/cloud/Pay_with_ZainCash_AR.svg" alt="الدفع عن طريق زين كاش" class="w-[220px] h-[50px] rounded-full object-contain">
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -579,22 +588,28 @@
       selectedGateway = gw;
       const btnZc = document.getElementById('gwBtnZaincash');
       const btnAq = document.getElementById('gwBtnAlqaseh');
-      const submitText = document.getElementById('zcSubmitBtnText');
-      const submitBtn = document.getElementById('zcSubmitBtn');
+      const container = document.getElementById('zcSubmitBtnContainer');
 
       if (gw === 'alqaseh') {
-        btnAq.className = 'p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition text-center bg-emerald-500/15 border-emerald-500 text-emerald-300 shadow-md shadow-emerald-500/10';
-        btnZc.className = 'p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition text-center bg-slate-900 border-slate-800 text-slate-400 hover:border-amber-500/50 hover:text-slate-200';
-        if (submitText) submitText.innerText = 'الانتقال للدفع عبر القاصة 🚀';
-        if (submitBtn) {
-          submitBtn.className = 'w-2/3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs py-3 rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2';
+        btnAq.className = 'p-3 rounded-2xl border-2 border-teal-400 bg-teal-950/40 flex flex-col items-center justify-center gap-1.5 transition text-center shadow-lg shadow-teal-500/20';
+        btnZc.className = 'p-3 rounded-2xl border border-slate-800 bg-slate-900 text-slate-400 hover:border-indigo-500/50 flex flex-col items-center justify-center gap-1.5 transition text-center';
+        if (container) {
+          container.innerHTML = `
+            <button type="button" onclick="startGatewayPayment()" id="zcSubmitBtn" class="w-[220px] h-[50px] px-5 py-3 rounded-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold text-sm shadow-lg shadow-teal-600/30 flex items-center justify-center gap-2.5 transition active:scale-95">
+              <img src="/cloud/qasa.png" alt="القاصة" class="h-6 w-6 rounded object-contain">
+              <span>الدفع عبر القاصة</span>
+            </button>
+          `;
         }
       } else {
-        btnZc.className = 'p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition text-center bg-amber-500/15 border-amber-500 text-amber-300 shadow-md shadow-amber-500/10';
-        btnAq.className = 'p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition text-center bg-slate-900 border-slate-800 text-slate-400 hover:border-emerald-500/50 hover:text-slate-200';
-        if (submitText) submitText.innerText = 'الانتقال للدفع عبر زين كاش 🚀';
-        if (submitBtn) {
-          submitBtn.className = 'w-2/3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs py-3 rounded-xl transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2';
+        btnZc.className = 'p-3 rounded-2xl border-2 border-indigo-500 bg-indigo-950/40 flex flex-col items-center justify-center gap-1.5 transition text-center shadow-lg shadow-indigo-500/20';
+        btnAq.className = 'p-3 rounded-2xl border border-slate-800 bg-slate-900 text-slate-400 hover:border-teal-500/50 flex flex-col items-center justify-center gap-1.5 transition text-center';
+        if (container) {
+          container.innerHTML = `
+            <button type="button" onclick="startGatewayPayment()" id="zcSubmitBtn" class="w-[220px] h-[50px] p-0 bg-transparent border-0 cursor-pointer flex items-center justify-center transition active:scale-95">
+              <img src="/cloud/Pay_with_ZainCash_AR.svg" alt="الدفع عن طريق زين كاش" class="w-[220px] h-[50px] rounded-full object-contain">
+            </button>
+          `;
         }
       }
     }

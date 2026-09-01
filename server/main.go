@@ -1090,6 +1090,12 @@ func main() {
 		app.Static("/radius/unnamed.png", filepath.Join(radiusDir, "unnamed.png"))
 		app.Static("/radius/logo.png", filepath.Join(radiusDir, "logo.png"))
 		app.Static("/radius/favicon.ico", filepath.Join(radiusDir, "favicon.ico"))
+		app.Static("/radius/Pay_with_ZainCash_AR.svg", filepath.Join(radiusDir, "Pay_with_ZainCash_AR.svg"))
+		app.Static("/radius/qasa.png", filepath.Join(radiusDir, "qasa.png"))
+		app.Static("/cloud/Pay_with_ZainCash_AR.svg", filepath.Join(radiusDir, "Pay_with_ZainCash_AR.svg"))
+		app.Static("/cloud/qasa.png", filepath.Join(radiusDir, "qasa.png"))
+		app.Static("/Pay_with_ZainCash_AR.svg", filepath.Join(radiusDir, "Pay_with_ZainCash_AR.svg"))
+		app.Static("/qasa.png", filepath.Join(radiusDir, "qasa.png"))
 
 		app.Get("/radius", func(c *fiber.Ctx) error {
 			return c.SendFile(filepath.Join(radiusDir, "index.html"))

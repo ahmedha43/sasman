@@ -371,6 +371,10 @@ func main() {
 			path == "/radius/unnamed.png" ||
 			path == "/radius/logo.png" ||
 			path == "/radius/favicon.ico" ||
+			path == "/radius/Pay_with_ZainCash_AR.svg" ||
+			path == "/radius/qasa.png" ||
+			path == "/Pay_with_ZainCash_AR.svg" ||
+			path == "/qasa.png" ||
 			strings.HasPrefix(path, "/js/login.js") { // If any
 			return c.Next()
 		}
@@ -866,6 +870,10 @@ func main() {
 	app.Static("/radius/vendor", filepath.Join(radiusDir, "vendor"))
 	app.Static("/radius/unnamed.png", filepath.Join(radiusDir, "unnamed.png"))
 	app.Static("/radius/logo.png", filepath.Join(radiusDir, "logo.png"))
+	app.Static("/radius/Pay_with_ZainCash_AR.svg", filepath.Join(radiusDir, "Pay_with_ZainCash_AR.svg"))
+	app.Static("/radius/qasa.png", filepath.Join(radiusDir, "qasa.png"))
+	app.Static("/Pay_with_ZainCash_AR.svg", filepath.Join(radiusDir, "Pay_with_ZainCash_AR.svg"))
+	app.Static("/qasa.png", filepath.Join(radiusDir, "qasa.png"))
 
 	// Explicit HTML pages
 	app.Get("/radius", func(c *fiber.Ctx) error {

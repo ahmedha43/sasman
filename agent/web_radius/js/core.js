@@ -202,16 +202,35 @@ async function preloadAllData() {
 
 function openModal(id) {
     const el = document.getElementById(id);
-    if (el) el.classList.add('active');
+    if (el) {
+        el.classList.add('active');
+        el.classList.remove('hidden');
+        el.style.display = 'flex';
+    }
 }
 
 function closeModal(id) {
     const el = document.getElementById(id);
-    if (el) el.classList.remove('active');
+    if (el) {
+        el.classList.remove('active');
+        el.classList.add('hidden');
+        el.style.display = 'none';
+    }
 }
 
 window.openModal = openModal;
 window.closeModal = closeModal;
+
+// Auto-bind Escape key for all modal overlays
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay').forEach(m => {
+            if (m.style.display === 'flex' || m.classList.contains('active')) {
+                closeModal(m.id);
+            }
+        });
+    }
+});
 
 // ==========================================================================
 // Deferred Module-Call Dispatcher
