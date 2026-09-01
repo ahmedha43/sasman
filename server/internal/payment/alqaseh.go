@@ -94,13 +94,18 @@ func (s *AlQasehService) CreatePayment(req CreateAlQasehPaymentRequest) (*Create
 		req.TransactionType = "Retail"
 	}
 
+	orderID := strings.TrimSpace(req.OrderID)
+	if len(orderID) > 32 {
+		orderID = orderID[:32]
+	}
+
 	createURL := fmt.Sprintf("%s/egw/payments/create", s.cfg.BaseURL)
 
 	payload := map[string]interface{}{
 		"amount":           req.Amount,
 		"currency":         req.Currency,
 		"description":      req.Description,
-		"order_id":         req.OrderID,
+		"order_id":         orderID,
 		"transaction_type": req.TransactionType,
 		"redirect_url":     req.RedirectURL,
 	}

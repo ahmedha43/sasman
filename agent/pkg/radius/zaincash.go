@@ -420,7 +420,7 @@ func AgentInitiatePaymentHandler(c *fiber.Ctx) error {
 		totalAmountIQD = 250
 	}
 
-	orderID := fmt.Sprintf("agent_ord_%d_%s", time.Now().UnixNano(), generateUUID()[:8])
+	orderID := fmt.Sprintf("ag_ord_%d_%s", time.Now().Unix(), generateUUID()[:8])
 
 	// Register in agent user transactions as pending
 	if req.Username != "" && DB != nil {

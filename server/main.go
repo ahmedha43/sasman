@@ -746,8 +746,11 @@ func main() {
 			totalAmountIQD = 250
 		}
 
-		orderID := fmt.Sprintf("ord_%s_%d_%s", req.Subdomain, time.Now().UnixNano(), generateUUID()[:8])
-		txID := fmt.Sprintf("tx_%d_%s", time.Now().UnixNano(), generateUUID()[:8])
+		orderID := fmt.Sprintf("ord_%d_%s", time.Now().Unix(), generateUUID()[:8])
+		if len(orderID) > 32 {
+			orderID = orderID[:32]
+		}
+		txID := fmt.Sprintf("tx_%d_%s", time.Now().Unix(), generateUUID()[:8])
 
 		gateway := strings.ToLower(strings.TrimSpace(req.Gateway))
 		if gateway == "" {

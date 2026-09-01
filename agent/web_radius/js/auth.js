@@ -324,7 +324,7 @@ async function startZaincashPayment() {
 
     for (const ep of endpoints) {
         try {
-            const res = await fetch(ep, {
+            const res = await apiFetch(ep, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: payload

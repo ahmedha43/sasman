@@ -96,13 +96,18 @@ func (s *AgentAlQasehService) CreatePayment(req AgentCreateAlQasehReq) (string, 
 		req.Currency = "IQD"
 	}
 
+	orderID := strings.TrimSpace(req.OrderID)
+	if len(orderID) > 32 {
+		orderID = orderID[:32]
+	}
+
 	createURL := fmt.Sprintf("%s/egw/payments/create", s.cfg.BaseURL)
 
 	payload := map[string]interface{}{
 		"amount":           req.Amount,
 		"currency":         req.Currency,
 		"description":      req.Description,
-		"order_id":         req.OrderID,
+		"order_id":         orderID,
 		"transaction_type": "Retail",
 		"redirect_url":     req.RedirectURL,
 	}
@@ -258,7 +263,10 @@ func AgentAlQasehInitiatePaymentHandler(c *fiber.Ctx) error {
 		totalAmountIQD = 250
 	}
 
-	orderID := fmt.Sprintf("agent_ord_%d_%s", time.Now().UnixNano(), generateUUID()[:8])
+	orderID := fmt.Sprintf("ag_ord_%d_%s", time.Now().Unix(), generateUUID()[:8])
+	if len(orderID) > 32 {
+		orderID = orderID[:32]
+	}
 
 	if req.Username != "" && DB != nil {
 		_ = addUserTransaction(req.Username, "debt", float64(totalAmountIQD), fmt.Sprintf("طلب تمديد %d يوم عبر القاصة (Order: %s)", req.Days, orderID), 1)
