@@ -614,6 +614,11 @@
       }
     }
 
+    let gatewayAvailability = {
+      zaincash: true,
+      alqaseh: true
+    };
+
     async function fetchPricingInfo() {
       try {
         const res = await fetch('/api/admin/settings/pricing');
@@ -623,17 +628,58 @@
             currentDailyPriceIQD = data.price_per_day_iqd;
             document.getElementById('zcDailyRate').innerText = `${currentDailyPriceIQD.toLocaleString()} IQD`;
           }
+          if (data.zaincash_enabled !== undefined) gatewayAvailability.zaincash = data.zaincash_enabled;
+          if (data.alqaseh_enabled !== undefined) gatewayAvailability.alqaseh = data.alqaseh_enabled;
+
+          const btnZc = document.getElementById('gwBtnZaincash');
+          const btnAq = document.getElementById('gwBtnAlqaseh');
+
+          if (btnZc) {
+            if (!gatewayAvailability.zaincash) {
+              btnZc.style.opacity = '0.4';
+              btnZc.style.pointerEvents = 'none';
+              btnZc.title = 'بوابة زين كاش موقوفة مؤقتاً';
+            } else {
+              btnZc.style.opacity = '1';
+              btnZc.style.pointerEvents = 'auto';
+              btnZc.title = '';
+            }
+          }
+
+          if (btnAq) {
+            if (!gatewayAvailability.alqaseh) {
+              btnAq.style.opacity = '0.4';
+              btnAq.style.pointerEvents = 'none';
+              btnAq.title = 'بوابة القاصة موقوفة مؤقتاً';
+            } else {
+              btnAq.style.opacity = '1';
+              btnAq.style.pointerEvents = 'auto';
+              btnAq.title = '';
+            }
+          }
+
+          // Pick the first active gateway
+          if (!gatewayAvailability[selectedGateway]) {
+            if (gatewayAvailability.zaincash) selectPaymentGateway('zaincash');
+            else if (gatewayAvailability.alqaseh) selectPaymentGateway('alqaseh');
+          }
         }
       } catch (err) {}
     }
 
-    function openZaincashRenewModal() {
-      fetchPricingInfo();
+    async function openZaincashRenewModal() {
+      await fetchPricingInfo();
       currentTenantSubdomain = (document.getElementById('tenantBadge') ? document.getElementById('tenantBadge').innerText : '').trim();
       document.getElementById('zcSubdomainDisplay').innerText = currentTenantSubdomain || 'cloud';
-      selectPaymentGateway('zaincash');
+      
+      let initialGw = 'zaincash';
+      if (!gatewayAvailability.zaincash && gatewayAvailability.alqaseh) {
+        initialGw = 'alqaseh';
+      }
+      selectPaymentGateway(initialGw);
       updateZcTotal();
       document.getElementById('zaincashRenewModal').classList.remove('hidden');
+      document.getElementById('zaincashRenewModal').style.display = 'flex';
     }
 
     function selectZcDays(days) {

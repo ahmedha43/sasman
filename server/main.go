@@ -684,28 +684,49 @@ func main() {
 	// =========================================================================
 	getPricingHandler := func(c *fiber.Ctx) error {
 		price, _ := repo.GetDailyPriceIQD()
+		zcEnabled := repo.GetGatewayStatus("zaincash")
+		aqEnabled := repo.GetGatewayStatus("alqaseh")
 		return c.JSON(fiber.Map{
 			"price_per_day_iqd": price,
 			"currency":          "IQD",
+			"zaincash_enabled":  zcEnabled,
+			"alqaseh_enabled":   aqEnabled,
+			"gateways": fiber.Map{
+				"zaincash": fiber.Map{"enabled": zcEnabled, "name": "زين كاش"},
+				"alqaseh":  fiber.Map{"enabled": aqEnabled, "name": "القاصة"},
+			},
 		})
 	}
 	app.Get("/api/admin/settings/pricing", getPricingHandler)
 	app.Get("/radius/api/zaincash/pricing", getPricingHandler)
+	app.Get("/radius/api/alqaseh/pricing", getPricingHandler)
 
 	app.Post("/api/admin/settings/pricing", func(c *fiber.Ctx) error {
 		var body struct {
-			PricePerDayIQD int `json:"price_per_day_iqd"`
+			PricePerDayIQD  int   `json:"price_per_day_iqd"`
+			ZaincashEnabled *bool `json:"zaincash_enabled"`
+			AlqasehEnabled  *bool `json:"alqaseh_enabled"`
 		}
-		if err := c.BodyParser(&body); err != nil || body.PricePerDayIQD <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "سعر اليوم يجب أن يكون أرقاماً أكبر من صفر"})
+		if err := c.BodyParser(&body); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "بيانات غير صالحة"})
 		}
-		if err := repo.SetDailyPriceIQD(body.PricePerDayIQD); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل حفظ سعر اليوم: " + err.Error()})
+		if body.PricePerDayIQD > 0 {
+			if err := repo.SetDailyPriceIQD(body.PricePerDayIQD); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل حفظ سعر اليوم: " + err.Error()})
+			}
+		}
+		if body.ZaincashEnabled != nil {
+			_ = repo.SetGatewayStatus("zaincash", *body.ZaincashEnabled)
+		}
+		if body.AlqasehEnabled != nil {
+			_ = repo.SetGatewayStatus("alqaseh", *body.AlqasehEnabled)
 		}
 		return c.JSON(fiber.Map{
 			"success":           true,
-			"message":           "تم تحديث سعر الترخيص اليومي بنجاح",
+			"message":           "تم حفظ وتحديث إعدادات الأسعار والبوابات بنجاح",
 			"price_per_day_iqd": body.PricePerDayIQD,
+			"zaincash_enabled":  repo.GetGatewayStatus("zaincash"),
+			"alqaseh_enabled":   repo.GetGatewayStatus("alqaseh"),
 		})
 	})
 
@@ -740,6 +761,22 @@ func main() {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى اختيار عدد أيام صالحة"})
 		}
 
+		gateway := strings.ToLower(strings.TrimSpace(req.Gateway))
+		if gateway == "" {
+			gateway = "zaincash"
+		}
+
+		if (gateway == "alqaseh" || gateway == "qaseh") && !repo.GetGatewayStatus("alqaseh") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "بوابة الدفع (القاصة) موقوفة مؤقتاً من قبل الإدارة",
+			})
+		}
+		if gateway == "zaincash" && !repo.GetGatewayStatus("zaincash") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "بوابة الدفع (زين كاش) موقوفة مؤقتاً من قبل الإدارة",
+			})
+		}
+
 		pricePerDay, _ := repo.GetDailyPriceIQD()
 		totalAmountIQD := req.Days * pricePerDay
 		if totalAmountIQD < 250 {
@@ -751,11 +788,6 @@ func main() {
 			orderID = orderID[:32]
 		}
 		txID := fmt.Sprintf("tx_%d_%s", time.Now().Unix(), generateUUID()[:8])
-
-		gateway := strings.ToLower(strings.TrimSpace(req.Gateway))
-		if gateway == "" {
-			gateway = "zaincash"
-		}
 
 		if gateway == "alqaseh" || gateway == "qaseh" {
 			err := repo.CreatePaymentTransaction(storage.PaymentTransaction{

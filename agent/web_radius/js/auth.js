@@ -275,11 +275,16 @@ function selectAgentPaymentGateway(gw) {
     }
 }
 
+let agentGatewayAvailability = {
+    zaincash: true,
+    alqaseh: true
+};
+
 async function fetchZcAgentPricing() {
     const endpoints = ['/api/admin/settings/pricing', '/radius/api/zaincash/pricing', '/radius/api/alqaseh/pricing'];
     for (const ep of endpoints) {
         try {
-            const res = await fetch(ep);
+            const res = await apiFetch(ep);
             if (res.ok) {
                 const text = await res.text();
                 let data = {};
@@ -288,19 +293,56 @@ async function fetchZcAgentPricing() {
                     zcAgentDailyRate = data.price_per_day_iqd;
                     const el = document.getElementById('zcDailyRate');
                     if (el) el.innerText = `${zcAgentDailyRate.toLocaleString()} IQD`;
-                    break;
                 }
+                if (data && data.zaincash_enabled !== undefined) agentGatewayAvailability.zaincash = data.zaincash_enabled;
+                if (data && data.alqaseh_enabled !== undefined) agentGatewayAvailability.alqaseh = data.alqaseh_enabled;
+
+                const btnZc = document.getElementById('agentGwBtnZc');
+                const btnAq = document.getElementById('agentGwBtnAq');
+
+                if (btnZc) {
+                    if (!agentGatewayAvailability.zaincash) {
+                        btnZc.style.opacity = '0.35';
+                        btnZc.style.pointerEvents = 'none';
+                        btnZc.title = 'زين كاش موقوفة مؤقتاً';
+                    } else {
+                        btnZc.style.opacity = '1';
+                        btnZc.style.pointerEvents = 'auto';
+                        btnZc.title = '';
+                    }
+                }
+
+                if (btnAq) {
+                    if (!agentGatewayAvailability.alqaseh) {
+                        btnAq.style.opacity = '0.35';
+                        btnAq.style.pointerEvents = 'none';
+                        btnAq.title = 'القاصة موقوفة مؤقتاً';
+                    } else {
+                        btnAq.style.opacity = '1';
+                        btnAq.style.pointerEvents = 'auto';
+                        btnAq.title = '';
+                    }
+                }
+                break;
             }
         } catch(e){}
     }
 }
 
-function openZaincashRenewModal() {
-    fetchZcAgentPricing();
-    selectAgentPaymentGateway('zaincash');
+async function openZaincashRenewModal() {
+    await fetchZcAgentPricing();
+    let initialGw = 'zaincash';
+    if (!agentGatewayAvailability.zaincash && agentGatewayAvailability.alqaseh) {
+        initialGw = 'alqaseh';
+    }
+    selectAgentPaymentGateway(initialGw);
     updateZcTotal();
     const modal = document.getElementById('zaincashRenewModal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+        modal.classList.add('active');
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    }
 }
 
 function selectZcDays(days) {

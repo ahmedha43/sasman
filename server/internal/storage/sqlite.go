@@ -2306,6 +2306,35 @@ func (r *SQLiteRepository) SetDailyPriceIQD(price int) error {
 	return err
 }
 
+// GetGatewayStatus returns if a payment gateway is enabled (default true)
+func (r *SQLiteRepository) GetGatewayStatus(gateway string) bool {
+	key := fmt.Sprintf("payment_gateway_%s_enabled", strings.ToLower(strings.TrimSpace(gateway)))
+	var valStr string
+	err := r.db.QueryRow("SELECT value_str FROM system_settings WHERE key_name = ?", key).Scan(&valStr)
+	if err != nil || valStr == "" {
+		return true // Enabled by default
+	}
+	return valStr == "true" || valStr == "1" || valStr == "yes"
+}
+
+// SetGatewayStatus updates the enabled state of a payment gateway
+func (r *SQLiteRepository) SetGatewayStatus(gateway string, enabled bool) error {
+	key := fmt.Sprintf("payment_gateway_%s_enabled", strings.ToLower(strings.TrimSpace(gateway)))
+	valStr := "true"
+	if !enabled {
+		valStr = "false"
+	}
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.Exec(`
+		INSERT INTO system_settings (key_name, value_str, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(key_name) DO UPDATE SET
+			value_str = excluded.value_str,
+			updated_at = excluded.updated_at
+	`, key, valStr, nowStr)
+	return err
+}
+
 // CreatePaymentTransaction records a new pending payment transaction
 func (r *SQLiteRepository) CreatePaymentTransaction(tx PaymentTransaction) error {
 	if tx.CreatedAt.IsZero() {

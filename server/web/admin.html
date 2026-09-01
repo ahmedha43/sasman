@@ -776,15 +776,59 @@
 
     <!-- ================= TAB: PAYMENTS & PRICING ================= -->
     <div id="tab-payments" class="tab-pane">
-      <div class="card" style="border-right: 4px solid #f59e0b;">
+      <!-- Gateways Active Status Controls -->
+      <div class="card" style="border-right: 4px solid var(--primary); margin-bottom: 20px;">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-toggle-on" style="color:var(--primary);"></i>
+            <span>التحكم في تشغيل وإيقاف بوابات الدفع الإلكتروني (Online Gateways Control)</span>
+          </div>
+          <button class="btn btn-primary" onclick="loadPricingSettings()">
+            <i class="fa-solid fa-rotate"></i> تحديث الحالة
+          </button>
+        </div>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">
+          يمكنك إيقاف أي بوابة دفع مؤقتاً لمنع استقبال مدفوعات التجديد عليها، أو إعادة تفعيلها فوراً في أي وقت.
+        </p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px;">
+          <!-- ZainCash Gateway Card -->
+          <div id="adminGwCardZc" style="background:#090d16; border:1px solid #334155; border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <img src="/cloud/Pay_with_ZainCash_AR.svg" alt="زين كاش" style="height:36px; max-width:140px; object-fit:contain;">
+              <div>
+                <strong style="display:block; font-size:14px; color:#fff;">زين كاش (ZainCash)</strong>
+                <span id="adminGwStatusBadgeZc" style="font-size:11px; padding:2px 8px; border-radius:6px; font-weight:bold; background:#14532d; color:#86efac;">🟢 تعمل ومفعلة</span>
+              </div>
+            </div>
+            <button type="button" id="adminGwToggleBtnZc" onclick="toggleGatewayStatus('zaincash')" class="btn" style="background:#b45309; color:#fff; font-size:12px; font-weight:bold; padding:8px 14px; border-radius:8px; border:none; cursor:pointer;">
+              إيقاف مؤقت ⏸️
+            </button>
+          </div>
+
+          <!-- Al-Qaseh Gateway Card -->
+          <div id="adminGwCardAq" style="background:#090d16; border:1px solid #334155; border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <img src="/cloud/qasa.png" alt="القاصة" style="height:36px; width:36px; border-radius:6px; object-fit:contain;">
+              <div>
+                <strong style="display:block; font-size:14px; color:#fff;">القاصة (Al-Qaseh)</strong>
+                <span id="adminGwStatusBadgeAq" style="font-size:11px; padding:2px 8px; border-radius:6px; font-weight:bold; background:#14532d; color:#86efac;">🟢 تعمل ومفعلة</span>
+              </div>
+            </div>
+            <button type="button" id="adminGwToggleBtnAq" onclick="toggleGatewayStatus('alqaseh')" class="btn" style="background:#0d9488; color:#fff; font-size:12px; font-weight:bold; padding:8px 14px; border-radius:8px; border:none; cursor:pointer;">
+              إيقاف مؤقت ⏸️
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pricing Card -->
+      <div class="card" style="border-right: 4px solid #f59e0b; margin-bottom: 20px;">
         <div class="card-header">
           <div class="card-title">
             <i class="fa-solid fa-coins" style="color:#f59e0b;"></i>
-            <span>تحديد سعر الترخيص اليومي (زين كاش IQD)</span>
+            <span>تحديد سعر الترخيص اليومي المعتمد (IQD / Day)</span>
           </div>
-          <button class="btn btn-primary" onclick="loadPricingSettings()">
-            <i class="fa-solid fa-rotate"></i> تحديث
-          </button>
         </div>
 
         <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; max-width:650px;">
@@ -4669,6 +4713,40 @@ ${setupCmd}`;
     }
 
     // ─── PAYMENTS & PRICING MANAGEMENT ─────────────────────────────────────
+    let adminGwState = {
+      zaincash_enabled: true,
+      alqaseh_enabled: true
+    };
+
+    function updateAdminGwUI() {
+      // ZainCash UI
+      const badgeZc = document.getElementById('adminGwStatusBadgeZc');
+      const btnZc = document.getElementById('adminGwToggleBtnZc');
+      const cardZc = document.getElementById('adminGwCardZc');
+      if (adminGwState.zaincash_enabled) {
+        if (badgeZc) { badgeZc.innerText = '🟢 تعمل ومفعلة'; badgeZc.style.background = '#14532d'; badgeZc.style.color = '#86efac'; }
+        if (btnZc) { btnZc.innerText = 'إيقاف مؤقت ⏸️'; btnZc.style.background = '#7f1d1d'; btnZc.style.color = '#fee2e2'; }
+        if (cardZc) { cardZc.style.borderColor = '#1e293b'; cardZc.style.opacity = '1'; }
+      } else {
+        if (badgeZc) { badgeZc.innerText = '🔴 متوقفة مؤقتاً'; badgeZc.style.background = '#7f1d1d'; badgeZc.style.color = '#fee2e2'; }
+        if (btnZc) { btnZc.innerText = 'تشغيل وتفعيل ▶️'; btnZc.style.background = '#15803d'; btnZc.style.color = '#fff'; }
+        if (cardZc) { cardZc.style.borderColor = '#991b1b'; cardZc.style.opacity = '0.75'; }
+      }
+
+      // Al-Qaseh UI
+      const badgeAq = document.getElementById('adminGwStatusBadgeAq');
+      const btnAq = document.getElementById('adminGwToggleBtnAq');
+      const cardAq = document.getElementById('adminGwCardAq');
+      if (adminGwState.alqaseh_enabled) {
+        if (badgeAq) { badgeAq.innerText = '🟢 تعمل ومفعلة'; badgeAq.style.background = '#14532d'; badgeAq.style.color = '#86efac'; }
+        if (btnAq) { btnAq.innerText = 'إيقاف مؤقت ⏸️'; btnAq.style.background = '#7f1d1d'; btnAq.style.color = '#fee2e2'; }
+        if (cardAq) { cardAq.style.borderColor = '#1e293b'; cardAq.style.opacity = '1'; }
+      } else {
+        if (badgeAq) { badgeAq.innerText = '🔴 متوقفة مؤقتاً'; badgeAq.style.background = '#7f1d1d'; badgeAq.style.color = '#fee2e2'; }
+        if (btnAq) { btnAq.innerText = 'تشغيل وتفعيل ▶️'; btnAq.style.background = '#0d9488'; btnAq.style.color = '#fff'; }
+        if (cardAq) { cardAq.style.borderColor = '#991b1b'; cardAq.style.opacity = '0.75'; }
+      }
+    }
 
     async function loadPricingSettings() {
       try {
@@ -4678,8 +4756,47 @@ ${setupCmd}`;
           if (data.price_per_day_iqd) {
             document.getElementById('adminDailyPriceInput').value = data.price_per_day_iqd;
           }
+          if (data.zaincash_enabled !== undefined) adminGwState.zaincash_enabled = data.zaincash_enabled;
+          if (data.alqaseh_enabled !== undefined) adminGwState.alqaseh_enabled = data.alqaseh_enabled;
+          updateAdminGwUI();
         }
       } catch (err) {}
+    }
+
+    async function toggleGatewayStatus(gateway) {
+      const isZc = gateway === 'zaincash';
+      const current = isZc ? adminGwState.zaincash_enabled : adminGwState.alqaseh_enabled;
+      const target = !current;
+      const gwName = isZc ? 'زين كاش' : 'القاصة';
+      const actionName = target ? 'تشغيل وتفعيل' : 'إيقاف مؤقت';
+
+      if (!confirm(`هل أنت متأكد من ${actionName} بوابة (${gwName})؟`)) return;
+
+      const payload = {};
+      if (isZc) {
+        payload.zaincash_enabled = target;
+      } else {
+        payload.alqaseh_enabled = target;
+      }
+
+      try {
+        const res = await fetch('/api/admin/settings/pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          if (isZc) adminGwState.zaincash_enabled = target;
+          else adminGwState.alqaseh_enabled = target;
+          updateAdminGwUI();
+          alert(`✅ تم ${actionName} بوابة (${gwName}) بنجاح!`);
+        } else {
+          alert('❌ فشل تغيير حالة البوابة: ' + (data.error || 'خطأ غير معروف'));
+        }
+      } catch (err) {
+        alert('❌ خطأ في الاتصال بالسيرفر: ' + err.message);
+      }
     }
 
     async function savePricingSettings() {
