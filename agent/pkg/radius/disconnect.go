@@ -120,7 +120,7 @@ func runExpirationSweep() {
 			if err == nil {
 				// Fetch user's expiration_unix again to ensure precision
 				var expUnix int64
-				errExp := DB.QueryRow("SELECT expiration_unix FROM radius_user_meta WHERE username = ?", user).Scan(&expUnix)
+				errExp := DB.QueryRow("SELECT COALESCE(expiration_unix, 0) FROM radius_user_meta WHERE username = ?", user).Scan(&expUnix)
 				if errExp == nil && expUnix > 0 {
 					if startedUnix > expUnix {
 						// The session started after their expiration time.

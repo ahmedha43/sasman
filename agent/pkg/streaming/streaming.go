@@ -33,7 +33,7 @@ func GetActiveStreams(c *fiber.Ctx) error {
 
 	var expirationUnix sql.NullInt64
 	var enabled int
-	err := radius.DB.QueryRow("SELECT expiration_unix, enabled FROM radius_user_meta WHERE username=?", username).Scan(&expirationUnix, &enabled)
+	err := radius.DB.QueryRow("SELECT COALESCE(expiration_unix, 0), COALESCE(enabled, 1) FROM radius_user_meta WHERE username=?", username).Scan(&expirationUnix, &enabled)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.Status(403).JSON(fiber.Map{"error": "المشترك غير موجود في النظام"})

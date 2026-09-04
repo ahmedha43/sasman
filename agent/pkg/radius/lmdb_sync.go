@@ -174,7 +174,7 @@ func performSync(username string) error {
 	}
 
 	// 2. Get Meta (Expiration and Enabled status)
-	err = DB.QueryRow("SELECT expiration_unix, enabled FROM radius_user_meta WHERE username=?", username).Scan(&exp, &enabled)
+	err = DB.QueryRow("SELECT COALESCE(expiration_unix, 0), COALESCE(enabled, 1) FROM radius_user_meta WHERE username=?", username).Scan(&exp, &enabled)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// If not in meta, we assume it's deleted from our management system

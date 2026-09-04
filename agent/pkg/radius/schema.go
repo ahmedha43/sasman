@@ -85,6 +85,7 @@ func EnsureSchema() {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_radacct_active ON radacct (username) WHERE acctstoptime IS NULL`,
 		`CREATE INDEX IF NOT EXISTS idx_radacct_sessionid ON radacct (acctsessionid)`,
+		`CREATE INDEX IF NOT EXISTS idx_radacct_username ON radacct (username)`,
 
 		`CREATE TABLE IF NOT EXISTS radpostauth (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
