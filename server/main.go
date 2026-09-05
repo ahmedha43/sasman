@@ -1926,6 +1926,31 @@ func main() {
 		})
 	})
 
+	// Cloud Tenant & Central Database Pruning APIs
+	app.Post("/api/admin/cloud/prune", func(c *fiber.Ctx) error {
+		report, err := cloudTenantMgr.RunPruning()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"error":   err.Error(),
+			})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": fmt.Sprintf("تم تقليم وضغط قواعد البيانات بنجاح: تم فحص %d مستأجر وحذف %d جلسة و %d محاولة مصادقة في %dms.",
+				report.TenantsProcessed, report.RadacctDeleted, report.RadpostauthDeleted, report.DurationMs),
+			"report": report,
+		})
+	})
+
+	app.Get("/api/admin/cloud/prune/stats", func(c *fiber.Ctx) error {
+		report := cloudtenant.GetLastPruningReport()
+		return c.JSON(fiber.Map{
+			"success": true,
+			"report":  report,
+		})
+	})
+
 	// Agents List API (with Owner + License Information)
 	app.Get("/api/agents", func(c *fiber.Ctx) error {
 		agents := svc.ListAgents()

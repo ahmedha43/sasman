@@ -494,6 +494,9 @@
         </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-dark btn-xs" style="padding:6px 14px; background:#0f2942; border:1px solid #0284c7; color:#38bdf8;" onclick="triggerCloudPrune()" title="تقليم وحذف الجلسات القديمة ومحاولات المصادقة وضغط قواعد بيانات السحابة">
+            <i class="fa-solid fa-database"></i> 🗜️ تقليم قواعد البيانات
+          </button>
           <button class="btn btn-dark btn-xs" style="padding:6px 14px; background:#1e293b; border:1px solid #334155;" onclick="purgeEdgeCache()" title="مسح كاش الأصول الثابتة السحابي وتحديث اللوحات">
             <i class="fa-solid fa-broom"></i> 🧹 مسح كاش اللوحات
           </button>
@@ -4268,6 +4271,21 @@ ${setupCmd}`;
         }
       } catch(e) {
         alert('خطأ في الاتصال بالسيرفر');
+      }
+    }
+
+    async function triggerCloudPrune() {
+      if (!confirm('🗜️ هل تريد تشغيل عملية تقليم قواعد بيانات السحابة الآن؟\n\nسيتم فحص جميع المستأجرين وحذف:\n1. سجلات الجلسات (radacct) الأقدم من 7 أيام.\n2. سجلات محاولات المصادقة (radpostauth) الأقدم من 3 أيام.\n3. سجلات الجلسات المركزية القديمة.\n4. ضغط وتقليص حجم قواعد البيانات (VACUUM).')) return;
+      try {
+        const res = await fetch('/api/admin/cloud/prune', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ ${data.message}`);
+        } else {
+          alert(`❌ ${data.error || 'فشل التقليم'}`);
+        }
+      } catch (err) {
+        alert('خطأ في الاتصال بالسيرفر: ' + err.message);
       }
     }
 

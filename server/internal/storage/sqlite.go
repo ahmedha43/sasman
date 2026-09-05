@@ -2483,3 +2483,31 @@ func (r *SQLiteRepository) SetTenantZaincashPhone(subdomain, phone string) error
 	`, key, phone)
 	return err
 }
+
+// PruneCentralData removes stale central records and compresses the central database
+func (r *SQLiteRepository) PruneCentralData() (map[string]int64, error) {
+	counts := make(map[string]int64)
+
+	// 1. Prune global hotspot sessions older than 7 days
+	if res, err := r.db.Exec("DELETE FROM global_hotspot_sessions WHERE updated_at < datetime('now', '-7 days')"); err == nil {
+		c, _ := res.RowsAffected()
+		counts["global_hotspot_sessions"] = c
+	}
+
+	// 2. Prune broadcast logs older than 30 days
+	if res, err := r.db.Exec("DELETE FROM broadcast_logs WHERE sent_at < datetime('now', '-30 days')"); err == nil {
+		c, _ := res.RowsAffected()
+		counts["broadcast_logs"] = c
+	}
+
+	// 3. Prune AI audit logs older than 30 days
+	if res, err := r.db.Exec("DELETE FROM ai_audit_logs WHERE created_at < datetime('now', '-30 days')"); err == nil {
+		c, _ := res.RowsAffected()
+		counts["ai_audit_logs"] = c
+	}
+
+	// 4. Compact the SQLite central database
+	_, _ = r.db.Exec("VACUUM")
+
+	return counts, nil
+}

@@ -66,6 +66,7 @@ func NewManager(repo *storage.SQLiteRepository, pool *TenantDBPool, domain strin
 		jwtSecret: jwtSecret,
 	}
 	mgr.StartAllWinboxForwarders()
+	mgr.StartPruningSweeper()
 	return mgr
 }
 
