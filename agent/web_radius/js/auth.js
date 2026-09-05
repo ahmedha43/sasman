@@ -1275,7 +1275,8 @@ async function handleSubdomainLiveCheck(subdomain) {
             });
             const data = await res.json();
             if (data.available) {
-                statusEl.innerHTML = `<span style="color:#16a34a; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> النطاق <code>${data.full_domain}</code> متاح وجاهز للاستخدام!</span>`;
+                const domainDisplay = data.full_domain || (data.subdomain ? data.subdomain + '.sas-man.net' : subdomain + '.sas-man.net');
+                statusEl.innerHTML = `<span style="color:#16a34a; font-weight:bold;"><i class="fa-solid fa-circle-check"></i> النطاق <code>${escapeHtml(domainDisplay)}</code> متاح وجاهز للاستخدام!</span>`;
             } else {
                 let takeoverHTML = '';
                 if (data.can_takeover) {
@@ -1428,9 +1429,13 @@ async function submitOnboarding(e) {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري حجز النطاق والربط بالسيرفر...';
     }
 
+    const abortCtrl = new AbortController();
+    const timeoutId = setTimeout(() => abortCtrl.abort(), 25000);
+
     try {
         const res = await apiFetch('/radius/api/setup/self-register', {
             method: 'POST',
+            signal: abortCtrl.signal,
             body: JSON.stringify({
                 name,
                 phone,
@@ -1440,12 +1445,14 @@ async function submitOnboarding(e) {
                 router_pass: routerPass
             })
         });
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (!res.ok) {
             throw new Error(data.error || 'فشل إكمال الإعداد');
         }
 
-        alert(`✅ تم إعداد النطاق بنجاح!\nنطاقك الخاص هو: ${data.full_domain}\nسيتم الآن نقلك إلى خطوة الترخيص.`);
+        const domainText = data.full_domain || (subdomain + '.sas-man.net');
+        alert(`✅ تم إعداد النطاق بنجاح!\nنطاقك الخاص هو: ${domainText}\nسيتم الآن نقلك إلى خطوة الترخيص.`);
         
         isFreshInstall = false;
         const obGate = document.getElementById('onboarding-gate');
@@ -1454,9 +1461,16 @@ async function submitOnboarding(e) {
         await loadLicenseStatus();
         loadTunnelCardInfo();
     } catch (err) {
+        clearTimeout(timeoutId);
+        let errorMsg = err.message || 'حدث خطأ أثناء الإعداد';
+        if (err.name === 'AbortError') {
+            errorMsg = 'استغرق الاتصال وقتاً طويلاً بسبب ضعف الإنترنت. يرجى التحقق من اتصال الراوتر بالإنترنت والمحاولة مجدداً.';
+        }
         if (errBox) {
-            errBox.textContent = err.message || 'حدث خطأ أثناء الإعداد';
+            errBox.textContent = errorMsg;
             errBox.style.display = 'block';
+        } else {
+            alert('⚠️ ' + errorMsg);
         }
     } finally {
         if (btn) {

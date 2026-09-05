@@ -1638,9 +1638,10 @@ func main() {
 		}
 
 		return c.JSON(fiber.Map{
-			"subdomain": sub,
-			"available": true,
-			"full_url":  fmt.Sprintf("http://%s.%s", sub, centralDomain),
+			"subdomain":   sub,
+			"available":   true,
+			"full_domain": fmt.Sprintf("%s.%s", sub, centralDomain),
+			"full_url":    fmt.Sprintf("http://%s.%s", sub, centralDomain),
 		})
 	})
 
@@ -1807,6 +1808,7 @@ func main() {
 		return c.JSON(fiber.Map{
 			"success":          true,
 			"subdomain":        agent.Subdomain,
+			"full_domain":      fmt.Sprintf("%s.%s", agent.Subdomain, centralDomain),
 			"token":            agent.Token,
 			"winbox_port":      agent.WinboxPort,
 			"web_url":          webURL,

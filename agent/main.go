@@ -1939,27 +1939,38 @@ func postToCentralServer(path string, jsonBody []byte) (*http.Response, error) {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
+			Timeout:   3 * time.Second,
 			KeepAlive: 15 * time.Second,
 		}).DialContext,
 	}
 	client := &http.Client{
-		Timeout:   10 * time.Second,
+		Timeout:   5 * time.Second,
 		Transport: tr,
 	}
 
 	baseURL := getCentralServerAPIURL()
-	candidates := []string{baseURL}
+	rawCandidates := []string{baseURL}
 	if strings.HasPrefix(baseURL, "https://") {
-		candidates = append(candidates, strings.Replace(baseURL, "https://", "http://", 1))
+		rawCandidates = append(rawCandidates, strings.Replace(baseURL, "https://", "http://", 1))
 	} else if strings.HasPrefix(baseURL, "http://") {
-		candidates = append(candidates, strings.Replace(baseURL, "http://", "https://", 1))
+		rawCandidates = append(rawCandidates, strings.Replace(baseURL, "http://", "https://", 1))
 	}
-	candidates = append(candidates, "https://sas-man.net", "http://sas-man.net", "http://167.86.73.203:8080")
+	rawCandidates = append(rawCandidates, "https://sas-man.net", "http://sas-man.net", "http://167.86.73.203:8080")
+
+	// Deduplicate candidates while preserving order
+	seen := make(map[string]bool)
+	var candidates []string
+	for _, c := range rawCandidates {
+		c = strings.TrimRight(c, "/")
+		if !seen[c] && c != "" {
+			seen[c] = true
+			candidates = append(candidates, c)
+		}
+	}
 
 	var lastErr error
 	for _, cURL := range candidates {
-		fullURL := strings.TrimRight(cURL, "/") + path
+		fullURL := cURL + path
 		resp, err := client.Post(fullURL, "application/json", bytes.NewBuffer(jsonBody))
 		if err == nil && resp.StatusCode > 0 {
 			return resp, nil
@@ -2058,18 +2069,31 @@ func selfRegisterAgentHandler(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "الاسم الكامل، رقم الهاتف، واسم النطاق هي حقول مطلوبة"})
 	}
 
-	// 1. If router info provided, attempt to connect to MikroTik to fetch serial
+	// 1. If router info provided, attempt to connect to MikroTik to fetch serial with timeout
 	serial := ""
 	if req.RouterAddress != "" {
 		shared.RouterConfigState.Address = strings.TrimSpace(req.RouterAddress)
 		shared.RouterConfigState.Username = strings.TrimSpace(req.RouterUser)
 		shared.RouterConfigState.Password = req.RouterPass
 
-		rClient, err := core.Connect()
-		if err == nil && rClient != nil {
-			serial, _ = core.GetRouterSerial(rClient)
+		serialChan := make(chan string, 1)
+		go func() {
+			rClient, err := core.Connect()
+			if err == nil && rClient != nil {
+				s, _ := core.GetRouterSerial(rClient)
+				rClient.Close()
+				serialChan <- s
+				return
+			}
+			serialChan <- ""
+		}()
+
+		select {
+		case s := <-serialChan:
+			serial = s
 			shared.RouterConfigState.Serial = serial
-			rClient.Close()
+		case <-time.After(3 * time.Second):
+			log.Printf("[selfRegister] Router serial check timed out; continuing registration without blocking")
 		}
 	}
 
@@ -2113,6 +2137,16 @@ func selfRegisterAgentHandler(c *fiber.Ctx) error {
 		return c.Status(resp.StatusCode).JSON(fiber.Map{"error": errMsg})
 	}
 
+	// Fallback for FullDomain if empty
+	fullDomain := centralResp.FullDomain
+	if fullDomain == "" && centralResp.Subdomain != "" {
+		cDom := centralResp.CentralDomain
+		if cDom == "" {
+			cDom = "sas-man.net"
+		}
+		fullDomain = fmt.Sprintf("%s.%s", centralResp.Subdomain, cDom)
+	}
+
 	// 3. Save to local config
 	shared.RouterConfigState.OwnerName = name
 	shared.RouterConfigState.OwnerPhone = phone
@@ -2136,7 +2170,7 @@ func selfRegisterAgentHandler(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success":        true,
 		"subdomain":      centralResp.Subdomain,
-		"full_domain":    centralResp.FullDomain,
+		"full_domain":    fullDomain,
 		"token":          centralResp.Token,
 		"winbox_port":    centralResp.WinboxPort,
 		"winbox_address": centralResp.WinboxAddress,
@@ -2157,12 +2191,23 @@ func requestTakeoverProxyHandler(c *fiber.Ctx) error {
 	}
 
 	serial := shared.RouterConfigState.Serial
-	if serial == "" {
-		rClient, err := core.Connect()
-		if err == nil && rClient != nil {
-			serial, _ = core.GetRouterSerial(rClient)
+	if serial == "" && shared.RouterConfigState.Address != "" {
+		serialChan := make(chan string, 1)
+		go func() {
+			rClient, err := core.Connect()
+			if err == nil && rClient != nil {
+				s, _ := core.GetRouterSerial(rClient)
+				rClient.Close()
+				serialChan <- s
+				return
+			}
+			serialChan <- ""
+		}()
+		select {
+		case s := <-serialChan:
+			serial = s
 			shared.RouterConfigState.Serial = serial
-			rClient.Close()
+		case <-time.After(2 * time.Second):
 		}
 	}
 

@@ -95,15 +95,41 @@ func ResetSharedClient() {
 	fmt.Println("[core] Persistent connection reset requested.")
 }
 
+func normalizeRouterAddress(addr string) (string, string) {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return "", "8728"
+	}
+	addr = strings.TrimPrefix(addr, "http://")
+	addr = strings.TrimPrefix(addr, "https://")
+	addr = strings.TrimRight(addr, "/")
+
+	host := addr
+	port := "8728"
+	if strings.Contains(addr, ":") {
+		h, p, err := net.SplitHostPort(addr)
+		if err == nil {
+			host = h
+			// If user accidentally put a web port, switch to RouterOS API port 8728
+			if p == "80" || p == "88" || p == "8080" || p == "443" || p == "8443" {
+				port = "8728"
+			} else {
+				port = p
+			}
+		}
+	}
+	return host, port
+}
+
 func Connect() (*routeros.Client, error) {
-	addr := strings.TrimSpace(shared.RouterConfigState.Address)
-	if addr == "" {
-		addr = strings.TrimSpace(os.Getenv("ROUTER_ADDRESS"))
+	rawAddr := strings.TrimSpace(shared.RouterConfigState.Address)
+	if rawAddr == "" {
+		rawAddr = strings.TrimSpace(os.Getenv("ROUTER_ADDRESS"))
 	}
-	if addr == "" {
-		addr = strings.TrimSpace(os.Getenv("ROUTER_IP"))
+	if rawAddr == "" {
+		rawAddr = strings.TrimSpace(os.Getenv("ROUTER_IP"))
 	}
-	if addr == "" {
+	if rawAddr == "" {
 		return nil, fiber.ErrUnauthorized
 	}
 
@@ -116,29 +142,22 @@ func Connect() (*routeros.Client, error) {
 		pass = os.Getenv("ROUTER_PASS")
 	}
 
-	// Try primary address
-	client, err := routeros.Dial(addr, user, pass)
+	host, port := normalizeRouterAddress(rawAddr)
+	primaryAddr := net.JoinHostPort(host, port)
+
+	// Try primary address with a strict 3-second timeout
+	client, err := routeros.DialTimeout(primaryAddr, user, pass, 3*time.Second)
 	if err == nil && client != nil {
 		return client, nil
 	}
 
 	// Fallback to standard router gateway if container bridged (e.g. 172.17.0.1, 192.168.88.1)
-	host := addr
-	port := "8728"
-	if strings.Contains(addr, ":") {
-		h, p, e := net.SplitHostPort(addr)
-		if e == nil {
-			host = h
-			port = p
-		}
-	}
-
 	for _, fbHost := range []string{"172.17.0.1", "192.168.88.1", "127.0.0.1", "172.16.0.1"} {
 		if fbHost == host {
 			continue
 		}
 		fbAddr := net.JoinHostPort(fbHost, port)
-		fbClient, fbErr := routeros.Dial(fbAddr, user, pass)
+		fbClient, fbErr := routeros.DialTimeout(fbAddr, user, pass, 1*time.Second)
 		if fbErr == nil && fbClient != nil {
 			log.Printf("[core] Connected to fallback RouterOS API at %s", fbAddr)
 			return fbClient, nil
@@ -375,18 +394,21 @@ func GetClientWithAuth(host, user, pass string) (*routeros.Client, func(), error
 
 	// Try with provided explicit credentials
 	if user != "" {
-		targetHost := host
-		if targetHost == "" {
-			targetHost = strings.TrimSpace(shared.RouterConfigState.Address)
+		rawTarget := host
+		if rawTarget == "" {
+			rawTarget = strings.TrimSpace(shared.RouterConfigState.Address)
 		}
-		if targetHost == "" {
-			targetHost = "192.168.88.1"
+		if rawTarget == "" {
+			rawTarget = "192.168.88.1"
 		}
 
-		newClient, dialErr := routeros.Dial(targetHost, user, pass)
+		tHost, tPort := normalizeRouterAddress(rawTarget)
+		primaryTarget := net.JoinHostPort(tHost, tPort)
+
+		newClient, dialErr := routeros.DialTimeout(primaryTarget, user, pass, 3*time.Second)
 		if dialErr == nil && newClient != nil {
 			// Update local config if successful
-			shared.RouterConfigState.Address = targetHost
+			shared.RouterConfigState.Address = primaryTarget
 			shared.RouterConfigState.Username = user
 			shared.RouterConfigState.Password = pass
 			shared.SaveConfig()
@@ -396,12 +418,13 @@ func GetClientWithAuth(host, user, pass string) (*routeros.Client, func(), error
 
 		// Also try standard fallbacks
 		for _, fb := range []string{"172.17.0.1", "192.168.88.1", "127.0.0.1", "172.16.0.1"} {
-			if fb == targetHost {
+			if fb == tHost {
 				continue
 			}
-			fbClient, fbErr := routeros.Dial(fb, user, pass)
+			fbAddr := net.JoinHostPort(fb, tPort)
+			fbClient, fbErr := routeros.DialTimeout(fbAddr, user, pass, 1*time.Second)
 			if fbErr == nil && fbClient != nil {
-				shared.RouterConfigState.Address = fb
+				shared.RouterConfigState.Address = fbAddr
 				shared.RouterConfigState.Username = user
 				shared.RouterConfigState.Password = pass
 				shared.SaveConfig()
