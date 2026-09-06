@@ -1199,8 +1199,8 @@ func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseI
 	err := row.Scan(&info.Subdomain, &info.LicenseID, &info.Status, &expiresAtStr, &updatedAtStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// Auto-activate license for 365 days so existing agents work immediately after server migration
-			return r.ActivateAgentLicense(subdomain, 365)
+			// Auto-activate license for 3 days grace period so existing agents work immediately after server migration
+			return r.ActivateAgentLicense(subdomain, 3)
 		}
 		return nil, err
 	}
@@ -1211,8 +1211,8 @@ func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseI
 			info.ExpiresAt = &exp
 			info.ExpiresAtStr = exp.Format("2006-01-02 15:04:05")
 			if now.After(exp) {
-				// Auto-renew expired agent for 365 days in bypass mode
-				return r.ActivateAgentLicense(subdomain, 365)
+				// Auto-renew expired agent for 3 days grace period in bypass mode
+				return r.ActivateAgentLicense(subdomain, 3)
 			} else {
 				info.IsExpired = false
 				diff := exp.Sub(now)
@@ -1223,12 +1223,12 @@ func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseI
 			}
 		}
 	} else if info.Status == "active" {
-		// If active without expiry, default 365 days
+		// If active without expiry, default 3 days
 		info.IsExpired = false
-		info.DaysRemaining = 365
+		info.DaysRemaining = 3
 	} else {
-		// If unlicensed, auto-activate 365 days
-		return r.ActivateAgentLicense(subdomain, 365)
+		// If unlicensed, auto-activate 3 days grace period
+		return r.ActivateAgentLicense(subdomain, 3)
 	}
 
 	return &info, nil
