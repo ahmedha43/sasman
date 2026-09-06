@@ -5,9 +5,10 @@
 
 $ErrorActionPreference = "Stop"
 
-$VPS_HOST   = "167.86.73.203"
-$VPS_USER   = "root"
-$VPS_PASS   = "mushtaq99"
+$VPS_HOST   = "51.241.184.4"
+$VPS_PORT   = 2026
+$VPS_USER   = "maram"
+$VPS_PASS   = '[2adu!k;Opf.lMr]IdVG`ASgk'
 $IMAGE_NAME = "server-central"
 $IMAGE_TAG  = "new"
 $TAR_FILE   = "server-central.tar"
@@ -27,7 +28,7 @@ function Write-Info($msg) { Write-Host "  ... $msg" -ForegroundColor Gray }
 function Run-Remote([string]$cmd) {
     $oldEAP = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    $out = & plink -ssh "${VPS_USER}@${VPS_HOST}" -pw $VPS_PASS -batch $cmd 2>&1 | Out-String
+    $out = & plink -ssh "${VPS_USER}@${VPS_HOST}" -P $VPS_PORT -pw $VPS_PASS -hostkey "SHA256:o6mNNX9NEPuHiYt0X34IEhg3LBb1R44TT64dkF8ZsfY" -batch "echo '$VPS_PASS' | sudo -S bash -c '$cmd'" 2>&1 | Out-String
     $ErrorActionPreference = $oldEAP
     return $out
 }
