@@ -34,7 +34,7 @@ var (
 		"9.9.9.9:53",
 	}
 	knownHosts = map[string]string{
-		"sas-man.net": "167.86.73.203",
+		"sas-man.net": "51.241.184.4",
 	}
 )
 

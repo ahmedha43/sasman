@@ -1721,11 +1721,16 @@ func (h *APIHandler) handleListNAS(c *fiber.Ctx) error {
 		radsecStatus = "online"
 	}
 
+	serverIP := os.Getenv("SASMAN_PUBLIC_IP")
+	if serverIP == "" {
+		serverIP = "51.241.184.4"
+	}
+
 	nasList := []fiber.Map{
 		{
 			"id":             1,
-			"ip":             "167.86.73.203",
-			"profile_nas_ip": "167.86.73.203",
+			"ip":             serverIP,
+			"profile_nas_ip": serverIP,
 			"name":           "MikroTik RadSec Cloud (" + subdomain + ")",
 			"secret":         "radsec",
 			"radsec_status":  radsecStatus,

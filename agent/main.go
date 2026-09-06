@@ -1955,7 +1955,7 @@ func postToCentralServer(path string, jsonBody []byte) (*http.Response, error) {
 	} else if strings.HasPrefix(baseURL, "http://") {
 		rawCandidates = append(rawCandidates, strings.Replace(baseURL, "http://", "https://", 1))
 	}
-	rawCandidates = append(rawCandidates, "https://sas-man.net", "http://sas-man.net", "http://167.86.73.203:8080")
+	rawCandidates = append(rawCandidates, "https://sas-man.net", "http://sas-man.net", "http://51.241.184.4:8080")
 
 	// Deduplicate candidates while preserving order
 	seen := make(map[string]bool)

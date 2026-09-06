@@ -213,6 +213,7 @@ func generateServerCert() error {
 			net.ParseIP("127.0.0.1"),
 			net.ParseIP("0.0.0.0"),
 			net.ParseIP("::1"),
+			net.ParseIP("51.241.184.4"),
 			net.ParseIP("167.86.73.203"),
 			net.ParseIP("172.17.0.1"),
 			net.ParseIP("172.17.0.2"),
@@ -228,6 +229,7 @@ func generateServerCert() error {
 			"radius.sas-man.net",
 			"radsec.sasman.local",
 			"radius.sasman.local",
+			"51.241.184.4",
 			"167.86.73.203",
 		},
 	}

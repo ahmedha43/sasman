@@ -1411,10 +1411,15 @@ func main() {
 			domain = "sas-man.net"
 		}
 
+		serverIP := os.Getenv("SASMAN_PUBLIC_IP")
+		if serverIP == "" {
+			serverIP = "51.241.184.4"
+		}
+
 		script := fmt.Sprintf(`# =========================================================
 #  SASMAN RadSec (RFC 6614 mTLS) Auto-Provisioning Script
 #  Agent Subdomain: %[1]s
-#  Central Server: 167.86.73.203:2083
+#  Central Server: %[3]s:2083 (%[2]s)
 # =========================================================
 
 :put "=================================================="
@@ -1422,6 +1427,7 @@ func main() {
 :put "=================================================="
 
 /radius remove [find address="167.86.73.203"]
+/radius remove [find address="%[3]s"]
 /radius remove [find comment~"SASMAN"]
 /interface ovpn-client remove [find name="ovpn-sasman"]
 
@@ -1464,13 +1470,13 @@ func main() {
     :set certName [/certificate get $c name]
 }
 
-/radius add address=167.86.73.203 protocol=radsec certificate=$certName service=ppp,login,hotspot,wireless secret=radsec authentication-port=2083 accounting-port=2083 timeout=3s require-message-auth=yes-for-request-resp comment="SASMAN Central RadSec (%[1]s)"
+/radius add address=%[3]s protocol=radsec certificate=$certName service=ppp,login,hotspot,wireless secret=radsec authentication-port=2083 accounting-port=2083 timeout=3s require-message-auth=yes-for-request-resp comment="SASMAN Central RadSec (%[1]s)"
 
 /user aaa set use-radius=yes default-group=read
 /ppp aaa set use-radius=yes accounting=yes interim-update=1m
 /ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
 
-/interface ovpn-client add name="ovpn-sasman" connect-to=167.86.73.203 port=1194 mode=ip protocol=tcp user="%[1]s" password="" certificate=$certName auth=sha256 cipher=aes256-gcm verify-server-certificate=yes add-default-route=no disabled=no comment="SASMAN Cloud Device Tunnel (%[1]s)"
+/interface ovpn-client add name="ovpn-sasman" connect-to=%[3]s port=1194 mode=ip protocol=tcp user="%[1]s" password="" certificate=$certName auth=sha256 cipher=aes256-gcm verify-server-certificate=yes add-default-route=no disabled=no comment="SASMAN Cloud Device Tunnel (%[1]s)"
 
 /ip firewall filter remove [find comment="Allow SASMAN Tunnel"]
 /ip firewall filter add chain=input in-interface=ovpn-sasman action=accept place-before=0 comment="Allow SASMAN Tunnel"
@@ -1491,9 +1497,9 @@ func main() {
 :put "  [SUCCESS] ✅ SASMAN RadSec Provisioned Successfully!"
 :put "  Agent: %[1]s"
 :put "  Certificate Bound: $certName"
-:put "  Server: 167.86.73.203:2083 (RFC 6614 mTLS)"
+:put "  Server: %[3]s:2083 (RFC 6614 mTLS)"
 :put "=================================================="
-`, subdomain, domain)
+`, subdomain, domain, serverIP)
 
 		c.Set("Content-Type", "text/plain; charset=utf-8")
 		return c.SendString(script)
