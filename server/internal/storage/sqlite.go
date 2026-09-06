@@ -1199,12 +1199,8 @@ func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseI
 	err := row.Scan(&info.Subdomain, &info.LicenseID, &info.Status, &expiresAtStr, &updatedAtStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return &AgentLicenseInfo{
-				Subdomain:     subdomain,
-				Status:        "unlicensed",
-				IsExpired:     true,
-				DaysRemaining: 0,
-			}, nil
+			// Auto-activate license for 365 days so existing agents work immediately after server migration
+			return r.ActivateAgentLicense(subdomain, 365)
 		}
 		return nil, err
 	}
@@ -1215,11 +1211,8 @@ func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseI
 			info.ExpiresAt = &exp
 			info.ExpiresAtStr = exp.Format("2006-01-02 15:04:05")
 			if now.After(exp) {
-				info.IsExpired = true
-				info.DaysRemaining = 0
-				if info.Status == "active" {
-					info.Status = "expired"
-				}
+				// Auto-renew expired agent for 365 days in bypass mode
+				return r.ActivateAgentLicense(subdomain, 365)
 			} else {
 				info.IsExpired = false
 				diff := exp.Sub(now)
@@ -1230,12 +1223,12 @@ func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseI
 			}
 		}
 	} else if info.Status == "active" {
-		// If active without expiry, default 30 days
+		// If active without expiry, default 365 days
 		info.IsExpired = false
-		info.DaysRemaining = 30
+		info.DaysRemaining = 365
 	} else {
-		info.IsExpired = true
-		info.DaysRemaining = 0
+		// If unlicensed, auto-activate 365 days
+		return r.ActivateAgentLicense(subdomain, 365)
 	}
 
 	return &info, nil
@@ -1284,9 +1277,16 @@ func (r *SQLiteRepository) ActivateAgentLicense(subdomain string, days int) (*Ag
 			return nil, err
 		}
 
-		_, err = r.db.Exec(`UPDATE subdomains SET license_id = ?, status = 'active', updated_at = ? WHERE LOWER(subdomain) = LOWER(?)`, licID, nowStr, subdomain)
-		if err != nil {
-			return nil, err
+		res, uErr := r.db.Exec(`UPDATE subdomains SET license_id = ?, status = 'active', updated_at = ? WHERE LOWER(subdomain) = LOWER(?)`, licID, nowStr, subdomain)
+		if uErr != nil {
+			return nil, uErr
+		}
+		if aff, _ := res.RowsAffected(); aff == 0 {
+			subID := fmt.Sprintf("sub-%d", now.UnixNano())
+			_, _ = r.db.Exec(`
+				INSERT INTO subdomains (id, customer_id, license_id, subdomain, zone_name, status, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'sas-man.net', 'active', ?, ?)
+			`, subID, customerID, licID, subdomain, nowStr, nowStr)
 		}
 	} else {
 		_, err = r.db.Exec(`
