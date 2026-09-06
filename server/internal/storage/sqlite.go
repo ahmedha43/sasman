@@ -1187,11 +1187,21 @@ func (r *SQLiteRepository) GetActiveBroadcastsForAgent(subdomain string) ([]Broa
 }
 
 func (r *SQLiteRepository) getAgentLicenseInfoRaw(subdomain string) (*AgentLicenseInfo, error) {
+	subdomain = strings.TrimSpace(strings.ToLower(subdomain))
+	if subdomain == "" {
+		return &AgentLicenseInfo{
+			Subdomain:     "",
+			Status:        "unlicensed",
+			IsExpired:     true,
+			DaysRemaining: 0,
+		}, nil
+	}
+
 	row := r.db.QueryRow(`
 		SELECT s.subdomain, COALESCE(l.id, ''), COALESCE(l.status, 'unlicensed'), l.expires_at, l.updated_at
 		FROM subdomains s
 		LEFT JOIN licenses l ON s.license_id = l.id
-		WHERE LOWER(s.subdomain) = LOWER(?)
+		WHERE LOWER(s.subdomain) = ?
 	`, subdomain)
 
 	var info AgentLicenseInfo
@@ -1223,8 +1233,8 @@ func (r *SQLiteRepository) getAgentLicenseInfoRaw(subdomain string) (*AgentLicen
 			} else {
 				info.IsExpired = false
 				diff := exp.Sub(now)
-				info.DaysRemaining = int(diff.Hours() / 24)
-				if info.DaysRemaining == 0 && diff.Seconds() > 0 {
+				info.DaysRemaining = int((diff + 23*time.Hour + 59*time.Minute).Hours() / 24)
+				if info.DaysRemaining <= 0 && diff.Seconds() > 0 {
 					info.DaysRemaining = 1
 				}
 			}
@@ -1242,18 +1252,32 @@ func (r *SQLiteRepository) getAgentLicenseInfoRaw(subdomain string) (*AgentLicen
 }
 
 func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseInfo, error) {
+	subdomain = strings.TrimSpace(strings.ToLower(subdomain))
+	if subdomain == "" {
+		return &AgentLicenseInfo{
+			Subdomain:     "",
+			Status:        "unlicensed",
+			IsExpired:     true,
+			DaysRemaining: 0,
+		}, nil
+	}
+
 	info, err := r.getAgentLicenseInfoRaw(subdomain)
 	if err != nil {
 		return nil, err
 	}
-	// Disaster Recovery Bypass: if missing or expired/unlicensed, auto-activate 3 days grace period
-	if info.Status == "unlicensed" || info.IsExpired {
+	// Disaster Recovery Bypass: if missing, expired, or unlicensed, auto-activate 3 days grace period
+	if info.Status == "unlicensed" || info.IsExpired || info.Status == "expired" {
 		return r.ActivateAgentLicense(subdomain, 3)
 	}
 	return info, nil
 }
 
 func (r *SQLiteRepository) ActivateAgentLicense(subdomain string, days int) (*AgentLicenseInfo, error) {
+	subdomain = strings.TrimSpace(strings.ToLower(subdomain))
+	if subdomain == "" {
+		return nil, fmt.Errorf("subdomain cannot be empty")
+	}
 	if days <= 0 {
 		days = 3
 	}
@@ -1279,7 +1303,7 @@ func (r *SQLiteRepository) ActivateAgentLicense(subdomain string, days int) (*Ag
 
 	// If no license exists for this subdomain, create one
 	if info.LicenseID == "" || info.Status == "unlicensed" {
-		row := r.db.QueryRow(`SELECT customer_id FROM subdomains WHERE LOWER(subdomain) = LOWER(?)`, subdomain)
+		row := r.db.QueryRow(`SELECT customer_id FROM subdomains WHERE LOWER(subdomain) = ?`, subdomain)
 		var customerID string
 		if err := row.Scan(&customerID); err != nil || customerID == "" {
 			customerID = fmt.Sprintf("cust-%d", now.UnixNano())
@@ -1296,16 +1320,20 @@ func (r *SQLiteRepository) ActivateAgentLicense(subdomain string, days int) (*Ag
 			return nil, err
 		}
 
-		res, uErr := r.db.Exec(`UPDATE subdomains SET license_id = ?, status = 'active', updated_at = ? WHERE LOWER(subdomain) = LOWER(?)`, licID, nowStr, subdomain)
+		token := fmt.Sprintf("tok-%d-%s", now.Unix(), subdomain)
+		res, uErr := r.db.Exec(`UPDATE subdomains SET license_id = ?, status = 'active', updated_at = ? WHERE LOWER(subdomain) = ?`, licID, nowStr, subdomain)
 		if uErr != nil {
 			return nil, uErr
 		}
 		if aff, _ := res.RowsAffected(); aff == 0 {
 			subID := fmt.Sprintf("sub-%d", now.UnixNano())
-			_, _ = r.db.Exec(`
-				INSERT INTO subdomains (id, customer_id, license_id, subdomain, zone_name, status, created_at, updated_at)
-				VALUES (?, ?, ?, ?, 'sas-man.net', 'active', ?, ?)
-			`, subID, customerID, licID, subdomain, nowStr, nowStr)
+			_, err = r.db.Exec(`
+				INSERT INTO subdomains (id, customer_id, license_id, subdomain, zone_name, status, token, winbox_port, group_name, assigned_at, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'sas-man.net', 'active', ?, 0, 'default', ?, ?, ?)
+			`, subID, customerID, licID, subdomain, token, nowStr, nowStr, nowStr)
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		_, err = r.db.Exec(`
@@ -1317,7 +1345,7 @@ func (r *SQLiteRepository) ActivateAgentLicense(subdomain string, days int) (*Ag
 			return nil, err
 		}
 
-		_, _ = r.db.Exec(`UPDATE subdomains SET status = 'active', updated_at = ? WHERE LOWER(subdomain) = LOWER(?)`, nowStr, subdomain)
+		_, _ = r.db.Exec(`UPDATE subdomains SET status = 'active', updated_at = ? WHERE LOWER(subdomain) = ?`, nowStr, subdomain)
 	}
 
 	return r.getAgentLicenseInfoRaw(subdomain)
