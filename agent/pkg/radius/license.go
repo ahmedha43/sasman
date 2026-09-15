@@ -171,6 +171,7 @@ func LicenseActivateHandler(c *fiber.Ctx) error {
 
 	shared.RouterConfigState.License = body.Key
 	shared.RouterConfigState.Serial = serial
+	shared.RouterConfigState.SetupCompleted = true
 	shared.SaveConfig()
 	firebase.SyncAsync("radius_license_activated", firebase.RemoteAccess{})
 	return c.JSON(fiber.Map{"message": "System activated successfully"})

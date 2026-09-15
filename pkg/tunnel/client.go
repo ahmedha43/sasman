@@ -315,7 +315,7 @@ func (c *ResilientAgentClient) connectAndServe() error {
 	defer close(stopHeartbeat)
 
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
 		for {
@@ -335,8 +335,8 @@ func (c *ResilientAgentClient) connectAndServe() error {
 				}
 
 				lastPong := c.lastPongAt.Load()
-				if time.Now().Unix()-lastPong > 25 {
-					log.Printf("[Tunnel Client] ⚠️ Heartbeat timeout: No pong/message received for 25s! Reconnecting...")
+				if time.Now().Unix()-lastPong > 75 {
+					log.Printf("[Tunnel Client] ⚠️ Heartbeat timeout: No pong/message received for 75s! Reconnecting...")
 					_ = conn.Close()
 					return
 				}

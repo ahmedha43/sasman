@@ -511,6 +511,8 @@ func main() {
 					resStr := "Access-Accept ✅"
 					if !details.Allow {
 						resStr = fmt.Sprintf("Access-Reject ❌ (%s)", details.RejectReason)
+					} else if details.MikrotikGroup != "" && (strings.Contains(details.RejectReason, "Expired") || strings.Contains(details.RejectReason, "منتهي") || strings.Contains(details.RejectReason, "تحويل")) {
+						resStr = fmt.Sprintf("Access-Accept ✅ (باقة انتهاء الاشتراك: %s)", details.MikrotikGroup)
 					}
 					line := fmt.Sprintf("[%s] RADIUS %s for user [%s] from NAS [%s] (MAC: %s)\n",
 						time.Now().Format("2006-01-02 15:04:05"), resStr, req.Username, req.NasIP, req.UserMAC)

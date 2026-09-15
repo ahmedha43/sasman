@@ -1480,6 +1480,44 @@ async function submitOnboarding(e) {
     }
 }
 
+async function skipTunnelAndActivateLocal() {
+    // Copy any filled MikroTik credentials to license-gate
+    const rAddr = document.getElementById('ob-router-address')?.value.trim();
+    const rUser = document.getElementById('ob-router-user')?.value.trim();
+    const rPass = document.getElementById('ob-router-pass')?.value || '';
+
+    if (rAddr && document.getElementById('setup-router-address')) {
+        document.getElementById('setup-router-address').value = rAddr;
+    }
+    if (rUser && document.getElementById('setup-router-user')) {
+        document.getElementById('setup-router-user').value = rUser;
+    }
+    if (rPass && document.getElementById('setup-router-pass')) {
+        document.getElementById('setup-router-pass').value = rPass;
+    }
+
+    try {
+        await apiFetch('/radius/api/setup/skip-tunnel', { method: 'POST' });
+    } catch (e) {
+        console.warn('skip-tunnel api call failed:', e);
+    }
+
+    isFreshInstall = false;
+    const obGate = document.getElementById('onboarding-gate');
+    if (obGate) obGate.style.display = 'none';
+
+    await loadLicenseStatus();
+
+    // If router credentials were provided, try to auto-connect to router
+    if (rAddr && typeof handleRouterConnect === 'function') {
+        setTimeout(() => {
+            const fakeEvent = { preventDefault: () => {} };
+            handleRouterConnect(fakeEvent);
+        }, 300);
+    }
+}
+window.skipTunnelAndActivateLocal = skipTunnelAndActivateLocal;
+
 let currentTunnelFullDomain = "";
 let currentTunnelWinboxAddr = "";
 

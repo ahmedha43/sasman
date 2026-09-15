@@ -298,6 +298,10 @@ func (m *Manager) RegisterTenant(req RegisterRequest) (*CloudTenant, error) {
 
 func (m *Manager) SpawnTenantAgent(subdomain, token string) error {
 	sub := strings.ToLower(strings.TrimSpace(subdomain))
+	if m.repo != nil && m.repo.GetAgentMode(sub) != "cloud" {
+		log.Printf("[cloudtenant] 🛑 Skipping spawn for [%s]: agent_mode is '%s' (not cloud)", sub, m.repo.GetAgentMode(sub))
+		return fmt.Errorf("cannot spawn cloud agent for local container agent %s", sub)
+	}
 	containerName := fmt.Sprintf("sasman-cloud-%s", sub)
 	dataDir := m.pool.GetTenantDir(sub)
 
@@ -393,6 +397,9 @@ func (m *Manager) EnsureAllCloudAgentsRunning() {
 		return
 	}
 	for _, sub := range subdomains {
+		if m.repo.GetAgentMode(sub) != "cloud" {
+			continue
+		}
 		tenantDir := m.pool.GetTenantDir(sub)
 		if _, err := os.Stat(tenantDir); err == nil {
 			log.Printf("[cloudtenant] 🔄 Auto-resuming cloud agent for tenant [%s]", sub)
@@ -517,6 +524,26 @@ func (m *Manager) VerifyCloudUserDetails(subdomain, username, password string) C
 					ON CONFLICT(username) DO UPDATE SET expiration_unix=excluded.expiration_unix, enabled=1, updated_at=CURRENT_TIMESTAMP
 				`, lookupUser, "كارت "+profileName, expTime)
 			}
+			if isUsed != 0 {
+				var vExpUnix sql.NullInt64
+				var vEnabled int = 1
+				_ = tenantDB.QueryRow("SELECT enabled, expiration_unix FROM radius_user_meta WHERE username = ? OR username = ?", username, lookupUser).Scan(&vEnabled, &vExpUnix)
+				if vEnabled == 0 || (vExpUnix.Valid && vExpUnix.Int64 > 0 && vExpUnix.Int64 < time.Now().Unix()) {
+					var vExpPool, vExpProfile string
+					_ = tenantDB.QueryRow("SELECT COALESCE(expired_pool, ''), COALESCE(expired_profile, '') FROM radius_profile_meta WHERE groupname = ?", profileName).Scan(&vExpPool, &vExpProfile)
+					if vExpPool != "" || vExpProfile != "" {
+						return CloudAuthDetails{
+							Allow:         true,
+							RateLimit:     "",
+							MikrotikGroup: vExpProfile,
+							FramedPool:    vExpPool,
+							Password:      username,
+							RejectReason:  "OK (تحويل لاشتراك منتهي)",
+						}
+					}
+					return CloudAuthDetails{Allow: false, RejectReason: "انتهت صلاحية الكارت"}
+				}
+			}
 			groupName = profileName
 			rateLimit := "10M/10M"
 			var mtGroup, pool string
@@ -540,43 +567,88 @@ func (m *Manager) VerifyCloudUserDetails(subdomain, username, password string) C
 		return CloudAuthDetails{Allow: false, RejectReason: "كلمة المرور غير صحيحة"}
 	}
 
-	// 3. Check expiration, active status, and quota in radius_user_meta
-	var enabled int
-	var expUnix sql.NullInt64
-	var quotaLimitMB, usedIn, usedOut int64
-	var quotaStatus string
-	metaErr := tenantDB.QueryRow("SELECT enabled, expiration_unix, COALESCE(quota_limit_mb, 0), COALESCE(used_octets_in, 0), COALESCE(used_octets_out, 0), COALESCE(quota_status, 'active') FROM radius_user_meta WHERE username = ? OR username = ?", username, lookupUser).Scan(&enabled, &expUnix, &quotaLimitMB, &usedIn, &usedOut, &quotaStatus)
-	if metaErr == nil {
-		if enabled == 0 {
-			return CloudAuthDetails{Allow: false, RejectReason: "الحساب معطل"}
-		}
-		if expUnix.Valid && expUnix.Int64 > 0 && expUnix.Int64 < time.Now().Unix() {
-			return CloudAuthDetails{Allow: false, RejectReason: "انتهى اشتراك المستخدم"}
-		}
-	}
-
-	// 4. Query Group, Rate Limit, Mikrotik-Group, Framed-Pool
+	// 3. Query Group & Profile Meta (including expired redirect attributes)
 	_ = tenantDB.QueryRow("SELECT groupname FROM radusergroup WHERE username = ? OR username = ? ORDER BY priority ASC LIMIT 1", username, lookupUser).Scan(&groupName)
 	if groupName == "" {
 		groupName = "10M"
 	}
 
-	if quotaLimitMB == 0 {
-		_ = tenantDB.QueryRow("SELECT COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname = ?", groupName).Scan(&quotaLimitMB)
+	var expiredPool, expiredProfile string
+	var profileQuotaMB int64
+	_ = tenantDB.QueryRow("SELECT COALESCE(expired_pool, ''), COALESCE(expired_profile, ''), COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname = ?", groupName).Scan(&expiredPool, &expiredProfile, &profileQuotaMB)
+
+	// Fallback to general expired profile if not set on the specific profile
+	if expiredPool == "" && expiredProfile == "" {
+		_ = tenantDB.QueryRow("SELECT COALESCE(expired_pool, ''), groupname FROM radius_profile_meta WHERE groupname IN ('expired', 'expired-profile', 'profile-expired', 'منتهي', 'انتهى_الاشتراك') LIMIT 1").Scan(&expiredPool, &expiredProfile)
 	}
 
+	// 4. Check expiration, active status, and quota in radius_user_meta
+	var enabled int = 1
+	var expUnix sql.NullInt64
+	var userQuotaLimitMB, usedIn, usedOut int64
+	var quotaStatus string
+	metaErr := tenantDB.QueryRow("SELECT enabled, expiration_unix, COALESCE(quota_limit_mb, 0), COALESCE(used_octets_in, 0), COALESCE(used_octets_out, 0), COALESCE(quota_status, 'active') FROM radius_user_meta WHERE username = ? OR username = ?", username, lookupUser).Scan(&enabled, &expUnix, &userQuotaLimitMB, &usedIn, &usedOut, &quotaStatus)
+
+	quotaLimitMB := userQuotaLimitMB
+	if quotaLimitMB == 0 {
+		quotaLimitMB = profileQuotaMB
+	}
+
+	isDisabled := (metaErr == nil && enabled == 0)
+	isExpired := (metaErr == nil && expUnix.Valid && expUnix.Int64 > 0 && expUnix.Int64 < time.Now().Unix())
+
 	var totalLimitLow, totalLimitGiga uint32
+	isQuotaDepleted := false
 	if quotaLimitMB > 0 {
 		totalQuotaBytes := quotaLimitMB * 1024 * 1024
 		usedTotal := usedIn + usedOut
 		remainingBytes := totalQuotaBytes - usedTotal
 		if remainingBytes <= 0 || quotaStatus == "depleted" {
-			return CloudAuthDetails{Allow: false, RejectReason: "تم استهلاك باقة البيانات بالكامل (Quota Depleted)"}
+			isQuotaDepleted = true
+		} else {
+			totalLimitLow = uint32(remainingBytes % (1 << 32))
+			totalLimitGiga = uint32(remainingBytes >> 32)
 		}
-		totalLimitLow = uint32(remainingBytes % (1 << 32))
-		totalLimitGiga = uint32(remainingBytes >> 32)
 	}
 
+	isExpiredOrDisabled := isDisabled || isExpired || isQuotaDepleted
+
+	if isExpiredOrDisabled {
+		// If an expired pool or profile is configured, assign the subscriber to the expired profile
+		if expiredPool != "" || expiredProfile != "" {
+			var expiredRateLimit string
+			if expiredProfile != "" {
+				_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", expiredProfile).Scan(&expiredRateLimit)
+			}
+			reason := "OK (تحويل لاشتراك منتهي)"
+			if isQuotaDepleted {
+				reason = "OK (تحويل لنفاد البيانات)"
+			} else if isDisabled {
+				reason = "OK (تحويل لحساب معطل)"
+			}
+			return CloudAuthDetails{
+				Allow:         true,
+				RateLimit:     expiredRateLimit,
+				MikrotikGroup: expiredProfile,
+				FramedPool:    expiredPool,
+				Password:      dbPass,
+				RejectReason:  reason,
+			}
+		}
+
+		// Otherwise reject with the specific reason
+		if isDisabled {
+			return CloudAuthDetails{Allow: false, RejectReason: "الحساب معطل"}
+		}
+		if isExpired {
+			return CloudAuthDetails{Allow: false, RejectReason: "انتهى اشتراك المستخدم"}
+		}
+		if isQuotaDepleted {
+			return CloudAuthDetails{Allow: false, RejectReason: "تم استهلاك باقة البيانات بالكامل (Quota Depleted)"}
+		}
+	}
+
+	// 5. Active subscriber: Query normal rate limit, Mikrotik-Group, Framed-Pool
 	rateLimit := "10M/10M"
 	var mtGroup, pool string
 	_ = tenantDB.QueryRow("SELECT value FROM radgroupreply WHERE groupname = ? AND attribute = 'Mikrotik-Rate-Limit'", groupName).Scan(&rateLimit)
@@ -725,34 +797,58 @@ func (m *Manager) runExpirationSweep() {
 		}
 
 		rows, err := db.Query(`
-			SELECT username FROM radius_user_meta 
-			WHERE expiration_unix IS NOT NULL AND expiration_unix > 0 AND expiration_unix <= ?
+			SELECT u.username, u.expiration_unix, COALESCE(m.expired_pool, ''), COALESCE(m.expired_profile, '')
+			FROM radius_user_meta u
+			LEFT JOIN radusergroup g ON u.username = g.username
+			LEFT JOIN radius_profile_meta m ON g.groupname = m.groupname
+			WHERE u.expiration_unix IS NOT NULL AND u.expiration_unix > 0 AND u.expiration_unix <= ?
 		`, nowUnix)
 		if err != nil {
 			continue
 		}
 
-		expiredUsers := []string{}
+		type ExpiredUserInfo struct {
+			Username       string
+			ExpUnix        int64
+			ExpiredPool    string
+			ExpiredProfile string
+		}
+		expiredUsers := []ExpiredUserInfo{}
 		for rows.Next() {
-			var u string
-			if err := rows.Scan(&u); err == nil {
-				expiredUsers = append(expiredUsers, u)
+			var item ExpiredUserInfo
+			if err := rows.Scan(&item.Username, &item.ExpUnix, &item.ExpiredPool, &item.ExpiredProfile); err == nil {
+				expiredUsers = append(expiredUsers, item)
 			}
 		}
 		rows.Close()
 
-		for _, username := range expiredUsers {
-			var sessionID, framedIP string
-			err := db.QueryRow("SELECT COALESCE(acctsessionid, ''), COALESCE(framedipaddress, '') FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessionID, &framedIP)
+		for _, item := range expiredUsers {
+			var sessionID, framedIP, acctStartStr string
+			err := db.QueryRow("SELECT COALESCE(acctsessionid, ''), COALESCE(framedipaddress, ''), COALESCE(acctstarttime, '') FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", item.Username).Scan(&sessionID, &framedIP, &acctStartStr)
 			if err == nil && sessionID != "" {
-				nowStr := time.Now().Format("2006-01-02 15:04:05")
-				_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", nowStr, username)
+				// If user has an expired redirect pool or profile configured, check if they are already on it
+				if item.ExpiredPool != "" || item.ExpiredProfile != "" {
+					var startedUnix int64
+					if t, parseErr := time.Parse("2006-01-02 15:04:05", acctStartStr); parseErr == nil {
+						startedUnix = t.Unix()
+					} else if t, parseErr := time.Parse(time.RFC3339, acctStartStr); parseErr == nil {
+						startedUnix = t.Unix()
+					}
+					if startedUnix > item.ExpUnix {
+						// User already re-authenticated after expiration and is running under the expired profile.
+						// Do not disconnect them again.
+						continue
+					}
+				}
 
-				_ = m.DisconnectCloudUser(subdomain, username, sessionID, framedIP)
+				nowStr := time.Now().Format("2006-01-02 15:04:05")
+				_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", nowStr, item.Username)
+
+				_ = m.DisconnectCloudUser(subdomain, item.Username, sessionID, framedIP)
 
 				tenantLogPath := filepath.Join(m.pool.GetTenantDir(subdomain), "radius.log")
 				line := fmt.Sprintf("[%s] RADIUS Disconnect-Request (Code 40) sent for expired user [%s] (Session: %s) ⏰\n",
-					time.Now().Format("2006-01-02 15:04:05"), username, sessionID)
+					time.Now().Format("2006-01-02 15:04:05"), item.Username, sessionID)
 				f, err := os.OpenFile(tenantLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 				if err == nil {
 					_, _ = f.WriteString(line)

@@ -588,6 +588,7 @@ func main() {
 	radiusAPI.Get("/setup/status", getSetupStatusHandler)
 	radiusAPI.Post("/setup/check-subdomain", checkSubdomainProxyHandler)
 	radiusAPI.Post("/setup/self-register", selfRegisterAgentHandler)
+	radiusAPI.Post("/setup/skip-tunnel", skipTunnelSetupHandler)
 	radiusAPI.Post("/setup/request-takeover", requestTakeoverProxyHandler)
 	radiusAPI.Post("/setup/check-takeover-status", checkTakeoverStatusProxyHandler)
 	radiusAPI.Post("/tunnel/check-subdomain", checkSubdomainProxyHandler)
@@ -991,6 +992,10 @@ func handleLocalHTTPRequest(reqPayload tunnel.HttpRequestPayload, localPort stri
 	}
 
 	for k, v := range reqPayload.Headers {
+		lk := strings.ToLower(k)
+		if lk == "connection" || lk == "upgrade" || lk == "keep-alive" || lk == "transfer-encoding" {
+			continue
+		}
 		req.Header.Set(k, v)
 	}
 
@@ -1983,12 +1988,23 @@ func postToCentralServer(path string, jsonBody []byte) (*http.Response, error) {
 	return nil, lastErr
 }
 
+func skipTunnelSetupHandler(c *fiber.Ctx) error {
+	shared.RouterConfigState.SetupCompleted = true
+	shared.SaveConfig()
+	log.Printf("[Setup] 🖥️ User opted for Local-Only mode. Tunnel setup skipped.")
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "تم تخطي إعداد النطاق والتحويل إلى وضع التفعيل المحلي بنجاح.",
+	})
+}
+
 func getSetupStatusHandler(c *fiber.Ctx) error {
 	subdomain := strings.TrimSpace(shared.RouterConfigState.TunnelSubdomain)
 	if subdomain == "" {
 		subdomain = strings.TrimSpace(os.Getenv("SASMAN_SUBDOMAIN"))
 	}
-	isFreshInstall := (subdomain == "")
+	validLicense, _, _ := core.VerifyLicense(shared.RouterConfigState.License, shared.RouterConfigState.Serial)
+	isFreshInstall := (subdomain == "") && !shared.RouterConfigState.SetupCompleted && !validLicense
 
 	centralDomain := shared.RouterConfigState.CentralDomain
 	if centralDomain == "" {
@@ -2003,8 +2019,6 @@ func getSetupStatusHandler(c *fiber.Ctx) error {
 	sasmanTunnelMu.Lock()
 	tunnelConnected := (activeTunnelClient != nil)
 	sasmanTunnelMu.Unlock()
-
-	validLicense, _, _ := core.VerifyLicense(shared.RouterConfigState.License, shared.RouterConfigState.Serial)
 
 	winboxAddr := ""
 	if subdomain != "" && shared.RouterConfigState.WinboxPort > 0 {

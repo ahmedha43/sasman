@@ -47,6 +47,7 @@ type RouterConfig struct {
 	CloudLicenseExpiresAt string `json:"cloud_license_expires_at"`
 	CloudLicenseDaysLeft  int    `json:"cloud_license_days_left"`
 	CloudLicenseValid     bool   `json:"cloud_license_valid"`
+	SetupCompleted        bool   `json:"setup_completed"`
 }
 
 var RouterConfigState RouterConfig
