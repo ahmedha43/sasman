@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/url"
 	"os"
@@ -505,10 +506,11 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 			})
 		}
 
-		username, _ := claims["username"].(string)
-		if strings.Contains(username, "@") {
-			parts := strings.Split(username, "@")
-			username = parts[0]
+		rawUsername, _ := claims["username"].(string)
+		username := rawUsername
+		cleanUsername := rawUsername
+		if strings.Contains(rawUsername, "@") {
+			cleanUsername = strings.Split(rawUsername, "@")[0]
 		}
 		role, _ := claims["role"].(string)
 		if role == "" {
@@ -518,7 +520,11 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 		perms := make(map[string]bool)
 		if username != "" {
 			var permStr, dbRole string
-			if err := db.QueryRow("SELECT role, COALESCE(permissions, '{}') FROM radius_admins WHERE username = ?", username).Scan(&dbRole, &permStr); err == nil {
+			if err := db.QueryRow(`
+				SELECT role, COALESCE(permissions, '{}') 
+				FROM radius_admins 
+				WHERE username = ? OR username = ? OR username = ?
+			`, username, cleanUsername, cleanUsername+"@"+subdomain).Scan(&dbRole, &permStr); err == nil {
 				if dbRole != "" {
 					role = dbRole
 				}
@@ -744,10 +750,12 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
 	}
 
-	if strings.Contains(req.Username, "@") {
-		parts := strings.Split(req.Username, "@")
-		req.Username = parts[0]
-		if subdomain == "" {
+	rawUsername := strings.TrimSpace(req.Username)
+	cleanUsername := rawUsername
+	if strings.Contains(rawUsername, "@") {
+		parts := strings.Split(rawUsername, "@")
+		cleanUsername = parts[0]
+		if subdomain == "" && len(parts) > 1 {
 			subdomain = parts[1]
 		}
 	}
@@ -773,10 +781,14 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 
 	role := "superadmin"
 	var hash, dbRole string
-	err = db.QueryRow("SELECT password, role FROM radius_admins WHERE username = ?", req.Username).Scan(&hash, &dbRole)
+	err = db.QueryRow(`
+		SELECT COALESCE(password, password_hash, ''), role 
+		FROM radius_admins 
+		WHERE username = ? OR username = ? OR username = ?
+	`, cleanUsername, rawUsername, cleanUsername+"@"+subdomain).Scan(&hash, &dbRole)
 	if err != nil {
 		// If admin doesn't exist yet, seed default admin check
-		if req.Username == "admin" && (req.Password == "admin" || req.Password == "Mushtaq@Sasman#9977!") {
+		if (cleanUsername == "admin" || rawUsername == "admin") && (req.Password == "admin" || req.Password == "Mushtaq@Sasman#9977!") {
 			role = "superadmin"
 		} else {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -789,7 +801,7 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 			role = dbRole
 		}
 		if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
-			if hash != req.Password && !(req.Username == "admin" && (req.Password == "admin" || req.Password == "Mushtaq@Sasman#9977!")) {
+			if hash != req.Password && !((cleanUsername == "admin" || rawUsername == "admin") && (req.Password == "admin" || req.Password == "Mushtaq@Sasman#9977!")) {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 					"success": false,
 					"error":   "كلمة المرور غير صحيحة",
@@ -865,7 +877,10 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 		       COALESCE(rum.expiration_unix, 0), COALESCE(rum.enabled, 1),
 		       COALESCE((SELECT groupname FROM radusergroup WHERE username = rc.username LIMIT 1), '10M'),
 		       COALESCE(rum.quota_limit_mb, 0), COALESCE(rum.used_octets_in, 0), COALESCE(rum.used_octets_out, 0),
-		       COALESCE(rum.quota_status, 'active')
+		       COALESCE(rum.quota_status, 'active'),
+		       COALESCE(rum.admin_id, 1),
+		       COALESCE((SELECT CASE WHEN name IS NOT NULL AND name != '' THEN name ELSE username END FROM radius_admins WHERE id = rum.admin_id LIMIT 1), 'مدير النظام'),
+		       COALESCE(rum.balance, 0.0)
 		FROM radcheck rc
 		LEFT JOIN radius_user_meta rum ON rc.username = rum.username
 		WHERE rc.attribute = 'Cleartext-Password' OR rc.attribute = 'Disabled-Password'
@@ -919,13 +934,10 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 	for rows.Next() {
 		var u UserItem
 		var enabledInt int
-		if err := rows.Scan(&u.User, &u.Pass, &u.FullName, &u.Phone, &u.ExpiresAtUnix, &enabledInt, &u.Profile, &u.QuotaLimitMB, &u.UsedOctetsIn, &u.UsedOctetsOut, &u.QuotaStatus); err == nil {
+		if err := rows.Scan(&u.User, &u.Pass, &u.FullName, &u.Phone, &u.ExpiresAtUnix, &enabledInt, &u.Profile, &u.QuotaLimitMB, &u.UsedOctetsIn, &u.UsedOctetsOut, &u.QuotaStatus, &u.AdminID, &u.AdminName, &u.Balance); err == nil {
 			u.Username = u.User
 			u.Password = u.Pass
 			u.Enabled = (enabledInt == 1)
-			u.AdminID = 1
-			u.AdminName = "System"
-			u.Balance = 0
 
 			if u.QuotaLimitMB == 0 && u.Profile != "" {
 				_ = db.QueryRow("SELECT COALESCE(quota_limit_mb, 0) FROM radius_profile_meta WHERE groupname = ?", u.Profile).Scan(&u.QuotaLimitMB)
@@ -1748,11 +1760,21 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
 	rows, err := db.Query(`
 		SELECT id, username, COALESCE(name, ''), role, COALESCE(phone, ''), 
-		       COALESCE(balance, 0), is_active, COALESCE(permissions, '{}'), created_at
+		       COALESCE(balance, 0), COALESCE(is_active, 1), COALESCE(permissions, '{}'), created_at
 		FROM radius_admins
 		ORDER BY id ASC
 	`)
 	if err != nil {
+		log.Printf("[cloudtenant] handleListAdmins primary query error (trying fallback): %v", err)
+		rows, err = db.Query(`
+			SELECT id, username, COALESCE(name, ''), role, '', 
+			       COALESCE(balance, 0), 1, '{}', created_at
+			FROM radius_admins
+			ORDER BY id ASC
+		`)
+	}
+	if err != nil {
+		log.Printf("[cloudtenant] handleListAdmins fallback query error: %v", err)
 		return c.JSON([]fiber.Map{
 			{
 				"id":        1,

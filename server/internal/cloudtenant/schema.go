@@ -371,6 +371,16 @@ func EnsureTenantSchema(db *sql.DB) error {
 	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN used_octets_in INTEGER NOT NULL DEFAULT 0")
 	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN used_octets_out INTEGER NOT NULL DEFAULT 0")
 	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN quota_status TEXT NOT NULL DEFAULT 'active'")
+	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN admin_id INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_user_meta ADD COLUMN balance REAL NOT NULL DEFAULT 0.0")
+
+	// Ensure radius_admins has all required columns and password compatibility
+	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN password TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN phone TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN permissions TEXT DEFAULT '{}'")
+	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN price_per_user REAL NOT NULL DEFAULT 0.0")
+	_, _ = db.Exec("UPDATE radius_admins SET password = password_hash WHERE (password IS NULL OR password = '') AND password_hash IS NOT NULL AND password_hash != ''")
 
 	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN local_relay INTEGER DEFAULT 0")
 	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
