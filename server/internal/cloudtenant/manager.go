@@ -689,8 +689,11 @@ func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPaylo
 				framedipaddress, callingstationid, acctinputoctets, acctoutputoctets
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, p.SessionID, p.Username, p.NasIP, now, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut)
+		if err != nil {
+			log.Printf("[cloudtenant] ❌ Failed to insert Start accounting for [%s] user [%s]: %v", subdomain, p.Username, err)
+		}
 	case "Stop":
-		res, err := tenantDB.Exec(`
+		res, errExec := tenantDB.Exec(`
 			UPDATE radacct SET 
 				acctstoptime = ?,
 				acctsessiontime = ?,
@@ -699,18 +702,24 @@ func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPaylo
 				acctterminatecause = ?
 			WHERE acctsessionid = ? OR (username = ? AND acctstoptime IS NULL)
 		`, now, p.SessionTimeSec, p.BytesIn, p.BytesOut, p.TerminateCause, p.SessionID, p.Username)
+		err = errExec
 		if err == nil {
 			if rows, _ := res.RowsAffected(); rows == 0 {
-				_, _ = tenantDB.Exec(`
+				_, err = tenantDB.Exec(`
 					INSERT INTO radacct (
 						acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime, acctstoptime,
 						framedipaddress, callingstationid, acctinputoctets, acctoutputoctets, acctsessiontime, acctterminatecause
 					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				`, p.SessionID, p.Username, p.NasIP, now, now, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut, p.SessionTimeSec, p.TerminateCause)
+				if err != nil {
+					log.Printf("[cloudtenant] ❌ Failed to insert Stop fallback for [%s] user [%s]: %v", subdomain, p.Username, err)
+				}
 			}
+		} else {
+			log.Printf("[cloudtenant] ❌ Failed to update Stop accounting for [%s] user [%s]: %v", subdomain, p.Username, err)
 		}
 	case "Interim-Update":
-		res, err := tenantDB.Exec(`
+		res, errExec := tenantDB.Exec(`
 			UPDATE radacct SET 
 				acctupdatetime = ?,
 				acctsessiontime = ?,
@@ -720,15 +729,21 @@ func (m *Manager) RecordCloudAccounting(subdomain string, p CloudAccountingPaylo
 				callingstationid = CASE WHEN ? != '' THEN ? ELSE callingstationid END
 			WHERE acctsessionid = ? OR (username = ? AND acctstoptime IS NULL)
 		`, now, p.SessionTimeSec, p.BytesIn, p.BytesOut, p.UserIP, p.UserIP, p.UserMAC, p.UserMAC, p.SessionID, p.Username)
+		err = errExec
 		if err == nil {
 			if rows, _ := res.RowsAffected(); rows == 0 {
-				_, _ = tenantDB.Exec(`
+				_, err = tenantDB.Exec(`
 					INSERT INTO radacct (
 						acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime,
 						framedipaddress, callingstationid, acctinputoctets, acctoutputoctets, acctsessiontime
 					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				`, p.SessionID, p.Username, p.NasIP, now, now, p.UserIP, p.UserMAC, p.BytesIn, p.BytesOut, p.SessionTimeSec)
+				if err != nil {
+					log.Printf("[cloudtenant] ❌ Failed to insert Interim-Update fallback for [%s] user [%s]: %v", subdomain, p.Username, err)
+				}
 			}
+		} else {
+			log.Printf("[cloudtenant] ❌ Failed to update Interim-Update accounting for [%s] user [%s]: %v", subdomain, p.Username, err)
 		}
 	}
 

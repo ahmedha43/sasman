@@ -552,7 +552,28 @@ func main() {
 					}
 				}
 			}
-			// 1. Container mode
+
+			// 1. Cloud Tenant mode: ALWAYS record directly in tenant's isolated DB
+			if repo.IsCloudAgent(subdomain) {
+				err := cloudTenantMgr.RecordCloudAccounting(subdomain, cloudtenant.CloudAccountingPayload{
+					Username:       req.Username,
+					StatusType:     req.StatusType,
+					SessionID:      req.SessionID,
+					UserIP:         req.UserIP,
+					UserMAC:        req.UserMAC,
+					NasIP:          req.NasIP,
+					BytesIn:        req.BytesIn,
+					BytesOut:       req.BytesOut,
+					SessionTimeSec: int64(req.SessionTimeSec),
+				})
+				if err != nil {
+					log.Printf("[radsec-central] ❌ RecordCloudAccounting failed for tenant [%s] user [%s]: %v", subdomain, req.Username, err)
+				}
+				svc.OnGlobalAcctUpdate(subdomain, req)
+				return
+			}
+
+			// 2. Local Container mode: Forward to container agent via tunnel
 			if svc.IsAgentConnected(subdomain) {
 				svc.OnGlobalAcctUpdate(subdomain, req)
 				if subdomain != "" {
@@ -561,19 +582,6 @@ func main() {
 				}
 				return
 			}
-
-			// 2. Cloud Tenant mode: Record accounting directly in tenant's isolated DB
-			_ = cloudTenantMgr.RecordCloudAccounting(subdomain, cloudtenant.CloudAccountingPayload{
-				Username:       req.Username,
-				StatusType:     req.StatusType,
-				SessionID:      req.SessionID,
-				UserIP:         req.UserIP,
-				UserMAC:        req.UserMAC,
-				NasIP:          req.NasIP,
-				BytesIn:        req.BytesIn,
-				BytesOut:       req.BytesOut,
-				SessionTimeSec: int64(req.SessionTimeSec),
-			})
 		},
 		func(cn string, nasIP string) string {
 			for _, part := range strings.Split(cn, "-") {
@@ -621,18 +629,18 @@ func main() {
 			return c.Next()
 		}
 
-		// 1. Local container agent is connected via tunnel right now → forward directly
-		if svc.IsAgentConnected(subdomain) {
-			return svc.ForwardRequestToAgent(c, subdomain)
-		}
-
-		// 2. Cloud RadSec tenant (authoritative DB check)
+		// 1. Cloud RadSec tenant (authoritative DB check)
 		if repo.IsCloudAgent(subdomain) {
 			c.Locals("subdomain", subdomain)
 			if c.Path() == "/" || c.Path() == "/admin" {
 				return c.Redirect("/radius")
 			}
 			return c.Next()
+		}
+
+		// 2. Local container agent is connected via tunnel right now → forward directly
+		if svc.IsAgentConnected(subdomain) {
+			return svc.ForwardRequestToAgent(c, subdomain)
 		}
 
 		// 3. Local container agent — tunnel is temporarily offline / reconnecting

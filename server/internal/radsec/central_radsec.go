@@ -29,6 +29,7 @@ type CentralRadSecServer struct {
 	acctHandler func(subdomain string, req tunnel.GlobalAcctPayload)
 	getAgentSub func(cn string, nasIP string) string
 	listener    net.Listener
+	tlsConfig   *tls.Config
 	isShutdown  bool
 }
 
@@ -71,11 +72,12 @@ func (s *CentralRadSecServer) Start(port int) error {
 	}
 
 	bindAddr := fmt.Sprintf("0.0.0.0:%d", port)
-	l, err := tls.Listen("tcp", bindAddr, tlsConfig)
+	rawListener, err := net.Listen("tcp", bindAddr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", bindAddr, err)
 	}
-	s.listener = l
+	s.listener = rawListener
+	s.tlsConfig = tlsConfig
 	log.Printf("[radsec-central] 🛡️ Central RadSec Server (RFC 6614 mTLS) listening on %s...", bindAddr)
 
 	go s.acceptLoop()
@@ -84,7 +86,7 @@ func (s *CentralRadSecServer) Start(port int) error {
 
 func (s *CentralRadSecServer) acceptLoop() {
 	for {
-		conn, err := s.listener.Accept()
+		rawConn, err := s.listener.Accept()
 		if err != nil {
 			if s.isShutdown {
 				return
@@ -93,7 +95,12 @@ func (s *CentralRadSecServer) acceptLoop() {
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		go s.handleConnection(conn)
+		if tcpConn, ok := rawConn.(*net.TCPConn); ok {
+			_ = tcpConn.SetKeepAlive(true)
+			_ = tcpConn.SetKeepAlivePeriod(20 * time.Second)
+		}
+		tlsConn := tls.Server(rawConn, s.tlsConfig)
+		go s.handleConnection(tlsConn)
 	}
 }
 
@@ -360,20 +367,19 @@ func (s *CentralRadSecServer) handleAccessRequest(agent *CentralAgentConn, p *pa
 	if authResp.Allow {
 		isPPP := (reqFramedProtocol == 1 || reqServiceType == 2 || len(msc2Resp) > 0)
 
-		rateLimit := authResp.RateLimit
-		if rateLimit == "" {
-			rateLimit = "10M/10M"
+		if authResp.RateLimit != "" {
+			rateLimit := authResp.RateLimit
+			// Mikrotik-Rate-Limit (Vendor: 14988, Subtype: 8)
+			vsaData := make([]byte, 6+len(rateLimit))
+			binary.BigEndian.PutUint32(vsaData[0:4], 14988)
+			vsaData[4] = 8
+			vsaData[5] = byte(2 + len(rateLimit))
+			copy(vsaData[6:], []byte(rateLimit))
+			reply.Attributes = append(reply.Attributes, packet.Attribute{
+				Type:  types.AttrVendorSpecific,
+				Value: vsaData,
+			})
 		}
-		// Mikrotik-Rate-Limit (Vendor: 14988, Subtype: 8)
-		vsaData := make([]byte, 6+len(rateLimit))
-		binary.BigEndian.PutUint32(vsaData[0:4], 14988)
-		vsaData[4] = 8
-		vsaData[5] = byte(2 + len(rateLimit))
-		copy(vsaData[6:], []byte(rateLimit))
-		reply.Attributes = append(reply.Attributes, packet.Attribute{
-			Type:  types.AttrVendorSpecific,
-			Value: vsaData,
-		})
 
 		// ONLY send Mikrotik-Group if explicitly configured and non-empty (NEVER hardcode "full"!)
 		if authResp.MikrotikGroup != "" {
@@ -630,6 +636,8 @@ func (s *CentralRadSecServer) handleAccountingRequest(agent *CentralAgentConn, p
 	}
 
 	if s.acctHandler != nil && username != "" {
+		log.Printf("[radsec-central] 📊 Acct-Req: User=%s, Type=%s, Sess=%s, Sub=%s, In=%d, Out=%d",
+			username, statusType, sessionID, targetSubdomain, bytesIn, bytesOut)
 		s.acctHandler(targetSubdomain, tunnel.GlobalAcctPayload{
 			SessionID:      sessionID,
 			Username:       username,

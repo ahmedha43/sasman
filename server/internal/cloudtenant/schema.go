@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -293,6 +294,63 @@ func EnsureTenantSchema(db *sql.DB) error {
 	for _, q := range queries {
 		if _, err := db.Exec(q); err != nil {
 			log.Printf("[cloudtenant] Warning executing schema query: %v", err)
+		}
+	}
+
+	// Ensure radacct primary key is INTEGER PRIMARY KEY AUTOINCREMENT (fix MySQL/BIGINT imports)
+	var radacctSQL string
+	if err := db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='radacct'").Scan(&radacctSQL); err == nil {
+		lowerSQL := strings.ToLower(radacctSQL)
+		if strings.Contains(lowerSQL, "bigint") || !strings.Contains(lowerSQL, "integer primary key") {
+			log.Printf("[cloudtenant] ⚠️ Detected MySQL/BIGINT schema in radacct, migrating to INTEGER PRIMARY KEY AUTOINCREMENT...")
+			migrationSQL := `
+				CREATE TABLE IF NOT EXISTS radacct_migrated (
+					radacctid INTEGER PRIMARY KEY AUTOINCREMENT,
+					acctsessionid TEXT NOT NULL DEFAULT '',
+					acctuniqueid TEXT NOT NULL DEFAULT '',
+					username TEXT NOT NULL DEFAULT '',
+					groupname TEXT NOT NULL DEFAULT '',
+					realm TEXT DEFAULT '',
+					nasipaddress TEXT NOT NULL DEFAULT '',
+					nasportid TEXT DEFAULT '',
+					nasporttype TEXT DEFAULT '',
+					acctstarttime DATETIME NULL DEFAULT NULL,
+					acctupdatetime DATETIME NULL DEFAULT NULL,
+					acctstoptime DATETIME NULL DEFAULT NULL,
+					acctinterval INTEGER DEFAULT NULL,
+					acctsessiontime INTEGER DEFAULT NULL,
+					acctauthentic TEXT DEFAULT '',
+					connectinfo_start TEXT DEFAULT '',
+					connectinfo_stop TEXT DEFAULT '',
+					acctinputoctets BIGINT DEFAULT NULL,
+					acctoutputoctets BIGINT DEFAULT NULL,
+					calledstationid TEXT DEFAULT '',
+					callingstationid TEXT DEFAULT '',
+					acctterminatecause TEXT DEFAULT '',
+					servicetype TEXT DEFAULT '',
+					framedprotocol TEXT DEFAULT '',
+					framedipaddress TEXT DEFAULT ''
+				);
+				INSERT OR IGNORE INTO radacct_migrated (
+					radacctid, acctsessionid, acctuniqueid, username, realm, nasipaddress,
+					acctstarttime, acctupdatetime, acctstoptime, acctsessiontime,
+					acctinputoctets, acctoutputoctets, callingstationid, acctterminatecause, framedipaddress
+				)
+				SELECT radacctid, acctsessionid, acctuniqueid, username, realm, nasipaddress,
+					acctstarttime, acctupdatetime, acctstoptime, acctsessiontime,
+					acctinputoctets, acctoutputoctets, callingstationid, acctterminatecause, framedipaddress
+				FROM radacct;
+				DROP TABLE radacct;
+				ALTER TABLE radacct_migrated RENAME TO radacct;
+				CREATE INDEX IF NOT EXISTS idx_radacct_username ON radacct (username);
+				CREATE INDEX IF NOT EXISTS idx_radacct_active ON radacct (acctstoptime, username);
+				CREATE INDEX IF NOT EXISTS idx_radacct_sessionid ON radacct (acctsessionid);
+			`
+			if _, mErr := db.Exec(migrationSQL); mErr != nil {
+				log.Printf("[cloudtenant] ❌ radacct migration error: %v", mErr)
+			} else {
+				log.Printf("[cloudtenant] ✅ radacct successfully migrated to INTEGER PRIMARY KEY AUTOINCREMENT")
+			}
 		}
 	}
 

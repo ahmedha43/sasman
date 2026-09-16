@@ -1262,15 +1262,7 @@ func (r *SQLiteRepository) GetAgentLicenseInfo(subdomain string) (*AgentLicenseI
 		}, nil
 	}
 
-	info, err := r.getAgentLicenseInfoRaw(subdomain)
-	if err != nil {
-		return nil, err
-	}
-	// Disaster Recovery Bypass: if missing, expired, or unlicensed, auto-activate 3 days grace period
-	if info.Status == "unlicensed" || info.IsExpired || info.Status == "expired" {
-		return r.ActivateAgentLicense(subdomain, 3)
-	}
-	return info, nil
+	return r.getAgentLicenseInfoRaw(subdomain)
 }
 
 func (r *SQLiteRepository) ActivateAgentLicense(subdomain string, days int) (*AgentLicenseInfo, error) {
