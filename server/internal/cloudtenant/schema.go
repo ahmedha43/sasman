@@ -192,6 +192,7 @@ func EnsureTenantSchema(db *sql.DB) error {
 			price_per_user REAL NOT NULL DEFAULT 0.0,
 			is_active INTEGER NOT NULL DEFAULT 1,
 			permissions TEXT DEFAULT '[]',
+			parent_id INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
@@ -380,6 +381,7 @@ func EnsureTenantSchema(db *sql.DB) error {
 	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
 	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN permissions TEXT DEFAULT '{}'")
 	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN price_per_user REAL NOT NULL DEFAULT 0.0")
+	_, _ = db.Exec("ALTER TABLE radius_admins ADD COLUMN parent_id INTEGER DEFAULT 1")
 	_, _ = db.Exec("UPDATE radius_admins SET password = password_hash WHERE (password IS NULL OR password = '') AND password_hash IS NOT NULL AND password_hash != ''")
 
 	_, _ = db.Exec("ALTER TABLE radius_streams ADD COLUMN local_relay INTEGER DEFAULT 0")

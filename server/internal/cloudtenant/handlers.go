@@ -142,6 +142,8 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Post("/users/:username/disconnect", h.handleDisconnectUser)
 	protectedRadius.Get("/users/:username/transactions", h.handleGetUserTransactions)
 	protectedRadius.Post("/users/:username/transactions", h.handleAddUserTransaction)
+	protectedRadius.Get("/stats", h.handleGetStats)
+	protectedRadius.Get("/tenant/stats", h.handleGetStats)
 
 	// Excel Import / Export & SAS4 Migration & System Factory Reset
 	protectedRadius.Post("/import/excel", h.handleImportExcel)
@@ -517,28 +519,80 @@ func (h *APIHandler) TenantAuthMiddleware() fiber.Handler {
 			role = "superadmin"
 		}
 
+		var adminID int64
+		if rawID, ok := claims["admin_id"]; ok {
+			switch v := rawID.(type) {
+			case float64:
+				adminID = int64(v)
+			case int64:
+				adminID = v
+			}
+		}
+
 		perms := make(map[string]bool)
+		var dbName string
 		if username != "" {
 			var permStr, dbRole string
+			var dbAdminID int64
 			if err := db.QueryRow(`
-				SELECT role, COALESCE(permissions, '{}') 
+				SELECT id, role, COALESCE(name, ''), COALESCE(permissions, '{}') 
 				FROM radius_admins 
 				WHERE username = ? OR username = ? OR username = ?
-			`, username, cleanUsername, cleanUsername+"@"+subdomain).Scan(&dbRole, &permStr); err == nil {
+			`, username, cleanUsername, cleanUsername+"@"+subdomain).Scan(&dbAdminID, &dbRole, &dbName, &permStr); err == nil {
+				if dbAdminID > 0 {
+					adminID = dbAdminID
+				}
 				if dbRole != "" {
 					role = dbRole
 				}
 				_ = json.Unmarshal([]byte(permStr), &perms)
 			}
 		}
+		if adminID <= 0 && (cleanUsername == "admin" || username == "admin") {
+			adminID = 1
+			role = "superadmin"
+		}
 
 		c.Locals("subdomain", subdomain)
 		c.Locals("tenant_db", db)
 		c.Locals("username", username)
+		c.Locals("name", dbName)
+		c.Locals("admin_id", adminID)
 		c.Locals("role", role)
 		c.Locals("permissions", perms)
 		return c.Next()
 	}
+}
+
+func (h *APIHandler) checkUserOwnership(c *fiber.Ctx, db *sql.DB, username string) bool {
+	role, _ := c.Locals("role").(string)
+	if role == "superadmin" {
+		return true
+	}
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		return false
+	}
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return false
+	}
+	var ownerID int64
+	err := db.QueryRow("SELECT COALESCE(admin_id, 1) FROM radius_user_meta WHERE username = ?", username).Scan(&ownerID)
+	if err != nil {
+		var exists int
+		_ = db.QueryRow("SELECT COUNT(*) FROM radcheck WHERE username = ?", username).Scan(&exists)
+		if exists == 0 {
+			return true
+		}
+		return false
+	}
+	if ownerID == adminID {
+		return true
+	}
+	var isChild int
+	_ = db.QueryRow("SELECT COUNT(*) FROM radius_admins WHERE id = ? AND parent_id = ?", ownerID, adminID).Scan(&isChild)
+	return isChild > 0
 }
 
 func (h *APIHandler) getTenantDB(c *fiber.Ctx) (*sql.DB, error) {
@@ -657,11 +711,12 @@ func (h *APIHandler) handleCloudAuthMe(c *fiber.Ctx) error {
 	if subdomain == "" {
 		subdomain, _ = claims["subdomain"].(string)
 	}
-	username, _ := claims["username"].(string)
-	if strings.Contains(username, "@") {
-		parts := strings.Split(username, "@")
-		username = parts[0]
+	rawUsername, _ := claims["username"].(string)
+	cleanUsername := rawUsername
+	if strings.Contains(rawUsername, "@") {
+		cleanUsername = strings.Split(rawUsername, "@")[0]
 	}
+	username := rawUsername
 	if username == "" {
 		username = "admin"
 	}
@@ -674,16 +729,20 @@ func (h *APIHandler) handleCloudAuthMe(c *fiber.Ctx) error {
 	db, err := h.mgr.pool.Get(subdomain)
 	if err == nil {
 		var id int64
-		var name, phone, permStr, dbRole string
+		var name, phone, permStr, dbRole, dbUser string
 		var balance float64
 		err = db.QueryRow(`
-			SELECT id, COALESCE(name, ''), role, COALESCE(phone, ''), 
+			SELECT id, username, COALESCE(name, ''), role, COALESCE(phone, ''), 
 			       COALESCE(balance, 0), COALESCE(permissions, '{}')
-			FROM radius_admins WHERE username = ?
-		`, username).Scan(&id, &name, &dbRole, &phone, &balance, &permStr)
+			FROM radius_admins 
+			WHERE username = ? OR username = ? OR username = ?
+		`, rawUsername, cleanUsername, cleanUsername+"@"+subdomain).Scan(&id, &dbUser, &name, &dbRole, &phone, &balance, &permStr)
 		if err == nil {
 			if dbRole != "" {
 				role = dbRole
+			}
+			if dbUser != "" {
+				username = dbUser
 			}
 			if name == "" {
 				if role == "superadmin" {
@@ -713,11 +772,14 @@ func (h *APIHandler) handleCloudAuthMe(c *fiber.Ctx) error {
 		}
 	}
 
+	var fallbackID int64 = 1
 	displayName := "مدير النظام"
 	if role != "superadmin" {
 		displayName = username
+		fallbackID = 2
 	}
 	return c.JSON(fiber.Map{
+		"id":          fallbackID,
 		"username":    username,
 		"role":        role,
 		"subdomain":   subdomain,
@@ -780,16 +842,19 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 	}
 
 	role := "superadmin"
-	var hash, dbRole string
+	var adminID int64 = 1
+	var hash, dbRole, dbName, dbUser string
 	err = db.QueryRow(`
-		SELECT COALESCE(password, password_hash, ''), role 
+		SELECT id, username, COALESCE(name, ''), COALESCE(password, password_hash, ''), role 
 		FROM radius_admins 
 		WHERE username = ? OR username = ? OR username = ?
-	`, cleanUsername, rawUsername, cleanUsername+"@"+subdomain).Scan(&hash, &dbRole)
+	`, cleanUsername, rawUsername, cleanUsername+"@"+subdomain).Scan(&adminID, &dbUser, &dbName, &hash, &dbRole)
 	if err != nil {
 		// If admin doesn't exist yet, seed default admin check
 		if (cleanUsername == "admin" || rawUsername == "admin") && (req.Password == "admin" || req.Password == "Mushtaq@Sasman#9977!") {
 			role = "superadmin"
+			adminID = 1
+			dbName = "مدير النظام"
 		} else {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
@@ -799,6 +864,9 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 	} else {
 		if dbRole != "" {
 			role = dbRole
+		}
+		if dbUser != "" {
+			rawUsername = dbUser
 		}
 		if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
 			if hash != req.Password && !((cleanUsername == "admin" || rawUsername == "admin") && (req.Password == "admin" || req.Password == "Mushtaq@Sasman#9977!")) {
@@ -812,7 +880,8 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 
 	claims := jwt.MapClaims{
 		"subdomain": subdomain,
-		"username":  req.Username,
+		"username":  rawUsername,
+		"admin_id":  adminID,
 		"role":      role,
 		"exp":       time.Now().Add(7 * 24 * time.Hour).Unix(),
 	}
@@ -837,7 +906,9 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success":  true,
 		"token":    tokenString,
-		"username": req.Username,
+		"admin_id": adminID,
+		"username": rawUsername,
+		"name":     dbName,
 		"role":     role,
 	})
 }
@@ -845,11 +916,39 @@ func (h *APIHandler) handleCloudAuthLogin(c *fiber.Ctx) error {
 func (h *APIHandler) handleGetStats(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
 	subdomain := c.Locals("subdomain").(string)
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
 
 	var userCount, onlineCount, voucherCount, profileCount int
-	_ = db.QueryRow("SELECT COUNT(*) FROM radcheck WHERE attribute = 'Cleartext-Password'").Scan(&userCount)
-	_ = db.QueryRow("SELECT COUNT(*) FROM radacct WHERE acctstoptime IS NULL").Scan(&onlineCount)
-	_ = db.QueryRow("SELECT COUNT(*) FROM radius_vouchers WHERE is_used = 0").Scan(&voucherCount)
+
+	if role == "superadmin" || adminID <= 0 {
+		_ = db.QueryRow("SELECT COUNT(*) FROM radcheck WHERE attribute = 'Cleartext-Password'").Scan(&userCount)
+		_ = db.QueryRow("SELECT COUNT(*) FROM radacct WHERE acctstoptime IS NULL").Scan(&onlineCount)
+		_ = db.QueryRow("SELECT COUNT(*) FROM radius_vouchers WHERE is_used = 0").Scan(&voucherCount)
+	} else {
+		_ = db.QueryRow(`
+			SELECT COUNT(*) 
+			FROM radcheck rc 
+			JOIN radius_user_meta rum ON rc.username = rum.username 
+			WHERE rc.attribute = 'Cleartext-Password' 
+			  AND (rum.admin_id = ? OR rum.admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?))
+		`, adminID, adminID).Scan(&userCount)
+
+		_ = db.QueryRow(`
+			SELECT COUNT(*) 
+			FROM radacct ra 
+			JOIN radius_user_meta rum ON ra.username = rum.username 
+			WHERE ra.acctstoptime IS NULL 
+			  AND (rum.admin_id = ? OR rum.admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?))
+		`, adminID, adminID).Scan(&onlineCount)
+
+		_ = db.QueryRow(`
+			SELECT COUNT(*) 
+			FROM radius_vouchers 
+			WHERE is_used = 0 
+			  AND (created_by = ? OR created_by IN (SELECT id FROM radius_admins WHERE parent_id = ?))
+		`, adminID, adminID).Scan(&voucherCount)
+	}
 	_ = db.QueryRow("SELECT COUNT(*) FROM radius_profile_meta").Scan(&profileCount)
 
 	return c.JSON(fiber.Map{
@@ -872,7 +971,10 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
 	}
 
-	rows, err := db.Query(`
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+
+	baseQuery := `
 		SELECT rc.username, rc.value, COALESCE(rum.full_name, ''), COALESCE(rum.phone, ''), 
 		       COALESCE(rum.expiration_unix, 0), COALESCE(rum.enabled, 1),
 		       COALESCE((SELECT groupname FROM radusergroup WHERE username = rc.username LIMIT 1), '10M'),
@@ -883,10 +985,22 @@ func (h *APIHandler) handleListUsers(c *fiber.Ctx) error {
 		       COALESCE(rum.balance, 0.0)
 		FROM radcheck rc
 		LEFT JOIN radius_user_meta rum ON rc.username = rum.username
-		WHERE rc.attribute = 'Cleartext-Password' OR rc.attribute = 'Disabled-Password'
-		ORDER BY rc.id DESC
-		LIMIT 10000
-	`)
+		WHERE (rc.attribute = 'Cleartext-Password' OR rc.attribute = 'Disabled-Password')
+	`
+	var args []interface{}
+
+	filterAdmin := strings.TrimSpace(c.Query("admin_id"))
+	if role != "superadmin" && adminID > 0 {
+		baseQuery += ` AND (rum.admin_id = ? OR rum.admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?))`
+		args = append(args, adminID, adminID)
+	} else if filterAdmin != "" {
+		baseQuery += ` AND rum.admin_id = ?`
+		args = append(args, filterAdmin)
+	}
+
+	baseQuery += ` ORDER BY rc.id DESC LIMIT 10000`
+
+	rows, err := db.Query(baseQuery, args...)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
 	}
@@ -1060,10 +1174,30 @@ func (h *APIHandler) handleCreateUser(c *fiber.Ctx) error {
 		if !h.hasPermission(c, "can_edit_users") {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تعديل بيانات المشتركين"})
 		}
+		if !h.checkUserOwnership(c, db, lookupUser) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بتعديل بيانات هذا المشترك"})
+		}
 	} else {
 		if !h.hasPermission(c, "can_create_users") {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية إضافة مشتركين جدد"})
 		}
+	}
+
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		adminID = 1
+	}
+	targetAdminID := int64(1)
+	if role != "superadmin" {
+		targetAdminID = adminID
+	}
+
+	callerName := "المدير العام"
+	if pName, ok := c.Locals("name").(string); ok && pName != "" {
+		callerName = pName
+	} else if pUser, ok := c.Locals("username").(string); ok && pUser != "" {
+		callerName = pUser
 	}
 
 	var expUnix int64
@@ -1130,17 +1264,31 @@ func (h *APIHandler) handleCreateUser(c *fiber.Ctx) error {
 	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
 	_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, req.Profile)
 
-	// Insert into radius_user_meta
-	_, _ = db.Exec(`
-		INSERT OR REPLACE INTO radius_user_meta (username, full_name, phone, expiration_unix, enabled)
-		VALUES (?, ?, ?, ?, ?)
-	`, username, req.FullName, req.Phone, expUnix, existingEnabled)
+	// Insert or update radius_user_meta
+	if existingExp > 0 && !isRename {
+		_, _ = db.Exec(`
+			UPDATE radius_user_meta 
+			SET full_name = ?, phone = ?, expiration_unix = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP
+			WHERE username = ?
+		`, req.FullName, req.Phone, expUnix, existingEnabled, username)
+	} else {
+		_, _ = db.Exec(`
+			INSERT INTO radius_user_meta (username, full_name, phone, expiration_unix, enabled, admin_id, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			ON CONFLICT(username) DO UPDATE SET
+				full_name = excluded.full_name,
+				phone = excluded.phone,
+				expiration_unix = excluded.expiration_unix,
+				enabled = excluded.enabled,
+				updated_at = CURRENT_TIMESTAMP
+		`, username, req.FullName, req.Phone, expUnix, existingEnabled, targetAdminID)
+	}
 
 	actionName := "تعديل مشترك"
 	if existingExp == 0 && !isRename {
 		actionName = "إضافة مشترك"
 	}
-	recordTenantAuditLog(db, 1, "المدير العام", actionName, username, fmt.Sprintf("تم حفظ المشترك مع باقة %s (تاريخ الانتهاء: %s)", req.Profile, time.Unix(expUnix, 0).Format("2006-01-02 15:04")), c.IP())
+	recordTenantAuditLog(db, adminID, callerName, actionName, username, fmt.Sprintf("تم حفظ المشترك مع باقة %s (تاريخ الانتهاء: %s)", req.Profile, time.Unix(expUnix, 0).Format("2006-01-02 15:04")), c.IP())
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم حفظ المشترك بنجاح"})
 }
@@ -1154,12 +1302,27 @@ func (h *APIHandler) handleDeleteUser(c *fiber.Ctx) error {
 	username, _ := url.PathUnescape(rawUser)
 	username = strings.TrimSpace(username)
 
+	if !h.checkUserOwnership(c, db, username) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بحذف هذا المشترك"})
+	}
+
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		adminID = 1
+	}
+	callerName := "المدير العام"
+	if pName, ok := c.Locals("name").(string); ok && pName != "" {
+		callerName = pName
+	} else if pUser, ok := c.Locals("username").(string); ok && pUser != "" {
+		callerName = pUser
+	}
+
 	_, _ = db.Exec("DELETE FROM radcheck WHERE username = ?", username)
 	_, _ = db.Exec("DELETE FROM radreply WHERE username = ?", username)
 	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
 	_, _ = db.Exec("DELETE FROM radius_user_meta WHERE username = ?", username)
 
-	recordTenantAuditLog(db, 1, "المدير العام", "حذف مشترك", username, "تم حذف المشترك من النظام", c.IP())
+	recordTenantAuditLog(db, adminID, callerName, "حذف مشترك", username, "تم حذف المشترك من النظام", c.IP())
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم حذف المشترك"})
 }
@@ -1172,6 +1335,21 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 	rawUser := c.Params("username")
 	username, _ := url.PathUnescape(rawUser)
 	username = strings.TrimSpace(username)
+
+	if !h.checkUserOwnership(c, db, username) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بتجديد اشتراك هذا المشترك"})
+	}
+
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		adminID = 1
+	}
+	callerName := "المدير العام"
+	if pName, ok := c.Locals("name").(string); ok && pName != "" {
+		callerName = pName
+	} else if pUser, ok := c.Locals("username").(string); ok && pUser != "" {
+		callerName = pUser
+	}
 
 	var req struct {
 		Profile string `json:"profile"`
@@ -1201,7 +1379,7 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
 	_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, profile)
 
-	recordTenantAuditLog(db, 1, "المدير العام", "تجديد مشترك", username, fmt.Sprintf("تم تجديد الاشتراك مع باقة %s لمدة %d يوم (تصفير الكوتة)", profile, validityDays), c.IP())
+	recordTenantAuditLog(db, adminID, callerName, "تجديد مشترك", username, fmt.Sprintf("تم تجديد الاشتراك مع باقة %s لمدة %d يوم (تصفير الكوتة)", profile, validityDays), c.IP())
 
 	return c.JSON(fiber.Map{
 		"success":             true,
@@ -1219,6 +1397,21 @@ func (h *APIHandler) handleResetUserQuota(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المشترك مطلوب"})
 	}
 
+	if !h.checkUserOwnership(c, db, username) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بتصفير كوتة هذا المشترك"})
+	}
+
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		adminID = 1
+	}
+	callerName := "المدير العام"
+	if pName, ok := c.Locals("name").(string); ok && pName != "" {
+		callerName = pName
+	} else if pUser, ok := c.Locals("username").(string); ok && pUser != "" {
+		callerName = pUser
+	}
+
 	_, err := db.Exec(`
 		UPDATE radius_user_meta 
 		SET used_octets_in = 0, used_octets_out = 0, quota_status = 'active', updated_at = CURRENT_TIMESTAMP
@@ -1230,7 +1423,7 @@ func (h *APIHandler) handleResetUserQuota(c *fiber.Ctx) error {
 
 	_, _ = db.Exec(`UPDATE radacct SET acctstoptime = CURRENT_TIMESTAMP, acctterminatecause = 'Quota-Reset' WHERE username = ? AND acctstoptime IS NULL`, username)
 
-	recordTenantAuditLog(db, 1, "المدير العام", "تصفير الكوتة", username, "تم تصفير وإعادة تعيين استهلاك كوتة البيانات", c.IP())
+	recordTenantAuditLog(db, adminID, callerName, "تصفير الكوتة", username, "تم تصفير وإعادة تعيين استهلاك كوتة البيانات", c.IP())
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير وإعادة شحن كوتة المشترك بنجاح"})
 }
@@ -1240,6 +1433,10 @@ func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 	rawUser := c.Params("username")
 	username, _ := url.PathUnescape(rawUser)
 	username = strings.TrimSpace(username)
+
+	if !h.checkUserOwnership(c, db, username) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك باستعراض بيانات هذا المشترك"})
+	}
 
 	var password, fullName, phone string
 	var expUnix int64
@@ -1344,6 +1541,10 @@ func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
 	username, _ := url.PathUnescape(rawUser)
 	username = strings.TrimSpace(username)
 
+	if !h.checkUserOwnership(c, db, username) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بتغيير حالة هذا المشترك"})
+	}
+
 	var enabled int
 	_ = db.QueryRow("SELECT COALESCE(enabled, 1) FROM radius_user_meta WHERE username = ?", username).Scan(&enabled)
 	newStatus := 0
@@ -1395,6 +1596,10 @@ func (h *APIHandler) handleDisconnectUser(c *fiber.Ctx) error {
 	rawUser := c.Params("username")
 	username, _ := url.PathUnescape(rawUser)
 	username = strings.TrimSpace(username)
+
+	if !h.checkUserOwnership(c, db, username) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بفصل جلسة هذا المشترك"})
+	}
 
 	var sessionID, framedIP string
 	_ = db.QueryRow("SELECT COALESCE(acctsessionid, ''), COALESCE(framedipaddress, '') FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessionID, &framedIP)
@@ -1663,14 +1868,23 @@ func (h *APIHandler) handleListVouchers(c *fiber.Ctx) error {
 		return c.JSON([]interface{}{})
 	}
 
-	rows, err := db.Query(`
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+
+	query := `
 		SELECT id, COALESCE(batch_id, ''), code, profile_name, validity_days, COALESCE(price, 0),
 		       COALESCE(created_by, 1), COALESCE(is_used, 0), COALESCE(used_by, ''),
 		       COALESCE(used_at, ''), COALESCE(created_at, '')
 		FROM radius_vouchers
-		ORDER BY id DESC
-		LIMIT 500
-	`)
+	`
+	var args []interface{}
+	if role != "superadmin" && adminID > 0 {
+		query += " WHERE created_by = ? OR created_by IN (SELECT id FROM radius_admins WHERE parent_id = ?)"
+		args = append(args, adminID, adminID)
+	}
+	query += " ORDER BY id DESC LIMIT 500"
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return c.JSON([]interface{}{})
 	}
@@ -1707,7 +1921,15 @@ func (h *APIHandler) handleDeleteVoucher(c *fiber.Ctx) error {
 	}
 	db := c.Locals("tenant_db").(*sql.DB)
 	id := c.Params("id")
-	_, _ = db.Exec("DELETE FROM radius_vouchers WHERE id = ?", id)
+
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+
+	if role != "superadmin" && adminID > 0 {
+		_, _ = db.Exec("DELETE FROM radius_vouchers WHERE id = ? AND (created_by = ? OR created_by IN (SELECT id FROM radius_admins WHERE parent_id = ?))", id, adminID, adminID)
+	} else {
+		_, _ = db.Exec("DELETE FROM radius_vouchers WHERE id = ?", id)
+	}
 	return c.JSON(fiber.Map{"success": true, "message": "تم حذف الكارت"})
 }
 
@@ -1758,20 +1980,36 @@ func (h *APIHandler) handleListNAS(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
-	rows, err := db.Query(`
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+
+	query := `
 		SELECT id, username, COALESCE(name, ''), role, COALESCE(phone, ''), 
-		       COALESCE(balance, 0), COALESCE(is_active, 1), COALESCE(permissions, '{}'), created_at
+		       COALESCE(balance, 0), COALESCE(is_active, 1), COALESCE(permissions, '{}'), created_at, COALESCE(parent_id, 1)
 		FROM radius_admins
-		ORDER BY id ASC
-	`)
+	`
+	var args []interface{}
+	if role != "superadmin" && adminID > 0 {
+		query += " WHERE id = ? OR parent_id = ?"
+		args = append(args, adminID, adminID)
+	}
+	query += " ORDER BY id ASC"
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		log.Printf("[cloudtenant] handleListAdmins primary query error (trying fallback): %v", err)
-		rows, err = db.Query(`
+		fallbackQuery := `
 			SELECT id, username, COALESCE(name, ''), role, '', 
-			       COALESCE(balance, 0), 1, '{}', created_at
+			       COALESCE(balance, 0), 1, '{}', created_at, 1
 			FROM radius_admins
-			ORDER BY id ASC
-		`)
+		`
+		var fallbackArgs []interface{}
+		if role != "superadmin" && adminID > 0 {
+			fallbackQuery += " WHERE id = ? OR parent_id = ?"
+			fallbackArgs = append(fallbackArgs, adminID, adminID)
+		}
+		fallbackQuery += " ORDER BY id ASC"
+		rows, err = db.Query(fallbackQuery, fallbackArgs...)
 	}
 	if err != nil {
 		log.Printf("[cloudtenant] handleListAdmins fallback query error: %v", err)
@@ -1783,6 +2021,7 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 				"name":      "مدير النظام",
 				"is_active": 1,
 				"balance":   0,
+				"parent_id": 1,
 			},
 		})
 	}
@@ -1790,11 +2029,11 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 
 	list := []fiber.Map{}
 	for rows.Next() {
-		var id int64
+		var id, parentID int64
 		var username, name, role, phone, permStr, createdAt string
 		var balance float64
 		var isActive int
-		if err := rows.Scan(&id, &username, &name, &role, &phone, &balance, &isActive, &permStr, &createdAt); err == nil {
+		if err := rows.Scan(&id, &username, &name, &role, &phone, &balance, &isActive, &permStr, &createdAt, &parentID); err == nil {
 			item := fiber.Map{
 				"id":          id,
 				"username":    username,
@@ -1804,6 +2043,7 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 				"balance":     balance,
 				"is_active":   isActive,
 				"permissions": permStr,
+				"parent_id":   parentID,
 				"created_at":  createdAt,
 			}
 
@@ -1835,6 +2075,11 @@ func (h *APIHandler) handleListAdmins(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleRegisterAdmin(c *fiber.Ctx) error {
 	requesterRole, _ := c.Locals("role").(string)
+	requesterID, _ := c.Locals("admin_id").(int64)
+	if requesterID <= 0 {
+		requesterID = 1
+	}
+
 	if requesterRole != "superadmin" && !h.hasPermission(c, "can_manage_subagents") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية إضافة وكلاء فرعيين"})
 	}
@@ -1856,7 +2101,9 @@ func (h *APIHandler) handleRegisterAdmin(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المستخدم وكلمة المرور مطلوبان"})
 	}
 
-	if role == "" {
+	if requesterRole != "superadmin" {
+		role = "agent"
+	} else if role == "" {
 		role = "agent"
 	}
 
@@ -1879,9 +2126,9 @@ func (h *APIHandler) handleRegisterAdmin(c *fiber.Ctx) error {
 	permBytes, _ := json.Marshal(perms)
 
 	_, err = db.Exec(`
-		INSERT INTO radius_admins (username, password, role, name, phone, balance, is_active, permissions)
-		VALUES (?, ?, ?, ?, ?, 0.0, 1, ?)
-	`, username, string(hash), role, name, phone, string(permBytes))
+		INSERT INTO radius_admins (username, password, role, name, phone, balance, is_active, permissions, parent_id)
+		VALUES (?, ?, ?, ?, ?, 0.0, 1, ?, ?)
+	`, username, string(hash), role, name, phone, string(permBytes), requesterID)
 
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "اسم المستخدم مسجل مسبقاً أو غير صالح"})
@@ -1892,6 +2139,7 @@ func (h *APIHandler) handleRegisterAdmin(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleUpdateAdminPermissions(c *fiber.Ctx) error {
 	requesterRole, _ := c.Locals("role").(string)
+	requesterID, _ := c.Locals("admin_id").(int64)
 	if requesterRole != "superadmin" && !h.hasPermission(c, "can_manage_subagents") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تعديل صلاحيات الوكلاء"})
 	}
@@ -1899,6 +2147,14 @@ func (h *APIHandler) handleUpdateAdminPermissions(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if id == "" || id == "0" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "معرّف غير صالح"})
+	}
+
+	if requesterRole != "superadmin" {
+		var parentID int64
+		_ = db.QueryRow("SELECT COALESCE(parent_id, 1) FROM radius_admins WHERE id = ?", id).Scan(&parentID)
+		if parentID != requesterID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بتعديل صلاحيات هذا الوكيل"})
+		}
 	}
 
 	var rawMap map[string]interface{}
@@ -1937,22 +2193,44 @@ func (h *APIHandler) handleUpdateProfile(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid body"})
 	}
 
-	_, _ = db.Exec("UPDATE radius_admins SET name = ?, phone = ?, updated_at = CURRENT_TIMESTAMP WHERE role = 'superadmin' OR id = 1", req.Name, req.Phone)
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		adminID = 1
+	}
+
+	_, _ = db.Exec("UPDATE radius_admins SET name = ?, phone = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", req.Name, req.Phone, adminID)
 	return c.JSON(fiber.Map{"success": true, "message": "تم تحديث الملف الشخصي بنجاح"})
 }
 
 func (h *APIHandler) handleDeleteAdmin(c *fiber.Ctx) error {
+	requesterRole, _ := c.Locals("role").(string)
+	requesterID, _ := c.Locals("admin_id").(int64)
+
 	db := c.Locals("tenant_db").(*sql.DB)
 	id := c.Params("id")
 	if id == "1" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "لا يمكن حذف الحساب الرئيسي للمدير"})
 	}
+
+	if requesterRole != "superadmin" {
+		var parentID int64
+		_ = db.QueryRow("SELECT COALESCE(parent_id, 1) FROM radius_admins WHERE id = ?", id).Scan(&parentID)
+		if parentID != requesterID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بحذف هذا الوكيل"})
+		}
+	}
+
 	_, _ = db.Exec("DELETE FROM radius_admins WHERE id = ?", id)
 	return c.JSON(fiber.Map{"success": true, "message": "تم حذف الحساب بنجاح"})
 }
 
 func (h *APIHandler) handleRechargeAdmin(c *fiber.Ctx) error {
 	requesterRole, _ := c.Locals("role").(string)
+	requesterID, _ := c.Locals("admin_id").(int64)
+	if requesterID <= 0 {
+		requesterID = 1
+	}
+
 	if requesterRole != "superadmin" && !h.hasPermission(c, "can_manage_transactions") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية شحن أرصدة الوكلاء"})
 	}
@@ -1984,6 +2262,14 @@ func (h *APIHandler) handleRechargeAdmin(c *fiber.Ctx) error {
 
 	if targetID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى تحديد الوكيل المطلوب"})
+	}
+
+	if requesterRole != "superadmin" {
+		var parentID int64
+		_ = db.QueryRow("SELECT COALESCE(parent_id, 1) FROM radius_admins WHERE id = ?", targetID).Scan(&parentID)
+		if parentID != requesterID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بشحن رصيد هذا الوكيل"})
+		}
 	}
 
 	var adminName, adminUser string
@@ -2019,16 +2305,21 @@ func (h *APIHandler) handleRechargeAdmin(c *fiber.Ctx) error {
 
 	_, _ = db.Exec(`
 		INSERT INTO radius_admin_transactions (admin_id, performed_by, performer_name, type, transaction_type, amount, balance_after, notes, created_at)
-		VALUES (?, 1, ?, 'recharge', 'recharge', ?, ?, ?, CURRENT_TIMESTAMP)
-	`, targetID, performerName, req.Amount, newBal, req.Notes)
+		VALUES (?, ?, ?, 'recharge', 'recharge', ?, ?, ?, CURRENT_TIMESTAMP)
+	`, targetID, requesterID, performerName, req.Amount, newBal, req.Notes)
 
-	recordTenantAuditLog(db, 1, performerName, "شحن رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
+	recordTenantAuditLog(db, requesterID, performerName, "شحن رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم شحن الرصيد بنجاح", "balance": newBal})
 }
 
 func (h *APIHandler) handleWithdrawAdmin(c *fiber.Ctx) error {
 	requesterRole, _ := c.Locals("role").(string)
+	requesterID, _ := c.Locals("admin_id").(int64)
+	if requesterID <= 0 {
+		requesterID = 1
+	}
+
 	if requesterRole != "superadmin" && !h.hasPermission(c, "can_manage_transactions") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية سحب رصيد الوكلاء"})
 	}
@@ -2060,6 +2351,14 @@ func (h *APIHandler) handleWithdrawAdmin(c *fiber.Ctx) error {
 
 	if targetID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى تحديد الوكيل المطلوب"})
+	}
+
+	if requesterRole != "superadmin" {
+		var parentID int64
+		_ = db.QueryRow("SELECT COALESCE(parent_id, 1) FROM radius_admins WHERE id = ?", targetID).Scan(&parentID)
+		if parentID != requesterID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بسحب رصيد هذا الوكيل"})
+		}
 	}
 
 	var adminName, adminUser string
@@ -2099,10 +2398,10 @@ func (h *APIHandler) handleWithdrawAdmin(c *fiber.Ctx) error {
 
 	_, _ = db.Exec(`
 		INSERT INTO radius_admin_transactions (admin_id, performed_by, performer_name, type, transaction_type, amount, balance_after, notes, created_at)
-		VALUES (?, 1, ?, 'withdraw', 'withdraw', ?, ?, ?, CURRENT_TIMESTAMP)
-	`, targetID, performerName, req.Amount, newBal, req.Notes)
+		VALUES (?, ?, ?, 'withdraw', 'withdraw', ?, ?, ?, CURRENT_TIMESTAMP)
+	`, targetID, requesterID, performerName, req.Amount, newBal, req.Notes)
 
-	recordTenantAuditLog(db, 1, performerName, "سحب رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
+	recordTenantAuditLog(db, requesterID, performerName, "سحب رصيد وكيل", adminName, fmt.Sprintf("مبلغ: %.0f د.ع، الرصيد الجديد: %.0f د.ع (ملاحظات: %s)", req.Amount, newBal, req.Notes), c.IP())
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم سحب الرصيد بنجاح", "balance": newBal})
 }
@@ -2161,6 +2460,9 @@ func (h *APIHandler) handleListAdminTransactions(c *fiber.Ctx) error {
 		adminRows.Close()
 	}
 
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+
 	query := `
 		SELECT t.id, 
 		       t.admin_id, 
@@ -2173,15 +2475,31 @@ func (h *APIHandler) handleListAdminTransactions(c *fiber.Ctx) error {
 		FROM radius_admin_transactions t
 		LEFT JOIN radius_admins p ON (t.performed_by = p.id OR t.performer_id = p.id)
 	`
-	var rows *sql.Rows
-	var err error
-	if targetID > 0 {
-		query += " WHERE t.admin_id = ? ORDER BY t.id DESC LIMIT 200"
-		rows, err = db.Query(query, targetID)
-	} else {
-		query += " ORDER BY t.id DESC LIMIT 200"
-		rows, err = db.Query(query)
+	var whereClause string
+	var args []interface{}
+
+	if role != "superadmin" && adminID > 0 {
+		if targetID > 0 && targetID != adminID {
+			var isChild int
+			_ = db.QueryRow("SELECT COUNT(*) FROM radius_admins WHERE id = ? AND parent_id = ?", targetID, adminID).Scan(&isChild)
+			if isChild > 0 {
+				whereClause = " WHERE t.admin_id = ?"
+				args = append(args, targetID)
+			} else {
+				whereClause = " WHERE t.admin_id = ?"
+				args = append(args, adminID)
+			}
+		} else {
+			whereClause = " WHERE (t.admin_id = ? OR t.admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?))"
+			args = append(args, adminID, adminID)
+		}
+	} else if targetID > 0 {
+		whereClause = " WHERE t.admin_id = ?"
+		args = append(args, targetID)
 	}
+
+	query += whereClause + " ORDER BY t.id DESC LIMIT 200"
+	rows, err := db.Query(query, args...)
 
 	if err != nil {
 		return c.JSON([]interface{}{})
@@ -2441,6 +2759,11 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 	}
 	defer tx.Rollback()
 
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		adminID = 1
+	}
+
 	// Insert batch record
 	_, _ = tx.Exec(`
 		INSERT INTO radius_voucher_batches (batch_id, name, profile_name, count, price)
@@ -2449,7 +2772,7 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 
 	stmt, err := tx.Prepare(`
 		INSERT INTO radius_vouchers (batch_id, code, profile_name, validity_days, price, created_by, is_used)
-		VALUES (?, ?, ?, ?, ?, 1, 0)
+		VALUES (?, ?, ?, ?, ?, ?, 0)
 	`)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
@@ -2458,7 +2781,7 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 
 	for i := 0; i < req.Count; i++ {
 		code := generateCloudRandomCode(req.CodeLength, req.CodeType)
-		_, _ = stmt.Exec(batchID, code, req.ProfileName, req.ValidityDays, req.Price)
+		_, _ = stmt.Exec(batchID, code, req.ProfileName, req.ValidityDays, req.Price, adminID)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -2475,16 +2798,26 @@ func (h *APIHandler) handleGenerateVouchers(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleListActiveSessions(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
 
-	rows, err := db.Query(`
-		SELECT radacctid, acctsessionid, username, nasipaddress, acctstarttime, 
-		       COALESCE(framedipaddress, ''), COALESCE(callingstationid, ''),
-		       COALESCE(acctinputoctets, 0), COALESCE(acctoutputoctets, 0)
-		FROM radacct
-		WHERE acctstoptime IS NULL
-		ORDER BY radacctid DESC
-		LIMIT 5000
-	`)
+	baseQuery := `
+		SELECT ra.radacctid, ra.acctsessionid, ra.username, ra.nasipaddress, ra.acctstarttime, 
+		       COALESCE(ra.framedipaddress, ''), COALESCE(ra.callingstationid, ''),
+		       COALESCE(ra.acctinputoctets, 0), COALESCE(ra.acctoutputoctets, 0)
+		FROM radacct ra
+	`
+	var args []interface{}
+	if role != "superadmin" && adminID > 0 {
+		baseQuery += ` JOIN radius_user_meta rum ON ra.username = rum.username`
+		baseQuery += ` WHERE ra.acctstoptime IS NULL AND (rum.admin_id = ? OR rum.admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?))`
+		args = append(args, adminID, adminID)
+	} else {
+		baseQuery += ` WHERE ra.acctstoptime IS NULL`
+	}
+	baseQuery += ` ORDER BY ra.radacctid DESC LIMIT 5000`
+
+	rows, err := db.Query(baseQuery, args...)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": err.Error()})
 	}
@@ -2521,6 +2854,14 @@ func (h *APIHandler) handleDisconnectSession(c *fiber.Ctx) error {
 		SessionID string `json:"session_id"`
 	}
 	_ = c.BodyParser(&req)
+
+	sUser := strings.TrimSpace(req.Username)
+	if sUser == "" && req.SessionID != "" {
+		_ = db.QueryRow("SELECT username FROM radacct WHERE acctsessionid = ? LIMIT 1", req.SessionID).Scan(&sUser)
+	}
+	if sUser != "" && !h.checkUserOwnership(c, db, sUser) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بفصل جلسة هذا المشترك"})
+	}
 
 	now := time.Now()
 	_, err := db.Exec(`
@@ -2672,6 +3013,8 @@ func (h *APIHandler) handleListAuditLogs(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية استعراض سجل الرقابة والعمليات"})
 	}
 	db := c.Locals("tenant_db").(*sql.DB)
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
 
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	if page < 1 {
@@ -2690,6 +3033,11 @@ func (h *APIHandler) handleListAuditLogs(c *fiber.Ctx) error {
 
 	whereClauses := []string{"1=1"}
 	args := []interface{}{}
+
+	if role != "superadmin" && adminID > 0 {
+		whereClauses = append(whereClauses, "(admin_id = ? OR admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?))")
+		args = append(args, adminID, adminID)
+	}
 
 	if search != "" {
 		whereClauses = append(whereClauses, "(target LIKE ? OR details LIKE ? OR COALESCE(admin_username, '') LIKE ?)")
@@ -2770,14 +3118,32 @@ func (h *APIHandler) handleListAuditLogs(c *fiber.Ctx) error {
 }
 
 func (h *APIHandler) handleClearAuditLogs(c *fiber.Ctx) error {
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
 	db := c.Locals("tenant_db").(*sql.DB)
-	_, _ = db.Exec("DELETE FROM radius_audit_log")
+
+	if role != "superadmin" && adminID > 0 {
+		_, _ = db.Exec("DELETE FROM radius_audit_log WHERE admin_id = ? OR admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?)", adminID, adminID)
+	} else {
+		_, _ = db.Exec("DELETE FROM radius_audit_log")
+	}
 	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير سجل عمليات النظام بنجاح"})
 }
 
 func (h *APIHandler) handleExportAuditLogsCSV(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
-	rows, err := db.Query("SELECT id, COALESCE(admin_username, 'المدير العام'), COALESCE(action_type, action, ''), COALESCE(target, ''), COALESCE(details, ''), COALESCE(ip, '127.0.0.1'), created_at FROM radius_audit_log ORDER BY id DESC LIMIT 5000")
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+
+	query := "SELECT id, COALESCE(admin_username, 'المدير العام'), COALESCE(action_type, action, ''), COALESCE(target, ''), COALESCE(details, ''), COALESCE(ip, '127.0.0.1'), created_at FROM radius_audit_log"
+	var args []interface{}
+	if role != "superadmin" && adminID > 0 {
+		query += " WHERE admin_id = ? OR admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?)"
+		args = append(args, adminID, adminID)
+	}
+	query += " ORDER BY id DESC LIMIT 5000"
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Error fetching audit logs")
 	}
@@ -2921,8 +3287,21 @@ func (h *APIHandler) handleDeleteVoucherBatch(c *fiber.Ctx) error {
 	if batchID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "batch_id required"})
 	}
-	_, _ = db.Exec("DELETE FROM radius_vouchers WHERE batch_id = ?", batchID)
-	_, _ = db.Exec("DELETE FROM radius_voucher_batches WHERE batch_id = ?", batchID)
+
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+
+	if role != "superadmin" && adminID > 0 {
+		_, _ = db.Exec("DELETE FROM radius_vouchers WHERE batch_id = ? AND (created_by = ? OR created_by IN (SELECT id FROM radius_admins WHERE parent_id = ?))", batchID, adminID, adminID)
+		var count int
+		_ = db.QueryRow("SELECT COUNT(*) FROM radius_vouchers WHERE batch_id = ?", batchID).Scan(&count)
+		if count == 0 {
+			_, _ = db.Exec("DELETE FROM radius_voucher_batches WHERE batch_id = ?", batchID)
+		}
+	} else {
+		_, _ = db.Exec("DELETE FROM radius_vouchers WHERE batch_id = ?", batchID)
+		_, _ = db.Exec("DELETE FROM radius_voucher_batches WHERE batch_id = ?", batchID)
+	}
 	return c.JSON(fiber.Map{"success": true, "message": "تم حذف الدفعة بنجاح"})
 }
 
@@ -2931,14 +3310,25 @@ func (h *APIHandler) handleClearAllVouchers(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تفريغ الكروت"})
 	}
 	db := c.Locals("tenant_db").(*sql.DB)
-	_, _ = db.Exec("DELETE FROM radius_vouchers")
-	_, _ = db.Exec("DELETE FROM radius_voucher_batches")
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+
+	if role != "superadmin" && adminID > 0 {
+		_, _ = db.Exec("DELETE FROM radius_vouchers WHERE created_by = ? OR created_by IN (SELECT id FROM radius_admins WHERE parent_id = ?)", adminID, adminID)
+	} else {
+		_, _ = db.Exec("DELETE FROM radius_vouchers")
+		_, _ = db.Exec("DELETE FROM radius_voucher_batches")
+	}
 	return c.JSON(fiber.Map{"success": true, "message": "تم حذف وتصفير كافة الكروت بنجاح"})
 }
 
 func (h *APIHandler) handleGetUserTransactions(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
 	username, _ := url.PathUnescape(c.Params("username"))
+
+	if !h.checkUserOwnership(c, db, username) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك باستعراض الحركات المالية لهذا المشترك"})
+	}
 
 	rows, err := db.Query(`
 		SELECT id, username, transaction_type, amount, notes, created_at
@@ -2975,6 +3365,10 @@ func (h *APIHandler) handleAddUserTransaction(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
 	username, _ := url.PathUnescape(c.Params("username"))
 
+	if !h.checkUserOwnership(c, db, username) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بإضافة حركة مالية لهذا المشترك"})
+	}
+
 	var req struct {
 		Type   string  `json:"transaction_type"`
 		Amount float64 `json:"amount"`
@@ -3003,16 +3397,25 @@ func (h *APIHandler) handleAddUserTransaction(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleExportExcel(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
 
-	rows, err := db.Query(`
+	query := `
 		SELECT u.username, COALESCE(c.value, ''), COALESCE(u.full_name, ''), 
 		       COALESCE(u.phone, ''), COALESCE(g.groupname, ''), 
 		       COALESCE(u.expiration_unix, 0), COALESCE(u.balance, 0), u.enabled
 		FROM radius_user_meta u
 		LEFT JOIN radcheck c ON u.username = c.username AND c.attribute = 'Cleartext-Password'
 		LEFT JOIN radusergroup g ON u.username = g.username
-		ORDER BY u.created_at DESC
-	`)
+	`
+	var args []interface{}
+	if role != "superadmin" && adminID > 0 {
+		query += " WHERE (u.admin_id = ? OR u.admin_id IN (SELECT id FROM radius_admins WHERE parent_id = ?))"
+		args = append(args, adminID, adminID)
+	}
+	query += " ORDER BY u.created_at DESC"
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -3072,6 +3475,11 @@ func (h *APIHandler) handleExportExcel(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
+	role, _ := c.Locals("role").(string)
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		adminID = 1
+	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -3132,6 +3540,14 @@ func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 			continue
 		}
 
+		var exists int
+		_ = db.QueryRow("SELECT COUNT(*) FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&exists)
+		if exists > 0 && role != "superadmin" {
+			if !h.checkUserOwnership(c, db, username) {
+				continue // Skip subscribers not owned by this agent
+			}
+		}
+
 		password := getCol("ct_password", 1)
 		if password == "" {
 			password = getCol("password", 1)
@@ -3175,8 +3591,6 @@ func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 			}
 		}
 
-		var exists int
-		_ = db.QueryRow("SELECT COUNT(*) FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&exists)
 		if exists > 0 {
 			_, _ = db.Exec("UPDATE radcheck SET value = ? WHERE username = ? AND attribute = 'Cleartext-Password'", password, username)
 			updated++
@@ -3186,8 +3600,8 @@ func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 		}
 
 		_, _ = db.Exec(`
-			INSERT INTO radius_user_meta (username, full_name, phone, balance, expiration_unix, enabled, updated_at)
-			VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+			INSERT INTO radius_user_meta (username, full_name, phone, balance, expiration_unix, enabled, admin_id, updated_at)
+			VALUES (?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
 			ON CONFLICT(username) DO UPDATE SET 
 				full_name = excluded.full_name,
 				phone = excluded.phone,
@@ -3195,7 +3609,7 @@ func (h *APIHandler) handleImportExcel(c *fiber.Ctx) error {
 				expiration_unix = excluded.expiration_unix,
 				enabled = 1,
 				updated_at = CURRENT_TIMESTAMP
-		`, username, fullName, phone, balanceVal, expUnix)
+		`, username, fullName, phone, balanceVal, expUnix, adminID)
 
 		if profile != "" {
 			_ = ensureProfileExistsCloud(db, profile)
