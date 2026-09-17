@@ -31,15 +31,20 @@ async function submitTransaction() {
 
     const res = await apiFetch(`/radius/api/users/${encodeURIComponent(currentTransactionUser)}/transactions`, {
         method: 'POST',
-        body: JSON.stringify({ type, amount, notes })
+        body: JSON.stringify({ type, transaction_type: type, amount, notes })
     });
 
     const result = await res.json();
     alert(result.message || result.error);
 
     if (res.ok) {
+        const u = currentTransactionUser;
         closeTransactionModal();
         loadUsers();
+        const detailsModal = document.getElementById('user-details-modal');
+        if (detailsModal && detailsModal.classList.contains('active')) {
+            openUserDetails(encodeURIComponent(u));
+        }
     }
 }
 
@@ -78,14 +83,18 @@ function renderUserDetails(data) {
     const balanceClass = (data.balance || 0) > 0 ? 'badge-danger' : 'badge-success';
 
     const transactionsHtml = (data.transactions && data.transactions.length)
-        ? data.transactions.map(t => `
+        ? data.transactions.map(t => {
+            const rawType = (t.type || t.transaction_type || '').toLowerCase();
+            const isDebt = rawType === 'debt' || rawType === 'withdraw';
+            return `
             <tr>
-                <td><span class="badge ${t.type === 'debt' ? 'badge-danger' : 'badge-success'}">${t.type === 'debt' ? 'ديون' : 'تسديد'}</span></td>
-                <td style="font-weight:600; color:var(--text-main);">${t.amount.toLocaleString()} د.ع</td>
-                <td>${t.notes || '-'}</td>
+                <td><span class="badge ${isDebt ? 'badge-danger' : 'badge-success'}">${isDebt ? 'ديون' : 'تسديد'}</span></td>
+                <td style="font-weight:600; color:var(--text-main);">${(t.amount || 0).toLocaleString()} د.ع</td>
+                <td>${escapeHtml(t.notes || '-')}</td>
                 <td style="color:var(--text-muted); font-size:13px;">${new Date(t.created_at).toLocaleString('ar')}</td>
             </tr>
-        `).join('')
+            `;
+        }).join('')
         : '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">لا توجد عمليات مالية</td></tr>';
 
     const sessionsHtml = (data.session_history && data.session_history.length)

@@ -1645,6 +1645,7 @@ func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 			if err := txRows.Scan(&tid, &ttype, &tamount, &tnotes, &tcreated); err == nil {
 				userTxs = append(userTxs, map[string]interface{}{
 					"id":               tid,
+					"type":             ttype,
 					"transaction_type": ttype,
 					"amount":           tamount,
 					"notes":            tnotes,
@@ -3471,18 +3472,22 @@ func (h *APIHandler) handleGetUserTransactions(c *fiber.Ctx) error {
 	defer rows.Close()
 
 	type TxItem struct {
-		ID        int64   `json:"id"`
-		Username  string  `json:"username"`
-		Type      string  `json:"transaction_type"`
-		Amount    float64 `json:"amount"`
-		Notes     string  `json:"notes"`
-		CreatedAt string  `json:"created_at"`
+		ID              int64   `json:"id"`
+		Username        string  `json:"username"`
+		Type            string  `json:"type"`
+		TransactionType string  `json:"transaction_type"`
+		Amount          float64 `json:"amount"`
+		Notes           string  `json:"notes"`
+		CreatedAt       string  `json:"created_at"`
 	}
 
 	res := []TxItem{}
 	for rows.Next() {
 		var t TxItem
-		if err := rows.Scan(&t.ID, &t.Username, &t.Type, &t.Amount, &t.Notes, &t.CreatedAt); err == nil {
+		var rawType string
+		if err := rows.Scan(&t.ID, &t.Username, &rawType, &t.Amount, &t.Notes, &t.CreatedAt); err == nil {
+			t.Type = rawType
+			t.TransactionType = rawType
 			res = append(res, t)
 		}
 	}
@@ -3508,44 +3513,53 @@ func (h *APIHandler) handleAddUserTransaction(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		Type   string  `json:"transaction_type"`
-		Amount float64 `json:"amount"`
-		Notes  string  `json:"notes"`
+		Type            string  `json:"type"`
+		TransactionType string  `json:"transaction_type"`
+		Amount          float64 `json:"amount"`
+		Notes           string  `json:"notes"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.Amount <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "المبلغ ونوع الحركة مطلوبان"})
 	}
 
+	txType := strings.ToLower(strings.TrimSpace(req.Type))
+	if txType == "" {
+		txType = strings.ToLower(strings.TrimSpace(req.TransactionType))
+	}
+	if txType != "debt" && txType != "payment" && txType != "recharge" && txType != "withdraw" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "نوع الحركة غير صالح (يجب أن يكون ديون أو تسديد)"})
+	}
+
 	_, err := db.Exec(`
 		INSERT INTO radius_user_transactions (username, transaction_type, amount, notes, admin_id, created_at)
 		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-	`, username, req.Type, req.Amount, req.Notes, adminID)
+	`, username, txType, req.Amount, req.Notes, adminID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	var balanceChange float64
-	if req.Type == "payment" || req.Type == "recharge" {
+	if txType == "payment" || txType == "recharge" {
 		balanceChange = -req.Amount
-	} else if req.Type == "debt" || req.Type == "withdraw" {
+	} else if txType == "debt" || txType == "withdraw" {
 		balanceChange = req.Amount
 	}
 
 	if balanceChange != 0 {
-		_, _ = db.Exec("UPDATE radius_user_meta SET balance = balance + ? WHERE username = ?", balanceChange, username)
+		_, _ = db.Exec("UPDATE radius_user_meta SET balance = COALESCE(balance, 0) + ? WHERE username = ?", balanceChange, username)
 	}
 
 	var currentSubBal float64
 	_ = db.QueryRow("SELECT COALESCE(balance, 0) FROM radius_user_meta WHERE username = ?", username).Scan(&currentSubBal)
 
 	// Send WhatsApp notification if appropriate
-	if req.Type == "payment" {
+	if txType == "payment" {
 		h.SendTenantWhatsappNotification(subdomain, db, username, "payment", map[string]string{
 			"amount":  fmt.Sprintf("%.0f", req.Amount),
 			"notes":   req.Notes,
 			"balance": fmt.Sprintf("%.0f", currentSubBal),
 		})
-	} else if req.Type == "debt" {
+	} else if txType == "debt" {
 		h.SendTenantWhatsappNotification(subdomain, db, username, "add_debt", map[string]string{
 			"amount":  fmt.Sprintf("%.0f", req.Amount),
 			"notes":   req.Notes,
@@ -3553,7 +3567,13 @@ func (h *APIHandler) handleAddUserTransaction(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(fiber.Map{"success": true, "message": "تم تسجيل الحركة المالية بنجاح", "balance": currentSubBal})
+	return c.JSON(fiber.Map{
+		"success":          true,
+		"message":          "تم تسجيل الحركة المالية وتحديث رصيد المشترك بنجاح",
+		"balance":          currentSubBal,
+		"type":             txType,
+		"transaction_type": txType,
+	})
 }
 
 func (h *APIHandler) handleExportExcel(c *fiber.Ctx) error {
