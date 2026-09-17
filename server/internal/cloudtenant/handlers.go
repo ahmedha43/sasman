@@ -195,6 +195,8 @@ func (h *APIHandler) RegisterRoutes(app fiber.Router) {
 	protectedRadius.Post("/whatsapp/test", h.handleTestWhatsapp)
 	protectedRadius.Get("/whatsapp/templates", h.handleGetWhatsappTemplates)
 	protectedRadius.Post("/whatsapp/templates", h.handleSaveWhatsappTemplates)
+	protectedRadius.Post("/whatsapp/broadcast", h.handleWhatsappBroadcast)
+	protectedRadius.Post("/whatsapp/send-debt-reminder", h.handleWhatsappSendDebtReminder)
 
 	// Live Streams (IPTV)
 	protectedRadius.Get("/streams", h.handleListStreams)
@@ -1287,10 +1289,33 @@ func (h *APIHandler) handleCreateUser(c *fiber.Ctx) error {
 	actionName := "تعديل مشترك"
 	if existingExp == 0 && !isRename {
 		actionName = "إضافة مشترك"
+	} else {
+		// Disconnect if active so changes take effect immediately on the router
+		h.disconnectTenantUserIfOnline(c, db, username)
+		if isRename && oldUser != "" {
+			h.disconnectTenantUserIfOnline(c, db, oldUser)
+		}
 	}
 	recordTenantAuditLog(db, adminID, callerName, actionName, username, fmt.Sprintf("تم حفظ المشترك مع باقة %s (تاريخ الانتهاء: %s)", req.Profile, time.Unix(expUnix, 0).Format("2006-01-02 15:04")), c.IP())
 
 	return c.JSON(fiber.Map{"success": true, "message": "تم حفظ المشترك بنجاح"})
+}
+
+func (h *APIHandler) disconnectTenantUserIfOnline(c *fiber.Ctx, db *sql.DB, username string) {
+	subdomain, _ := c.Locals("subdomain").(string)
+	if subdomain == "" {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
+	var sessionID, framedIP string
+	_ = db.QueryRow("SELECT COALESCE(acctsessionid, ''), COALESCE(framedipaddress, '') FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessionID, &framedIP)
+
+	if sessionID != "" || framedIP != "" {
+		now := time.Now().Format("2006-01-02 15:04:05")
+		_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", now, username)
+		if h.mgr != nil && subdomain != "" {
+			_ = h.mgr.DisconnectCloudUser(subdomain, username, sessionID, framedIP)
+		}
+	}
 }
 
 func (h *APIHandler) handleDeleteUser(c *fiber.Ctx) error {
@@ -1317,6 +1342,9 @@ func (h *APIHandler) handleDeleteUser(c *fiber.Ctx) error {
 		callerName = pUser
 	}
 
+	// Disconnect session if active
+	h.disconnectTenantUserIfOnline(c, db, username)
+
 	_, _ = db.Exec("DELETE FROM radcheck WHERE username = ?", username)
 	_, _ = db.Exec("DELETE FROM radreply WHERE username = ?", username)
 	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
@@ -1332,6 +1360,10 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "ليس لديك صلاحية تجديد اشتراك المشتركين"})
 	}
 	db := c.Locals("tenant_db").(*sql.DB)
+	subdomain, _ := c.Locals("subdomain").(string)
+	if subdomain == "" {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
 	rawUser := c.Params("username")
 	username, _ := url.PathUnescape(rawUser)
 	username = strings.TrimSpace(username)
@@ -1344,6 +1376,7 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 	if adminID <= 0 {
 		adminID = 1
 	}
+	role, _ := c.Locals("role").(string)
 	callerName := "المدير العام"
 	if pName, ok := c.Locals("name").(string); ok && pName != "" {
 		callerName = pName
@@ -1353,6 +1386,7 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 
 	var req struct {
 		Profile string `json:"profile"`
+		Paid    bool   `json:"paid"`
 	}
 	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Profile) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "يرجى اختيار الباقة"})
@@ -1360,11 +1394,43 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 	profile := strings.TrimSpace(req.Profile)
 
 	validityDays := 30
-	_ = db.QueryRow("SELECT validity_days FROM radius_profile_meta WHERE groupname = ?", profile).Scan(&validityDays)
+	var profilePrice float64
+	var agentPrice float64
+	_ = db.QueryRow("SELECT validity_days, price, agent_price FROM radius_profile_meta WHERE groupname = ?", profile).Scan(&validityDays, &profilePrice, &agentPrice)
 	if validityDays <= 0 {
 		validityDays = 30
 	}
 
+	// 1. Deduct from agent balance if performing admin is an agent (role != "superadmin")
+	if role != "superadmin" {
+		deductAmount := agentPrice
+		if deductAmount <= 0 {
+			_ = db.QueryRow("SELECT price_per_user FROM radius_admins WHERE id = ?", adminID).Scan(&deductAmount)
+		}
+		if deductAmount > 0 {
+			var currentAdminBal float64
+			err := db.QueryRow("SELECT balance FROM radius_admins WHERE id = ?", adminID).Scan(&currentAdminBal)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل جلب رصيد الوكيل"})
+			}
+			if currentAdminBal < deductAmount {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": fmt.Sprintf("رصيدك غير كافٍ لتجديد هذا المشترك. رصيدك الحالي: %.0f د.ع، المطلوب: %.0f د.ع", currentAdminBal, deductAmount),
+				})
+			}
+			newAdminBal := currentAdminBal - deductAmount
+			_, err = db.Exec("UPDATE radius_admins SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", newAdminBal, adminID)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "فشل خصم رصيد الوكيل"})
+			}
+			_, _ = db.Exec(`
+				INSERT INTO radius_admin_transactions (admin_id, performed_by, performer_name, type, transaction_type, amount, balance_after, notes, created_at)
+				VALUES (?, ?, ?, 'withdraw', 'renewal', ?, ?, ?, CURRENT_TIMESTAMP)
+			`, adminID, adminID, callerName, deductAmount, newAdminBal, fmt.Sprintf("تجديد المشترك %s باقة %s", username, profile))
+		}
+	}
+
+	// 2. Calculate new expiration
 	now := time.Now().Unix()
 	var currentExp int64
 	_ = db.QueryRow("SELECT expiration_unix FROM radius_user_meta WHERE username = ?", username).Scan(&currentExp)
@@ -1379,11 +1445,58 @@ func (h *APIHandler) handleRenewUser(c *fiber.Ctx) error {
 	_, _ = db.Exec("DELETE FROM radusergroup WHERE username = ?", username)
 	_, _ = db.Exec("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", username, profile)
 
-	recordTenantAuditLog(db, adminID, callerName, "تجديد مشترك", username, fmt.Sprintf("تم تجديد الاشتراك مع باقة %s لمدة %d يوم (تصفير الكوتة)", profile, validityDays), c.IP())
+	// 3. Subscriber debt & transactions
+	var currentSubBal float64
+	_ = db.QueryRow("SELECT COALESCE(balance, 0) FROM radius_user_meta WHERE username = ?", username).Scan(&currentSubBal)
+
+	if profilePrice > 0 && !req.Paid {
+		// Debt added
+		currentSubBal += profilePrice
+		_, _ = db.Exec("UPDATE radius_user_meta SET balance = ? WHERE username = ?", currentSubBal, username)
+		_, _ = db.Exec(`
+			INSERT INTO radius_user_transactions (username, transaction_type, amount, notes, admin_id, created_at)
+			VALUES (?, 'debt', ?, ?, ?, CURRENT_TIMESTAMP)
+		`, username, profilePrice, fmt.Sprintf("تجديد باقة %s (%d يوم)", profile, validityDays), adminID)
+
+		h.SendTenantWhatsappNotification(subdomain, db, username, "renew_debt", map[string]string{
+			"username":      username,
+			"profile":       profile,
+			"price":         fmt.Sprintf("%.0f", profilePrice),
+			"validity_days": fmt.Sprintf("%d", validityDays),
+			"balance":       fmt.Sprintf("%.0f", currentSubBal),
+		})
+	} else if profilePrice > 0 && req.Paid {
+		// Cash payment recorded
+		_, _ = db.Exec(`
+			INSERT INTO radius_user_transactions (username, transaction_type, amount, notes, admin_id, created_at)
+			VALUES (?, 'payment', ?, ?, ?, CURRENT_TIMESTAMP)
+		`, username, profilePrice, fmt.Sprintf("تسديد اشتراك باقة %s (نقداً)", profile), adminID)
+
+		h.SendTenantWhatsappNotification(subdomain, db, username, "renew_paid", map[string]string{
+			"username":      username,
+			"profile":       profile,
+			"price":         fmt.Sprintf("%.0f", profilePrice),
+			"validity_days": fmt.Sprintf("%d", validityDays),
+			"balance":       fmt.Sprintf("%.0f", currentSubBal),
+		})
+	} else {
+		h.SendTenantWhatsappNotification(subdomain, db, username, "renew_paid", map[string]string{
+			"username":      username,
+			"profile":       profile,
+			"price":         "0",
+			"validity_days": fmt.Sprintf("%d", validityDays),
+			"balance":       fmt.Sprintf("%.0f", currentSubBal),
+		})
+	}
+
+	// 4. Automatically disconnect if user is online so they reconnect and take active profile
+	h.disconnectTenantUserIfOnline(c, db, username)
+
+	recordTenantAuditLog(db, adminID, callerName, "تجديد مشترك", username, fmt.Sprintf("تم تجديد الاشتراك مع باقة %s لمدة %d يوم (تصفير الكوتة وفصل الجلسة السابقة)", profile, validityDays), c.IP())
 
 	return c.JSON(fiber.Map{
 		"success":             true,
-		"message":             "تم تجديد اشتراك المشترك وتصفير الكوتة بنجاح",
+		"message":             "تم تجديد اشتراك المشترك وتصفير الكوتة وفصل الجلسة السابقة بنجاح",
 		"new_expiration_unix": newExp,
 	})
 }
@@ -1421,11 +1534,12 @@ func (h *APIHandler) handleResetUserQuota(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	_, _ = db.Exec(`UPDATE radacct SET acctstoptime = CURRENT_TIMESTAMP, acctterminatecause = 'Quota-Reset' WHERE username = ? AND acctstoptime IS NULL`, username)
+	// Disconnect session so router resets traffic counter and user reconnects fresh
+	h.disconnectTenantUserIfOnline(c, db, username)
 
-	recordTenantAuditLog(db, adminID, callerName, "تصفير الكوتة", username, "تم تصفير وإعادة تعيين استهلاك كوتة البيانات", c.IP())
+	recordTenantAuditLog(db, adminID, callerName, "تصفير الكوتة", username, "تم تصفير وإعادة تعيين استهلاك كوتة البيانات وفصل الجلسة لتحديث العداد", c.IP())
 
-	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير وإعادة شحن كوتة المشترك بنجاح"})
+	return c.JSON(fiber.Map{"success": true, "message": "تم تصفير وإعادة شحن كوتة المشترك وفصل الجلسة لتحديث الاتصال بنجاح"})
 }
 
 func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
@@ -1443,7 +1557,8 @@ func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 	var enabledInt int
 	var profile string
 	_ = db.QueryRow("SELECT value FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", username).Scan(&password)
-	_ = db.QueryRow("SELECT COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(expiration_unix, 0), COALESCE(enabled, 1) FROM radius_user_meta WHERE username = ?", username).Scan(&fullName, &phone, &expUnix, &enabledInt)
+	var userBalance float64
+	_ = db.QueryRow("SELECT COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(expiration_unix, 0), COALESCE(enabled, 1), COALESCE(balance, 0) FROM radius_user_meta WHERE username = ?", username).Scan(&fullName, &phone, &expUnix, &enabledInt, &userBalance)
 	_ = db.QueryRow("SELECT groupname FROM radusergroup WHERE username = ? LIMIT 1", username).Scan(&profile)
 	if profile == "" {
 		profile = "10M"
@@ -1513,6 +1628,32 @@ func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 		}
 	}
 
+	// Recent transactions
+	userTxs := make([]map[string]interface{}, 0)
+	txRows, txErr := db.Query(`
+		SELECT id, transaction_type, amount, notes, created_at
+		FROM radius_user_transactions
+		WHERE username = ?
+		ORDER BY id DESC LIMIT 20
+	`, username)
+	if txErr == nil {
+		defer txRows.Close()
+		for txRows.Next() {
+			var tid int64
+			var ttype, tnotes, tcreated string
+			var tamount float64
+			if err := txRows.Scan(&tid, &ttype, &tamount, &tnotes, &tcreated); err == nil {
+				userTxs = append(userTxs, map[string]interface{}{
+					"id":               tid,
+					"transaction_type": ttype,
+					"amount":           tamount,
+					"notes":            tnotes,
+					"created_at":       tcreated,
+				})
+			}
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"user":            username,
 		"username":        username,
@@ -1523,12 +1664,12 @@ func (h *APIHandler) handleGetUserDetails(c *fiber.Ctx) error {
 		"expires_at":      expStr,
 		"expiration":      expStr,
 		"expiration_unix": expUnix,
-		"balance":         0,
+		"balance":         userBalance,
 		"enabled":         enabledInt == 1,
 		"session":         session,
 		"session_history": sessionHistory,
 		"sessions":        sessionHistory,
-		"transactions":    []interface{}{},
+		"transactions":    userTxs,
 	})
 }
 
@@ -1561,21 +1702,8 @@ func (h *APIHandler) handleToggleUserStatus(c *fiber.Ctx) error {
 	// Ensure radcheck always has Cleartext-Password so the user is never lost
 	_, _ = db.Exec("UPDATE radcheck SET attribute = 'Cleartext-Password' WHERE username = ? AND attribute = 'Disabled-Password'", username)
 
-	// If disabled, disconnect active sessions in radacct and send PoD to MikroTik
-	if newStatus == 0 {
-		subdomain, _ := c.Locals("subdomain").(string)
-		if subdomain == "" {
-			subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
-		}
-		var sessionID, framedIP string
-		_ = db.QueryRow("SELECT COALESCE(acctsessionid, ''), COALESCE(framedipaddress, '') FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY radacctid DESC LIMIT 1", username).Scan(&sessionID, &framedIP)
-
-		now := time.Now().Format("2006-01-02 15:04:05")
-		_, _ = db.Exec("UPDATE radacct SET acctstoptime = ? WHERE username = ? AND acctstoptime IS NULL", now, username)
-		if h.mgr != nil && subdomain != "" {
-			_ = h.mgr.DisconnectCloudUser(subdomain, username, sessionID, framedIP)
-		}
-	}
+	// Disconnect session whether enabled or disabled so router drops previous/expired session immediately
+	h.disconnectTenantUserIfOnline(c, db, username)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -3363,10 +3491,20 @@ func (h *APIHandler) handleGetUserTransactions(c *fiber.Ctx) error {
 
 func (h *APIHandler) handleAddUserTransaction(c *fiber.Ctx) error {
 	db := c.Locals("tenant_db").(*sql.DB)
+	subdomain, _ := c.Locals("subdomain").(string)
+	if subdomain == "" {
+		subdomain = tunnel.ExtractSubdomainForHost(c.Get("Host"), h.mgr.domain)
+	}
 	username, _ := url.PathUnescape(c.Params("username"))
+	username = strings.TrimSpace(username)
 
 	if !h.checkUserOwnership(c, db, username) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "غير مصرح لك بإضافة حركة مالية لهذا المشترك"})
+	}
+
+	adminID, _ := c.Locals("admin_id").(int64)
+	if adminID <= 0 {
+		adminID = 1
 	}
 
 	var req struct {
@@ -3374,25 +3512,48 @@ func (h *APIHandler) handleAddUserTransaction(c *fiber.Ctx) error {
 		Amount float64 `json:"amount"`
 		Notes  string  `json:"notes"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid body"})
+	if err := c.BodyParser(&req); err != nil || req.Amount <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "المبلغ ونوع الحركة مطلوبان"})
 	}
 
 	_, err := db.Exec(`
-		INSERT INTO radius_user_transactions (username, transaction_type, amount, notes)
-		VALUES (?, ?, ?, ?)
-	`, username, req.Type, req.Amount, req.Notes)
+		INSERT INTO radius_user_transactions (username, transaction_type, amount, notes, admin_id, created_at)
+		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`, username, req.Type, req.Amount, req.Notes, adminID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	var balanceChange float64
 	if req.Type == "payment" || req.Type == "recharge" {
-		_, _ = db.Exec("UPDATE radius_user_meta SET balance = balance + ? WHERE username = ?", req.Amount, username)
+		balanceChange = -req.Amount
 	} else if req.Type == "debt" || req.Type == "withdraw" {
-		_, _ = db.Exec("UPDATE radius_user_meta SET balance = balance - ? WHERE username = ?", req.Amount, username)
+		balanceChange = req.Amount
 	}
 
-	return c.JSON(fiber.Map{"success": true, "message": "تم تسجيل الحركة المالية بنجاح"})
+	if balanceChange != 0 {
+		_, _ = db.Exec("UPDATE radius_user_meta SET balance = balance + ? WHERE username = ?", balanceChange, username)
+	}
+
+	var currentSubBal float64
+	_ = db.QueryRow("SELECT COALESCE(balance, 0) FROM radius_user_meta WHERE username = ?", username).Scan(&currentSubBal)
+
+	// Send WhatsApp notification if appropriate
+	if req.Type == "payment" {
+		h.SendTenantWhatsappNotification(subdomain, db, username, "payment", map[string]string{
+			"amount":  fmt.Sprintf("%.0f", req.Amount),
+			"notes":   req.Notes,
+			"balance": fmt.Sprintf("%.0f", currentSubBal),
+		})
+	} else if req.Type == "debt" {
+		h.SendTenantWhatsappNotification(subdomain, db, username, "add_debt", map[string]string{
+			"amount":  fmt.Sprintf("%.0f", req.Amount),
+			"notes":   req.Notes,
+			"balance": fmt.Sprintf("%.0f", currentSubBal),
+		})
+	}
+
+	return c.JSON(fiber.Map{"success": true, "message": "تم تسجيل الحركة المالية بنجاح", "balance": currentSubBal})
 }
 
 func (h *APIHandler) handleExportExcel(c *fiber.Ctx) error {
@@ -3905,6 +4066,20 @@ func (h *APIHandler) handleGetWhatsappTemplates(c *fiber.Ctx) error {
 			list = append(list, t)
 		}
 	}
+
+	if len(list) == 0 {
+		SeedDefaultTenantWhatsappTemplates(db)
+		if rows2, err2 := db.Query("SELECT id, event_type, template_text, enabled, updated_at FROM radius_whatsapp_templates"); err2 == nil {
+			defer rows2.Close()
+			for rows2.Next() {
+				var t TplItem
+				if err := rows2.Scan(&t.ID, &t.Key, &t.Text, &t.Enabled, &t.UpdatedAt); err == nil {
+					list = append(list, t)
+				}
+			}
+		}
+	}
+
 	return c.JSON(list)
 }
 

@@ -396,6 +396,16 @@ func EnsureTenantSchema(db *sql.DB) error {
 		_, _ = db.Exec("INSERT OR IGNORE INTO radius_profile_meta (groupname, validity_days, price) VALUES ('10M', 30, 25000)")
 	}
 
+	_, _ = db.Exec("ALTER TABLE radius_user_transactions ADD COLUMN admin_id INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performed_by INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_id INTEGER DEFAULT 1")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN performer_name TEXT DEFAULT 'المدير العام'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN type TEXT DEFAULT 'recharge'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN transaction_type TEXT DEFAULT 'recharge'")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN balance_after REAL DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN notes TEXT DEFAULT ''")
+	_, _ = db.Exec("ALTER TABLE radius_admin_transactions ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+
 	// Seed default admin if none exists
 	var adminCount int
 	_ = db.QueryRow("SELECT COUNT(*) FROM radius_admins WHERE username = 'admin'").Scan(&adminCount)
@@ -407,5 +417,31 @@ func EnsureTenantSchema(db *sql.DB) error {
 		`, string(hash))
 	}
 
+	// Seed default whatsapp templates
+	SeedDefaultTenantWhatsappTemplates(db)
+
 	return nil
 }
+
+func SeedDefaultTenantWhatsappTemplates(db *sql.DB) {
+	if db == nil {
+		return
+	}
+	defaults := map[string]string{
+		"renew_paid":      "تم تجديد اشتراكك بنجاح ✅\nالمستخدم: {username}\nالباقة: {profile}\nالسعر: {price} د.ع\nالمدة: {validity_days} يوم\nحالة الدفع: مدفوع",
+		"renew_debt":      "تم تجديد اشتراكك ⏳\nالمستخدم: {username}\nالباقة: {profile}\nالسعر: {price} د.ع\nالمدة: {validity_days} يوم\nملاحظة: تمت إضافة المبلغ كديون\nرصيدك الحالي: {balance} د.ع",
+		"add_debt":        "تم إضافة ديون 📋\nالمستخدم: {username}\nالمبلغ: {amount} د.ع\nالملاحظات: {notes}\nرصيدك الحالي: {balance} د.ع",
+		"payment":         "تم تسديد ديون ✅\nالمستخدم: {username}\nالمبلغ: {amount} د.ع\nالملاحظات: {notes}\nرصيدك الحالي: {balance} د.ع",
+		"expiry_reminder": "تنبيه انتهاء الاشتراك ⚠️\nعزيزي {full_name}، نود إعلامك أن اشتراكك في باقة {profile} سينتهي قريباً.\nتاريخ الانتهاء: {expiry_date}\nيرجى التجديد لضمان استمرار الخدمة.",
+		"debt_reminder":   "تذكير بالديون المستحقة 📋\nعزيزي {full_name}، نود تذكيرك بأن لديك ديوناً مستحقة بمبلغ {balance} د.ع.\nيرجى التواصل مع الوكيل لتسوية الحساب في أقرب وقت ممكن.\nشكراً لتعاملكم معنا 🙏",
+	}
+
+	for key, text := range defaults {
+		_, _ = db.Exec(`
+			INSERT INTO radius_whatsapp_templates (event_type, template_text, enabled, updated_at)
+			VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+			ON CONFLICT(event_type) DO NOTHING
+		`, key, text)
+	}
+}
+

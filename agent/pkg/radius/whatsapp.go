@@ -17,6 +17,7 @@ import (
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -24,6 +25,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	_ "modernc.org/sqlite"
 )
+
+func init() {
+	store.SetWAVersion(store.WAVersionContainer{2, 3000, 1047769893})
+}
 
 var (
 	waContainer *sqlstore.Container
